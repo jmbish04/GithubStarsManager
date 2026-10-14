@@ -1,0 +1,57 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "github-stars-manager",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+
+  // Icons only. Any path without a file falls through to the Worker.
+  "assets": { "directory": "./public" },
+
+  // Postgres 17 on LXC 109 (db github_stars, role github_stars_app) through the
+  // Cloudflare Access tunnel postgres-db.hacolby.app. Extensions: vector,
+  // vectorscale, pg_textsearch, ai. Caching is off: this is a read/write store.
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "b4a044ba931849f8a74ca3ad3cf29df5" }],
+
+  // OAuth 2.1 grants for MCP clients (@cloudflare/workers-oauth-provider).
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "0d4726712f6f4c86a665546eff65fdd0" }],
+
+  "services": [
+    // Every inference and embedding call: routed, metered and budgeted.
+    // No `ai` binding on purpose (see AGENTS-cloudflare-workers.md, section 2).
+    { "binding": "GUARDIAN", "service": "core-guardian", "entrypoint": "GuardianRpc" },
+    // Projects, plans, epics and tasks. Default entrypoint; called with WORKER_API_KEY.
+    { "binding": "MAESTRO", "service": "colby-maestro" }
+  ],
+
+  "secrets_store_secrets": [
+    { "binding": "WORKER_API_KEY", "store_id": "8c42fa70938644e0a8a109744467375f", "secret_name": "WORKER_API_KEY" },
+    { "binding": "GH_TOKEN", "store_id": "8c42fa70938644e0a8a109744467375f", "secret_name": "GH_TOKEN" },
+    { "binding": "CLOUDFLARE_AI_GATEWAY_TOKEN", "store_id": "8c42fa70938644e0a8a109744467375f", "secret_name": "CLOUDFLARE_AI_GATEWAY_TOKEN" }
+  ],
+
+  // The research orchestrator. One stable class; each run is an instance id,
+  // not a new Worker identity.
+  "workflows": [
+    { "name": "github-stars-research", "binding": "RESEARCH_WORKFLOW", "class_name": "ResearchWorkflow" }
+  ],
+
+  "triggers": {
+    // 13:00 UTC daily: interest discovery scan, then Maestro-driven research.
+    "crons": ["0 13 * * *"]
+  },
+
+  "vars": {
+    "GUARDIAN_PROJECT": "github-stars-manager",
+    "EMBEDDING_MODEL": "@cf/baai/bge-small-en-v1.5",
+    "EMBEDDING_DIMENSIONS": "384",
+    // Hard ceilings per day. The guardian enforces spend; these cap the work.
+    "DAILY_DISCOVERY_LIMIT": "40",
+    // Below this score (0.8 x similarity + 0.2 x star weight) a candidate stays out of the inbox.
+    "DISCOVERY_MIN_SCORE": "0.6",
+    "DAILY_MAESTRO_PROJECTS": "3",
+    "RESEARCH_MAX_CANDIDATES": "60",
+    "RESEARCH_MAX_LLM_CALLS": "12"
+  }
+}
