@@ -26,3 +26,12 @@ in colby-ecosystem, which only stores config. Refresh this block with
 # GithubStarsManager
 
 Repo-local agent notes go below the block above.
+
+## Backend: the `worker/` Cloudflare Worker (since 2026-10-14)
+
+- The live backend is `worker/` (`github-stars-manager`), on Postgres `github_stars` (LXC 109) through Hyperdrive `b4a044ba931849f8a74ca3ad3cf29df5`. Read `worker/README.md` first.
+- Vectors are pgvector (384 dims, bge-small through core-guardian) and keyword search is pg_textsearch BM25. Do not add Vectorize or an `ai` binding.
+- `cloudflare-worker/` (the old Vectorize proxy) and `server/` (Express + SQLite) are legacy, kept until the React app is pointed at the Worker (Maestro task `c94658981e62`).
+- Migrations: `cd worker && pnpm run migrate` from the LAN, before `pnpm run deploy`. The runtime role cannot run DDL.
+- Locale files under `src/locales/zh`, `zh-TW` and `ja` are real translations. Keep them. Everything else is US English.
+- Frontend retrofit question is open: `docs/decisions/2026-10-15-frontend-reui-retrofit.md`.

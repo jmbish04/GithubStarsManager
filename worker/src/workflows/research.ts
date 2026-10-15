@@ -21,6 +21,7 @@ import {
   rankCandidates,
   recordMaestroScan,
   runAgent,
+  runLibraryAgent,
   writeReport,
 } from "../services/research";
 
@@ -61,7 +62,9 @@ export class ResearchWorkflow extends WorkflowEntrypoint<Env, ResearchParams> {
             step.do(`sub-agent: ${agent.name}`, RETRY, () => this.withDb((db) => runAgent(this.env, db, agent))).then((ids) => ids.map((repoId) => ({ repoId, agentId: agent.id }))),
           ),
         );
-        candidates = results.flat();
+        const library = await step.do("sub-agent: your-library", RETRY, () => this.withDb((db) => runLibraryAgent(this.env, db, ctx)));
+        // GitHub sub-agents first, so a repo both found keeps the GitHub agent's attribution.
+        candidates = [...results.flat(), ...library.repoIds.map((repoId) => ({ repoId, agentId: library.agentId }))];
       }
 
       const ranked = await step.do("dedupe, enrich and rank", RETRY, () => this.withDb((db) => rankCandidates(this.env, db, ctx, candidates)));

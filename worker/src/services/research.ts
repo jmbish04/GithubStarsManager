@@ -215,6 +215,31 @@ export async function runAgent(env: Env, db: Db, agent: AgentPlan & { id: string
   }
 }
 
+const LIBRARY_LIMIT = 25;
+
+/**
+ * The "your library" sub-agent: nearest neighbours of the criterion among every
+ * repository already stored (your stars, past discoveries, past research).
+ * GitHub search ranks by stars and keywords, so it misses close matches you
+ * already know about; this pass catches them with no GitHub requests.
+ */
+export async function runLibraryAgent(env: Env, db: Db, ctx: RunContext): Promise<{ agentId: string; repoIds: number[] }> {
+  const [agent] = await db
+    .insert(researchAgents)
+    .values({ runId: ctx.runId, name: "your-library", angle: "Nearest stored repositories (stars, discoveries, past research) by meaning", status: "running", startedAt: new Date() })
+    .returning({ id: researchAgents.id });
+  const [vector] = await embed(env, [`${ctx.criterion}\n${ctx.targetInfrastructure ?? ""}`.trim()], "embed research criterion (library agent)");
+  const literal = `[${vector.join(",")}]`;
+  const rows = await db
+    .select({ id: repositories.id })
+    .from(repositories)
+    .where(and(isNotNull(repositories.embedding), sql`${repositories.stargazersCount} >= ${ctx.minStars}`))
+    .orderBy(sql`${repositories.embedding} <=> ${literal}::vector`)
+    .limit(LIBRARY_LIMIT);
+  await db.update(researchAgents).set({ status: "succeeded", candidatesFound: rows.length, finishedAt: new Date() }).where(eq(researchAgents.id, agent.id));
+  return { agentId: agent.id, repoIds: rows.map((r) => r.id) };
+}
+
 /** Seed repositories ("owner/name") for an on-demand leverage run. */
 export async function loadSeedRepos(env: Env, db: Db, fullNames: string[]): Promise<number[]> {
   const gh = await octokit(env);
