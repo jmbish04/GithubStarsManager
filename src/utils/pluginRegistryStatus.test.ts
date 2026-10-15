@@ -15,7 +15,7 @@ const entry = (overrides: Partial<PluginRegistryEntry> = {}): PluginRegistryEntr
   sha256: 'a'.repeat(64),
   permissions: ['repositories:read'],
   networkTargets: [],
-  dataUsage: '只读本地仓库元数据，不外发。',
+  dataUsage: 'Reads local repository metadata only; never sent externally.',
   review: { status: 'approved', date: '2026-09-21', commit: 'b'.repeat(40) },
   ...overrides,
 });
@@ -72,7 +72,7 @@ describe('assessInstalledPlugins', () => {
       permissionDiff: { added: ['repositories:read'], removed: [] },
       reason: null,
     });
-    expect(assessment.dataUsage).toContain('不外发');
+    expect(assessment.dataUsage).toContain('never sent externally');
   });
 
   it('marks up-to-date plugins and reports no permission diff', () => {
@@ -96,16 +96,16 @@ describe('assessInstalledPlugins', () => {
 
   it('flags revoked and blocked versions with the reason, before any update check', () => {
     const removed = [
-      { id: 'com.example.health', versions: ['1.0.0'], reason: '未声明就向第三方发送了仓库列表', date: '2026-09-21', action: 'revoke' as const },
+      { id: 'com.example.health', versions: ['1.0.0'], reason: 'Sent repository list to third party without declaration', date: '2026-09-21', action: 'revoke' as const },
     ];
     const [revoked] = assessInstalledPlugins(
       [{ id: 'com.example.health', version: '1.0.0', grantedPermissions: [] }],
       registry({ removed }),
     );
-    expect(revoked).toMatchObject({ status: 'revoked', reason: '未声明就向第三方发送了仓库列表', removedAction: 'revoke' });
+    expect(revoked).toMatchObject({ status: 'revoked', reason: 'Sent repository list to third party without declaration', removedAction: 'revoke' });
     expect(revoked.latestVersion).toBeNull();
 
-    // 撤销表里只列了 1.0.0，装的是 1.3.0 就不该被牵连
+    // Only 1.0.0 is listed in removals; installed 1.3.0 should not be affected
     const [untouched] = assessInstalledPlugins(
       [{ id: 'com.example.health', version: '1.3.0', grantedPermissions: [] }],
       registry({ removed }),
@@ -116,7 +116,7 @@ describe('assessInstalledPlugins', () => {
   it('treats an empty version list as "every version of this plugin"', () => {
     const [assessment] = assessInstalledPlugins(
       [{ id: 'com.example.health', version: '9.9.9', grantedPermissions: [] }],
-      registry({ removed: [{ id: 'com.example.health', versions: [], reason: '整包恶意，所有版本都撤销', date: '2026-09-21', action: 'block' }] }),
+      registry({ removed: [{ id: 'com.example.health', versions: [], reason: 'Malicious package; all versions revoked', date: '2026-09-21', action: 'block' }] }),
     );
     expect(assessment).toMatchObject({ status: 'blocked', removedAction: 'block' });
   });

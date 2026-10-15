@@ -5,7 +5,7 @@ import {
   normalizeMatchedLinkName,
 } from './assetFilters';
 
-/** 两层共用同一个求值器：测试里拆出两个便捷断言，避免与生产实现各自演化。 */
+/** Both tiers share the same evaluator: two helper assertions are extracted in tests to avoid drifting from the production implementation. */
 const releaseMatches = (
   filter: Parameters<typeof evaluateAssetFilter>[0],
   repoKey: string,
@@ -13,7 +13,7 @@ const releaseMatches = (
   realAssetNames: string[] = allLinkNames,
 ): boolean => evaluateAssetFilter(filter, repoKey, allLinkNames, realAssetNames).matchesRelease;
 
-/** 该过滤器贡献的资产索引（升序），语义见 evaluateAssetFilter 的资产级规则。 */
+/** Asset indices contributed by this filter (ascending); see asset-level rules in evaluateAssetFilter. */
 const matchedIndexes = (
   filter: Parameters<typeof evaluateAssetFilter>[0],
   repoKey: string,
@@ -23,7 +23,7 @@ const matchedIndexes = (
 
 describe('normalizeAssetFilters', () => {
   it('strips the obsolete excludeRepos field from persisted filters', () => {
-    // #405 曾短暂实现反向语义的 excludeRepos，hydration 时必须剥掉旧键
+    // #405 briefly implemented inverted-semantics excludeRepos; old keys must be stripped during hydration
     const filters = [
       {
         id: 'f1',
@@ -89,7 +89,7 @@ describe('normalizeAssetFilters', () => {
   });
 
   it('trims entries and drops empty or whitespace-only items (incl. empty-string keywords)', () => {
-    // keywords: [""] 若保留，includes("") 恒为 true，会变相匹配所有 Release
+    // If keywords: [""] were preserved, includes("") would always be true and inadvertently match all releases
     expect(normalizeAssetFilters([
       {
         id: 'f1',
@@ -134,7 +134,7 @@ describe('normalizeAssetFilters', () => {
   });
 
   it('does not cross-dedupe includeRepos against alwaysExcludeRepos', () => {
-    // 两组之间的重复是合法状态（用于展示“排除优先”冲突提示）
+    // Duplicates between both sets are valid state (used to display "exclude takes precedence" conflict hints)
     expect(normalizeAssetFilters([
       {
         id: 'f1',
@@ -178,12 +178,12 @@ describe('normalizeAssetFilters', () => {
 
   it('drops filters missing required fields so keyword matching cannot throw', () => {
     expect(normalizeAssetFilters([
-      { id: 'f1' },                              // 缺 name / keywords
-      { id: '', name: 'X', keywords: ['k'] },    // 空 id
-      { id: 'f2', keywords: ['k'] },             // 缺 name
-      { id: 'f3', name: 'X' },                   // 缺 keywords
-      { id: 'f4', name: 'X', keywords: 'oops' }, // keywords 不是数组
-      { id: 'ok', name: 'OK', keywords: ['k'] }, // 合法条目保留
+      { id: 'f1' },                              // missing name / keywords
+      { id: '', name: 'X', keywords: ['k'] },    // empty id
+      { id: 'f2', keywords: ['k'] },             // missing name
+      { id: 'f3', name: 'X' },                   // missing keywords
+      { id: 'f4', name: 'X', keywords: 'oops' }, // keywords is not an array
+      { id: 'ok', name: 'OK', keywords: ['k'] }, // valid entry preserved
     ])).toEqual([{ id: 'ok', name: 'OK', keywords: ['k'] }]);
   });
 
@@ -194,8 +194,8 @@ describe('normalizeAssetFilters', () => {
   });
 });
 
-describe('evaluateAssetFilter（Release 级命中）', () => {
-  // 调用方传入的列表均已小写（与 ReleaseTimeline 的 lowerLinkNames 做法一致）
+describe('evaluateAssetFilter (release-level match)', () => {
+  // Lists passed by callers are already lowercased (consistent with lowerLinkNames in ReleaseTimeline)
   const match = (
     filter: Parameters<typeof evaluateAssetFilter>[0],
     repoKey: string,
@@ -234,10 +234,10 @@ describe('evaluateAssetFilter（Release 级命中）', () => {
   });
 
   it('keeps the legacy matching scope when include keywords are present (pseudo assets & body links)', () => {
-    // preset-source 依赖 "source code (...)" 伪资产名参与匹配的现状
+    // Preserves existing behavior where preset-source relies on "source code (...)" pseudo-asset names matching
     const filter = { keywords: ['source'] };
     expect(match(filter, 'owner/a', ['app.bin', 'source code (v1.zip)'], ['app.bin'])).toBe(true);
-    // 正文提取的下载链接名也参与匹配（包含关键词非空的现状路径）
+    // Download link names extracted from the body also participate in matching (existing behavior when keywords are non-empty)
     expect(match(filter, 'owner/a', ['app.bin', 'download-setup.exe'], ['app.bin'])).toBe(false);
     const setupFilter = { keywords: ['setup'] };
     expect(match(setupFilter, 'owner/a', ['app.bin', 'download-setup.exe'], ['app.bin'])).toBe(true);
@@ -246,15 +246,15 @@ describe('evaluateAssetFilter（Release 级命中）', () => {
   it('matches only real uploaded assets when include keywords are empty', () => {
     const filter = { keywords: [], excludeKeywords: ['setup'] };
 
-    // 至少一个真实上传资产未被排除 → 命中
+    // At least one real uploaded asset is not excluded -> match
     expect(match(filter, 'owner/a', ['source code (v1.zip)', 'app.zip'], ['app.zip'])).toBe(true);
 
-    // 真实资产全部被排除，但伪资产未排除 → 隐藏（排除关键词必须能隐藏 Release）
+    // All real assets excluded, but pseudo-assets not excluded -> hide (exclude keywords must be able to hide releases)
     expect(
       match(filter, 'owner/a', ['source code (v1.zip)', 'app-setup.zip'], ['app-setup.zip']),
     ).toBe(false);
 
-    // 没有真实上传资产 → 隐藏
+    // No real uploaded assets -> hide
     expect(match(filter, 'owner/a', ['source code (v1.zip)'], [])).toBe(false);
   });
 
@@ -271,7 +271,7 @@ describe('evaluateAssetFilter（Release 级命中）', () => {
   });
 
   it('keeps includeRepos whitelist semantics when both repo lists are configured', () => {
-    // 规则 7：两组都存在时，只命中包含列表中且不在排除列表中的仓库
+    // Rule 7: when both sets exist, only repos in the include list and not in the exclude list match
     const filter = {
       keywords: [],
       includeRepos: ['owner/beta'],
@@ -284,14 +284,14 @@ describe('evaluateAssetFilter（Release 级命中）', () => {
 
   it('never matches a defense-grade empty filter', () => {
     expect(match({ keywords: [] }, 'owner/a', ['app.zip'])).toBe(false);
-    // 含空字符串关键词的畸形 filter 不得变相匹配所有 Release
+    // Malformed filters with empty-string keywords must not inadvertently match all releases
     expect(match({ keywords: [''] }, 'owner/a', ['app.zip'])).toBe(false);
   });
 });
 
 describe('normalizeMatchedLinkName', () => {
   it('strips the archive suffix GitHub appends to source-code pseudo assets', () => {
-    // 每个 Release 都存在这两条伪资产：原样参与匹配会让 zip / tar.gz 命中所有 Release
+    // Both pseudo-assets exist on every release: matching them as-is would make zip / tar.gz match all releases
     expect(normalizeMatchedLinkName('source code (v1.2.0.zip)', true)).toBe('source code (v1.2.0)');
     expect(normalizeMatchedLinkName('source code (v1.2.0.tar.gz)', true)).toBe('source code (v1.2.0)');
   });
@@ -312,8 +312,8 @@ describe('normalizeMatchedLinkName', () => {
   });
 
   it('stops a zip-only filter from matching a release that has no real zip asset', () => {
-    // 复刻线上误报：MinerU 只上传 .whl，cline / openclaw 干脆零资产，
-    // 却因为 "Source code (<tag>.zip)" 出现在 macOS（含 zip 关键词）过滤结果里
+    // Replicates production false positives: MinerU only uploads .whl, cline / openclaw have zero assets,
+    // yet appeared in macOS (containing zip keyword) filter results because of "Source code (<tag>.zip)"
     const zipFilter = { keywords: ['zip'] };
     const pseudoOnlyLinks = [
       'mineru-4.0.0-py3-none-any.whl',
@@ -324,14 +324,14 @@ describe('normalizeMatchedLinkName', () => {
       releaseMatches(zipFilter, 'opendatalab/mineru', pseudoOnlyLinks, ['mineru-4.0.0-py3-none-any.whl']),
     ).toBe(false);
 
-    // 真实上传的 zip 资产仍然命中
+    // Real uploaded zip assets still match
     const realZipLinks = ['app-1.0.zip', normalizeMatchedLinkName('source code (v1.zip)', true)];
     expect(releaseMatches(zipFilter, 'owner/a', realZipLinks, ['app-1.0.zip'])).toBe(true);
   });
 });
 
-describe('evaluateAssetFilter（资产级裁剪）', () => {
-  // 调用方传入的链接名已小写、并已按 normalizeMatchedLinkName 归一化
+describe('evaluateAssetFilter (asset-level pruning)', () => {
+  // Link names passed by callers are lowercased and normalized via normalizeMatchedLinkName
   const linkNames = ['app-macos.dmg', 'app-setup.exe', 'app-linux.appimage'];
 
   it('keeps only the links hitting an include keyword', () => {
@@ -339,14 +339,14 @@ describe('evaluateAssetFilter（资产级裁剪）', () => {
     expect(matchedIndexes({ keywords: ['app'] }, 'owner/a', linkNames)).toEqual([0, 1, 2]);
   });
 
-  it('keeps only the links hitting any of several include keywords (需求场景：macos / arm64)', () => {
+  it('keeps only the links hitting any of several include keywords (scenario: macos / arm64)', () => {
     const armNames = [
       'koreader-macos-11.0-arm64-v1.7z',
       'koreader-android-arm64-v1.apk',
       'koreader-appimage-x86_64-v1.AppImage',
       'koreader_1-1_amd64.deb',
     ];
-    // macos 命中第 1 项、arm64 命中第 1、2 项 → 只保留 1、2
+    // macos matches item 0, arm64 matches items 0 and 1 -> keep only 0 and 1
     expect(matchedIndexes({ keywords: ['macos', 'arm64'] }, 'koreader/koreader', armNames))
       .toEqual([0, 1]);
   });
@@ -373,8 +373,8 @@ describe('evaluateAssetFilter（资产级裁剪）', () => {
   });
 
   it('contributes nothing for a rule-less filter (audit: it must not unlock every asset list)', () => {
-    // 空规则过滤器既不命中任何 Release，也不能贡献资产——否则被其它过滤器筛出的
-    // Release 会因为它而展示全部资产
+    // A rule-less filter neither matches any release nor contributes assets — otherwise releases
+    // filtered by other rules would display all their assets because of it
     expect(matchedIndexes({ keywords: [] }, 'owner/a', linkNames)).toEqual([]);
     expect(matchedIndexes({ keywords: [''] }, 'owner/a', linkNames)).toEqual([]);
     expect(releaseMatches({ keywords: [] }, 'owner/a', linkNames)).toBe(false);
@@ -393,7 +393,7 @@ describe('evaluateAssetFilter（资产级裁剪）', () => {
     ];
     expect(archiveNames[3]).toBe('source code (v1)');
     expect(matchedIndexes({ keywords: ['zip'] }, 'owner/a', archiveNames)).toEqual([]);
-    // source 关键词依然命中源码归档条目（preset-source 行为不变）
+    // source keyword still matches source archive entries (preset-source behavior unchanged)
     expect(matchedIndexes({ keywords: ['source'] }, 'owner/a', archiveNames)).toEqual([3]);
   });
 });

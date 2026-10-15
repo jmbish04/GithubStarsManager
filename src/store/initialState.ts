@@ -27,9 +27,9 @@ export const createInitialState = (): AppState => ({
       isAuthenticated: false,
       accountWorkspaces: {},
       repositories: [],
-      // Theme token 默认全部"跟随预设"（开发守则 §14）
+      // Theme tokens default to "follow preset" (Development Guidelines §14)
       themeTokens: { ...DEFAULT_THEME_TOKENS },
-      // Trending 快照（开发守则 §7）：本地榜单历史，默认空
+      // Trending snapshots (Development Guidelines §7): local trending history, empty by default
       trendingSnapshots: [],
       gists: [],
       starredGists: [],
@@ -88,7 +88,7 @@ export const createInitialState = (): AppState => ({
       isSidebarCollapsed: false,
       readmeModalOpen: false,
       repositoryViewMode: 'grid',
-      // 卡片可见字段默认全开（开发守则 §14）
+      // Card visible fields default to fully enabled (Development Guidelines §14)
       repositoryCardFields: { ...DEFAULT_REPOSITORY_CARD_FIELDS },
       repositoryCardActions: DEFAULT_REPOSITORY_CARD_ACTIONS.map((item) => ({ ...item })),
       releaseViewMode: 'timeline',

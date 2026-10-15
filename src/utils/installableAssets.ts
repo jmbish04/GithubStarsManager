@@ -1,18 +1,12 @@
 /**
- * Installable Asset Detection —— 判断一个 Release 里哪些资产可以在当前设备上安装。
+ * Installable Asset Detection — Determines which assets in a release can be installed on the current device.
  *
- * 复用与新增的边界（先读代码再动手的结论）：
- * - **复用**：平台判定直接调用 [`detectAssetPlatform`](./releaseAssets.ts) 与它导出的
- *   [`OS_TOKEN_PLATFORM`](./releaseAssets.ts)，不另写一份平台词表。
- * - **新增**：架构词表、包类型表、排除规则与置信度模型。仓库里唯一存在的架构词表在
- *   `examples/plugins/smart-release-recommender/worker.js`，那是沙箱内的第三方插件参考实现，
- *   `src/` 无法 import（插件也不能反向依赖 Core），因此这里必须有一份 Host 侧实现，
- *   并在下方注明与那份参考实现的对应关系。
- * - **不复用** [`PRESET_FILTERS`](../constants/presetFilters.ts)：它把 `zip` / `tar.gz`
- *   归入 Source、且用朴素子串匹配（`win` 会命中 `darwin`），与「可安装软件识别」的目标冲突。
+ * Reuse vs. new code boundaries:
+ * - Reuse: Platform detection directly calls `detectAssetPlatform` and its exported `OS_TOKEN_PLATFORM` from `./releaseAssets.ts` rather than duplicating the platform vocabulary.
+ * - New additions: Architecture dictionary, package type table, exclusion rules, and confidence model. The only other architecture vocabulary in the repo is in `examples/plugins/smart-release-recommender/worker.js`, which is a sandboxed third-party plugin reference implementation that `src/` cannot import (plugins also cannot depend inversely on Core). Therefore, a host-side implementation must live here, with references noted below.
+ * - Non-reuse: `PRESET_FILTERS` (../constants/presetFilters.ts) is not reused because it classifies `zip` / `tar.gz` under Source and uses naive substring matching (`win` matching `darwin`), conflicting with installable software detection goals.
  *
- * 边界（roadmap §5.3）：只识别，不执行；不宣称安装包安全；不确定时并列多个候选；
- * 用户始终可以在资产表里手动选择其他资产。
+ * Boundaries (roadmap §5.3): Detection only, no execution; does not assert package safety; lists multiple candidates when uncertain; users can always manually choose other assets in the asset sheet.
  */
 import type { ReleaseAsset } from '../types';
 import type {
@@ -26,7 +20,7 @@ import type {
 } from '../types/installableAsset';
 import { detectAssetPlatform, OS_TOKEN_PLATFORM, type AssetPlatform } from './releaseAssets';
 
-/** 本阶段支持的目标平台；`ios` / `docker` 不属于「可安装到当前设备」的范畴。 */
+/** Supported target platforms for this stage; 'ios' and 'docker' do not fall within "installable on the current device". */
 const INSTALLABLE_PLATFORMS: readonly InstallablePlatform[] = ['windows', 'macos', 'linux', 'android'];
 
 function toInstallablePlatform(platform: AssetPlatform | null): InstallablePlatform | null {
@@ -36,17 +30,16 @@ function toInstallablePlatform(platform: AssetPlatform | null): InstallablePlatf
 }
 
 /**
- * 包类型表：后缀 → 包类型 + 该后缀是否**决定性**地确定了平台。
+ * Package type table: extension -> package type + whether this extension decisively determines the platform.
  *
- * 按后缀长度降序匹配（`detectAssetPlatform` 的分层注释里说明了为什么必须先长后短）。
- * `decisivePlatform` 为 null 的容器格式（zip/7z/tar.gz）只说明「怎么装」，
- * 不说明「装在哪」——平台交给文件名里的 OS 词元判定。
+ * Matches extensions in descending length order (the layered comments in `detectAssetPlatform` explain why longer extensions must precede shorter ones).
+ * Container formats (zip/7z/tar.gz) with `decisivePlatform: null` only describe how to install, not where to install; platform resolution is delegated to OS tokens in the filename.
  */
 interface PackageTypeEntry {
   suffix: string;
   packageType: InstallablePackageType;
   decisivePlatform: InstallablePlatform | null;
-  /** Android App Bundle 只能识别，不能当作可直接安装的推荐。 */
+  /** Android App Bundles can only be detected, not recommended for direct installation. */
   detectOnly?: boolean;
 }
 
@@ -65,16 +58,15 @@ const PACKAGE_TYPE_ENTRIES: PackageTypeEntry[] = [
   { suffix: '.7z', packageType: '7z', decisivePlatform: null },
 ];
 
-/** 长后缀优先，避免 `.pkg` 抢在 `.tar.gz` 之类的前面。 */
+/** Longer extensions have priority to avoid `.pkg` matching ahead of `.tar.gz`, etc. */
 const PACKAGE_TYPES: PackageTypeEntry[] = [...PACKAGE_TYPE_ENTRIES].sort(
   (left, right) => right.suffix.length - left.suffix.length,
 );
 
 /**
- * 排除规则：这些资产不是「可安装软件」，必须在候选之前剔除。
- * 规则集与 `examples/plugins/smart-release-recommender/worker.js` 的
- * `SOURCE_ARCHIVE` / checksum 正则保持同一意图，但覆盖范围更完整
- * （该参考实现只有 source / checksum / signature 三类）。
+ * Exclusion rules: assets that are not installable software must be filtered out before candidate selection.
+ * This ruleset shares the same intent as `SOURCE_ARCHIVE` / checksum regexes in `examples/plugins/smart-release-recommender/worker.js`,
+ * but with more complete coverage (that reference implementation only covers source, checksum, and signature).
  */
 const EXCLUSION_RULES: ReadonlyArray<{ reason: string; pattern: RegExp }> = [
   { reason: 'source code archive', pattern: /(?:^|[^a-z0-9])(?:source|src)(?:[^a-z0-9]?(?:code|archive))?(?=$|[^a-z0-9])|源码/ },
@@ -86,12 +78,11 @@ const EXCLUSION_RULES: ReadonlyArray<{ reason: string; pattern: RegExp }> = [
 ];
 
 /**
- * 架构词表。
- * 与参考实现（worker.js L11-16）的差异有两点，都是刻意的：
- * - 不使用裸 `x86` 之外还接受 `ia32` / `i386…i686`（Electron 的 32 位命名）；
- *   `win32` 是 Windows 的平台名而不是 32 位标记，参考实现的注释也这么说，这里同样不当作架构。
- * - 增加 `universal`（macOS 通用二进制 / 多架构单一产物）。参考实现从不产出该值，
- *   于是 `project-macos-universal.dmg` 只靠平台得分胜出；这里把它识别成一等架构。
+ * Architecture vocabulary.
+ * Intentionally differs from the reference implementation (worker.js L11-16) in two ways:
+ * - Accepts `ia32` / `i386…i686` (Electron 32-bit naming) in addition to bare `x86`;
+ *   `win32` is a Windows platform name rather than a 32-bit indicator (as noted in the reference implementation comments) and is not treated as an architecture here.
+ * - Adds `universal` (macOS universal binary / multi-architecture single asset). The reference implementation never outputs this value, so `project-macos-universal.dmg` would only win on platform score; here we recognize it as a first-class architecture.
  */
 const ARCH_RULES: ReadonlyArray<{ architecture: InstallableArchitecture; pattern: RegExp }> = [
   { architecture: 'universal', pattern: /(?:^|[^a-z0-9])(?:universal2?|multiarch)(?=$|[^a-z0-9])/ },
@@ -100,10 +91,10 @@ const ARCH_RULES: ReadonlyArray<{ architecture: InstallableArchitecture; pattern
   { architecture: 'x86', pattern: /(?:^|[^a-z0-9])(?:ia32|i[3-6]86|x86(?![_-]?64))(?=$|[^a-z0-9])/ },
 ];
 
-/** 置信度排序用权重（高在前）。 */
+/** Weights used for confidence sorting (highest first). */
 const CONFIDENCE_ORDER: Record<InstallableConfidence, number> = { high: 0, medium: 1, low: 2 };
 
-/** 架构相对当前设备的贴合度：精确匹配最好，其次通用产物，最后是未知。 */
+/** Architecture fit relative to the current device: exact match is best, followed by universal builds, and finally unknown. */
 function architectureRank(
   architecture: InstallableArchitecture | undefined,
   deviceArchitecture: InstallableArchitecture | undefined,
@@ -113,13 +104,13 @@ function architectureRank(
   return architecture === deviceArchitecture ? 0 : 1;
 }
 
-/** 从文件名解析包类型（后缀匹配，长后缀优先）。 */
+/** Detects package type from file name (extension match, longer extension prioritized). */
 function detectPackageType(fileName: string) {
   const name = fileName.toLowerCase();
   return PACKAGE_TYPES.find((entry) => name.endsWith(entry.suffix)) ?? null;
 }
 
-/** 文件名里声明的架构集合；空集表示没有声明。 */
+/** Architectures declared in the file name; empty set means none declared. */
 function declaredArchitectures(fileName: string): Set<InstallableArchitecture> {
   const name = fileName.toLowerCase();
   const found = new Set<InstallableArchitecture>();
@@ -129,7 +120,7 @@ function declaredArchitectures(fileName: string): Set<InstallableArchitecture> {
   return found;
 }
 
-/** 文件名里声明的平台集合（复用 releaseAssets 的词表，不重复维护）。 */
+/** Platforms declared in the file name (reuses releaseAssets vocabulary without duplicate maintenance). */
 function declaredPlatforms(fileName: string): Set<InstallablePlatform> {
   const found = new Set<InstallablePlatform>();
   for (const token of fileName.toLowerCase().split(/[^a-z0-9]+/)) {
@@ -140,9 +131,9 @@ function declaredPlatforms(fileName: string): Set<InstallablePlatform> {
 }
 
 /**
- * 解析资产架构。
- * 返回 `ambiguous` 表示文件名同时声明了多个架构（如 `app-x64-arm64.zip`）——
- * 此时不猜，架构留空并降级置信度。
+ * Resolves asset architecture.
+ * Returning `ambiguous` indicates the filename declared multiple architectures concurrently (e.g. `app-x64-arm64.zip`).
+ * In this case, we avoid guessing: architecture is left unset and confidence is downgraded.
  */
 function resolveArchitecture(fileName: string): {
   architecture?: InstallableArchitecture;
@@ -150,13 +141,13 @@ function resolveArchitecture(fileName: string): {
 } {
   const declared = declaredArchitectures(fileName);
   if (declared.size === 0) return { ambiguous: false };
-  // 通用产物覆盖所有架构，与具体架构同时出现时以通用为准（不矛盾）。
+  // Universal builds cover all architectures; when appearing alongside a specific architecture, universal takes precedence (no contradiction).
   if (declared.has('universal')) return { architecture: 'universal', ambiguous: false };
   if (declared.size === 1) return { architecture: [...declared][0], ambiguous: false };
   return { ambiguous: true };
 }
 
-/** 组装人类可读的判定依据。UI 另有本地化标签，这里同时供 AI/MCP/插件解释「为什么」。 */
+/** Assembles human-readable rationale. The UI has separate localized labels; this provides explanation for AI/MCP/plugins as well. */
 function buildReason(input: {
   platform: InstallablePlatform;
   packageType: InstallablePackageType;
@@ -180,11 +171,11 @@ function buildReason(input: {
 }
 
 /**
- * 识别一个 Release 的资产集合。
+ * Detects installable assets from a release asset collection.
  *
- * @param assets Release 资产（`Release.assets`）。
- * @param options 目标设备与过滤条件；省略 `platform` 表示「不按平台过滤」，返回全部候选。
- * @returns 候选（按置信度、架构贴合度、资产 id 稳定排序）与被排除资产及原因。
+ * @param assets Release assets (`Release.assets`).
+ * @param options Target device and filter options; omitting `platform` disables platform filtering and returns all candidates.
+ * @returns Candidates (stably sorted by confidence, architecture fit, and asset ID) and excluded assets with reasons.
  */
 export function detectInstallableAssets(
   assets: readonly ReleaseAsset[] | undefined,
@@ -211,7 +202,7 @@ export function detectInstallableAssets(
       excluded.push({ assetId: asset.id, fileName, reason: 'not a supported installable package format' });
       continue;
     }
-    // AAB 只识别、不直接安装：默认不进候选（roadmap §5.1）。
+    // AAB is detect-only and not directly installable: omitted from candidates by default (roadmap §5.1).
     if (packageInfo.detectOnly && !options.includeDetectOnly) {
       excluded.push({ assetId: asset.id, fileName, reason: 'Android App Bundle is detect-only and cannot be installed directly' });
       continue;
@@ -227,7 +218,7 @@ export function detectInstallableAssets(
       continue;
     }
 
-    // 平台来源优先级：文件名唯一平台 → 决定性扩展名。两者冲突时宁可排除也不猜。
+    // Platform origin precedence: unique filename platform -> decisive extension. When in conflict, exclude rather than guess.
     const fromExtension = packageInfo.decisivePlatform;
     let platform: InstallablePlatform | null = null;
     let platformFromExtension = false;
@@ -246,10 +237,10 @@ export function detectInstallableAssets(
       platform = fromExtension;
       platformFromExtension = true;
     } else {
-      // 容器本身不说明装在哪（例如 `myapp-1.0.zip`）。此时再复用既有
-      // detectAssetPlatform 的最后一层——content_type 的 MIME 兜底——
-      // 只有它还能提供平台证据；其余情形不猜（roadmap §5.3「不把 ZIP 一律当作可安装软件」），
-      // 资产表里仍可手动下载。
+      // Container format does not indicate target platform (e.g. `myapp-1.0.zip`).
+      // Reuse the final layer of detectAssetPlatform — MIME type fallback from content_type.
+      // Only this can still provide platform evidence; otherwise do not guess (roadmap §5.3: "do not treat all ZIPs as installable software"),
+      // while still allowing manual download in the asset sheet.
       const fromContentType = toInstallablePlatform(
         detectAssetPlatform(fileName, asset.content_type),
       );
@@ -300,7 +291,7 @@ export function detectInstallableAssets(
       continue;
     }
 
-    // 置信度：决定性扩展名 + 已知架构 = 高；容器格式或架构未知则降级。
+    // Confidence: decisive extension + known architecture = high; container format or unknown architecture downgrades confidence.
     let confidence: InstallableConfidence;
     if (usesWindowsX86Compatibility) confidence = 'medium';
     else if (fromExtension && architecture) confidence = 'high';
@@ -340,8 +331,8 @@ export function detectInstallableAssets(
 }
 
 /**
- * 仓库级便捷判断：该 Release 资产集合里是否存在当前设备可安装的软件。
- * 供 Discovery 筛选、Repository Health 与批量导入预览复用。
+ * Repository-level convenience check: whether any asset in the release can be installed on the current device.
+ * Reused by Discovery filtering, Repository Health, and batch import previews.
  */
 export function hasInstallableAsset(
   assets: readonly ReleaseAsset[] | undefined,

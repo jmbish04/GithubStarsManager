@@ -282,7 +282,7 @@ describe('PR-07 Store modularization compatibility', () => {
     const originalChannels = store.getState().discoveryChannels;
     const originalSelected = store.getState().selectedDiscoveryChannel;
     try {
-      // 纯浏览器模式（测试环境无桌面壳、无后端）下 x-tweet/telegram 被隐藏但仍是 enabled
+      // In pure browser mode (test env without desktop shell or backend), x-tweet/telegram are hidden but still enabled
       store.setState({
         discoveryChannels: store.getState().discoveryChannels.map(channel => ({
           ...channel,
@@ -292,11 +292,11 @@ describe('PR-07 Store modularization compatibility', () => {
       });
       const id = store.getState().addExternalDiscoveryChannel('Last feed', 'https://example.com/last.json');
       store.getState().removeExternalDiscoveryChannel(id!);
-      // 隐藏频道的启用不能替代可见频道：删除最后一个可见启用频道后必须恢复趋势
+      // Enabled state of hidden channels cannot substitute for visible channels: restoring trending is mandatory when removing the last visible enabled channel
       expect(store.getState().discoveryChannels.find(channel => channel.id === 'trending')?.enabled).toBe(true);
       expect(store.getState().selectedDiscoveryChannel).toBe('trending');
 
-      // 隐藏频道仍启用时，关闭最后一个可见启用频道应被阻止
+      // When hidden channels remain enabled, disabling the last visible enabled channel should be blocked
       store.setState({
         discoveryChannels: store.getState().discoveryChannels.map(channel => ({
           ...channel,
@@ -315,8 +315,8 @@ describe('PR-07 Store modularization compatibility', () => {
     const originalChannels = store.getState().discoveryChannels;
     const originalSelected = store.getState().selectedDiscoveryChannel;
     try {
-      // Web+后端用户水合时探测尚未完成：x-tweet 选择必须保留，
-      // 由 DiscoveryView 在抓取支持结论落定后再决定是否纠偏
+      // Probe is not yet complete when Web+backend users hydrate: x-tweet selection must be preserved,
+      // leaving DiscoveryView to decide whether to correct it after scraping support status is settled
       store.setState({
         discoveryChannels: originalChannels.map(channel => ({ ...channel, enabled: true })),
         selectedDiscoveryChannel: 'trending',
@@ -336,8 +336,8 @@ describe('PR-07 Store modularization compatibility', () => {
     const originalChannels = store.getState().discoveryChannels;
     const originalSelected = store.getState().selectedDiscoveryChannel;
     try {
-      // Web 探测未完成（测试环境无桌面壳、无探测）：只启用 x-tweet 的用户偏好
-      // 不得被强制启用的「趋势」覆盖
+      // Web probe unsettled (test env has no desktop shell, no probe): user preferences enabling only x-tweet
+      // must not be overwritten by forcibly enabling "trending"
       store.setState({
         discoveryChannels: originalChannels.map(channel => ({ ...channel, enabled: channel.id === 'x-tweet' })),
         selectedDiscoveryChannel: 'x-tweet',
@@ -358,7 +358,7 @@ describe('PR-07 Store modularization compatibility', () => {
     const originalChannels = store.getState().discoveryChannels;
     const originalSelected = store.getState().selectedDiscoveryChannel;
     try {
-      // 桌面端结论恒定已落定：全部停用时仍恢复「趋势」
+      // Desktop environment status is permanently settled: restore "trending" when all channels are disabled
       (window as unknown as { electronAPI?: unknown }).electronAPI = {};
       const hydrated = actualStore.normalizePersistedState({
         discoveryChannels: store.getState().discoveryChannels.map(channel => ({ ...channel, enabled: false })),

@@ -28,7 +28,7 @@ const toTimestamp = (value: string): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-/** 自然日键：同一天内多次刷新只保留最后一份快照。 */
+/** Calendar day key: multiple refreshes on the same day only keep the latest snapshot. */
 const dayKey = (iso: string): string => {
   const date = new Date(toTimestamp(iso) ?? 0);
   const year = date.getFullYear();
@@ -48,7 +48,7 @@ const isPeriod = (value: unknown): value is TrendingTimeRange => (
   typeof value === 'string' && (PERIODS as string[]).includes(value)
 );
 
-/** 规范化单条entry；名字为空或名次非正数就丢弃。 */
+/** Normalizes a single entry; discards entries with an empty name or a non-positive rank. */
 const normalizeEntry = (value: unknown): TrendingSnapshotEntry | null => {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
@@ -64,7 +64,7 @@ const normalizeEntry = (value: unknown): TrendingSnapshotEntry | null => {
   return { repositoryFullName: fullName, rank, stars };
 };
 
-/** 规范化整份快照；坏输入返回 null。 */
+/** Normalizes an entire snapshot; returns null on invalid input. */
 export const normalizeTrendingSnapshot = (value: unknown): TrendingSnapshot | null => {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
@@ -92,15 +92,16 @@ export const normalizeTrendingSnapshot = (value: unknown): TrendingSnapshot | nu
   return { period: record.period, platform, capturedAt, entries };
 };
 
-/** 逐份规范化并丢弃非法项。 */
+/** Normalizes each snapshot and discards invalid items. */
 export const normalizeTrendingSnapshots = (value: unknown): TrendingSnapshot[] => {
   if (!Array.isArray(value)) return [];
   const snapshots = value
     .map(normalizeTrendingSnapshot)
     .filter((snapshot): snapshot is TrendingSnapshot => snapshot !== null);
   const pruned = pruneTrendingSnapshots(snapshots);
-  // 内容等价时保留原数组引用：分片持久化按引用判脏，规整化若总是重建数组，
-  // 每次启动都会把 trendingSnapshots 分片误判为已变更而全量重写。
+  // Preserve original array reference when content is equivalent: sharded persistence
+  // uses reference equality for dirty checking. Rebuilding the array every time would
+  // falsely mark the trendingSnapshots shard as modified and trigger a full rewrite on each startup.
   if (pruned.length === value.length
     && pruned.every((snapshot, index) => trendingSnapshotContentEqual(snapshot, value[index]))) {
     return value as TrendingSnapshot[];
@@ -108,7 +109,7 @@ export const normalizeTrendingSnapshots = (value: unknown): TrendingSnapshot[] =
   return pruned;
 };
 
-/** 已知四个字段逐项相等即视为等价（原始对象来自我们自己的 JSON 往返，无额外键）。 */
+/** Considered equivalent if all four known fields match item by item (raw objects come from our own JSON round-trips without extra keys). */
 const trendingSnapshotContentEqual = (normalized: TrendingSnapshot, raw: unknown): boolean => {
   if (!raw || typeof raw !== 'object') return false;
   const record = raw as Record<string, unknown>;
@@ -127,7 +128,7 @@ const trendingSnapshotContentEqual = (normalized: TrendingSnapshot, raw: unknown
   });
 };
 
-/** 去掉超期快照，并按桶裁剪到上限（每桶保留最新 N 份）。 */
+/** Drops expired snapshots and trims buckets to their limit (keeping the latest N snapshots per bucket). */
 export const pruneTrendingSnapshots = (
   snapshots: TrendingSnapshot[],
   now: number = Date.now(),
@@ -161,10 +162,11 @@ export const pruneTrendingSnapshots = (
 };
 
 /**
- * 记一份快照。
+ * Records a snapshot.
  *
- * 同一个「周期 × 平台 × 自然日」只保留最后一次看到的榜单——一天之内翻页、切平台再切回来
- * 都不该留下多份互相矛盾的快照。写入时顺带裁掉超期与超量的历史。
+ * Keeps only the last seen leaderboard for the same "period × platform × calendar day" bucket—paging,
+ * switching platforms, and switching back within a single day should not leave contradictory snapshots.
+ * Also prunes expired and excess history during writes.
  */
 export const recordTrendingSnapshot = (
   snapshots: TrendingSnapshot[],
@@ -186,24 +188,25 @@ export const recordTrendingSnapshot = (
 
 export interface TrendingHistoryRow {
   repositoryFullName: string;
-  /** 最新一份快照里的名次。 */
+  /** Rank in the latest snapshot. */
   rank: number;
-  /** 上一份快照里的名次；之前没上榜时为 null。 */
+  /** Rank in the previous snapshot; null if not previously ranked. */
   previousRank: number | null;
-  /** 正数=上升了几名（名次数字变小），负数=下降，0=没变；首次上榜为 null。 */
+  /** Positive = moved up (rank number decreased), negative = moved down, 0 = unchanged; null for new entries. */
   rankChange: number | null;
   firstSeenAt: string;
-  /** 连续上榜的自然日数（按每天至少一份快照算，最多回看 30 天）。 */
+  /** Consecutive calendar days on the leaderboard (at least one snapshot per day, looking back up to 30 days). */
   streakDays: number;
-  /** 自第一次记录以来的 star 增量；数据不足或为负时返回 null。 */
+  /** Star gain since first recorded; null if insufficient data or negative. */
   starsGained: number | null;
 }
 
 /**
- * 把某个「周期 × 语言」桶的快照整理成逐仓库的历史。
+ * Organizes snapshots for a specific "period × language" bucket into per-repository history.
  *
- * 名次变化对比的是**上一天的快照**，不是"上一份"——同一天刷新多次不算变化，否则用户每次
- * 刷新都会看到"上升 N 名"的假象。
+ * Rank changes are compared against the **previous day's snapshot**, not the "previous snapshot"—multiple
+ * refreshes on the same day do not count as changes, preventing users from seeing a false "climbed N ranks"
+ * on every refresh.
  */
 export const buildTrendingHistory = (
   snapshots: TrendingSnapshot[],
@@ -282,7 +285,7 @@ export const buildTrendingHistory = (
       .filter((snapshot) => toTimestamp(snapshot.capturedAt) !== null)
       .map((snapshot) => snapshot.entries.find((candidate) => candidate.repositoryFullName === entry.repositoryFullName))
       .find((candidate): candidate is TrendingSnapshotEntry => Boolean(candidate));
-    // 只用我们自己记录到的 star 数做差，不假装是 GitHub 的"本周期新增"
+    // Calculate difference using only locally recorded star counts; do not pretend this is GitHub's "stars gained this period"
     row.starsGained = earliest && entry.stars >= earliest.stars ? entry.stars - earliest.stars : null;
   }
 
@@ -291,11 +294,11 @@ export const buildTrendingHistory = (
     .sort((a, b) => a.rank - b.rank);
 };
 
-/** 榜单里最值得展示的变化：新上榜、上升最多、下降最多。 */
+/** Most notable leaderboard changes: new entries, top risers, and top fallers. */
 export interface TrendingHighlight {
   kind: 'new-entry' | 'rising' | 'falling';
   repositoryFullName: string;
-  /** 名次变化量（新上榜为 null）。 */
+  /** Rank change amount (null for new entries). */
   rankChange: number | null;
   rank: number;
 }

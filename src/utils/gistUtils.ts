@@ -76,7 +76,7 @@ export const getGistCategoryItems = (
       ...(existing || gist),
       ...gist,
       starred: gist.starred || starredIds.has(gist.id) || existing?.starred,
-      // 显式保留可选元数据，避免展开时 undefined 覆盖已有值
+      // Explicitly preserve optional metadata so undefined does not overwrite existing values during spread
       ai_summary: gist.ai_summary ?? existing?.ai_summary,
       analyzed_at: gist.analyzed_at ?? existing?.analyzed_at,
       analysis_failed: gist.analysis_failed ?? existing?.analysis_failed,
@@ -96,7 +96,7 @@ export const filterAndSortGists = (gists: Gist[], filters: GistSearchFilters): G
 
   if (queryWords.length > 0) {
     filtered = filtered.filter(gist => {
-      // 逐字段匹配并提前中断，避免把所有文件内容拼接成超大字符串导致的性能问题。
+      // Match field by field with early exit to avoid performance issues from concatenating all file contents into huge strings.
       const fields = [
         gist.description || '',
         gist.owner?.login || '',

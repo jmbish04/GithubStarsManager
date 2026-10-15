@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { NETWORK_ALLOWED_HOSTS, NETWORK_ALLOWED_REPO_PATHS, NETWORK_ALLOWED_USER_PATHS, buildNetworkRequestUrl, isAllowedNetworkTarget } from './networkTargets';
 
 /**
- * 主进程与渲染端各自维护同一份 host/path 白名单（两侧技术栈不同，无法直接共享
- * 模块）；这里的 parity 测试从 electron/plugins/pluginPageBridge.js 源码提取
- * 导出清单，防止两份列表漂移。
+ * Both the main process and the renderer maintain the same host/path allowlist (they use
+ * different tech stacks and cannot directly share modules). This parity test extracts the
+ * exported list from electron/plugins/pluginPageBridge.js source to prevent drift.
  */
 const bridgeSource = readFileSync(resolve(process.cwd(), 'electron/plugins/pluginPageBridge.js'), 'utf8');
 

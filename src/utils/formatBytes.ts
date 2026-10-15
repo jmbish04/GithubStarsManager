@@ -1,15 +1,15 @@
 /**
- * 字节数的展示格式化。
+ * Formats byte counts for display.
  *
- * 从 `RepositoryReleaseSheet` 内的局部实现提取出来，供 Release 资产表与
- * 可安装资产推荐块共用同一套口径（同一份数据不应该在两个地方显示成不同大小）。
+ * Extracted from the local implementation inside `RepositoryReleaseSheet` so that the release asset table
+ * and the installable asset recommendation block share the same sizing standard (the same data should not display as different sizes in different places).
  */
 
 /**
- * 把字节数格式化为人类可读字符串。
+ * Formats a byte count into a human-readable string.
  *
- * @param bytes 字节数；`null` 返回破折号（表示未知，例如 Source code 条目）。
- * @returns 例如 `0 B`、`1.5 KB`、`12.0 MB`。
+ * @param bytes Byte count; `null` returns a dash (representing unknown, e.g., Source code items).
+ * @returns E.g. `0 B`, `1.5 KB`, `12.0 MB`.
  */
 export function formatFileSize(bytes: number | null): string {
   if (bytes === null) return '—';

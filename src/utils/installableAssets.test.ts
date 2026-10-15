@@ -20,7 +20,7 @@ function asset(id: number, name: string, contentType = 'application/octet-stream
 
 const WINDOWS_DEVICE = { platform: 'windows', architecture: 'x64' } as const;
 
-describe('detectInstallableAssets — 平台与包类型', () => {
+describe('detectInstallableAssets — platform and package type', () => {
   it('identifies a Windows installer with its architecture as high confidence', () => {
     const result = detectInstallableAssets([asset(1, 'App-1.2.0-x64-setup.exe')], WINDOWS_DEVICE);
 
@@ -37,7 +37,7 @@ describe('detectInstallableAssets — 平台与包类型', () => {
   });
 
   it('downgrades confidence when the installer does not declare an architecture', () => {
-    // 决定性扩展名确定了平台，但没写架构 → 只能算 medium，不假装知道。
+    // Decisive extension establishes the platform, but architecture is omitted -> medium confidence without guessing.
     const result = detectInstallableAssets([asset(1, 'App-1.2.0-setup.exe')], WINDOWS_DEVICE);
 
     expect(result.matches[0]).toMatchObject({
@@ -94,7 +94,7 @@ describe('detectInstallableAssets — 平台与包类型', () => {
   });
 
   it('never treats win32 as a 32-bit architecture marker', () => {
-    // Electron 用 win32 命名 Windows 构建；它是平台名，不是 x86 标记。
+    // Electron uses win32 for Windows builds; it is a platform name, not an x86 indicator.
     const result = detectInstallableAssets([asset(1, 'app-win32.zip')], WINDOWS_DEVICE);
     expect(result.matches[0].architecture).toBeUndefined();
   });
@@ -109,7 +109,7 @@ describe('detectInstallableAssets — 平台与包类型', () => {
   });
 });
 
-describe('detectInstallableAssets — 排除非安装资产', () => {
+describe('detectInstallableAssets — excluding non-installable assets', () => {
   it.each([
     ['Source code (v1.2.0).zip', 'source code archive'],
     ['app-1.2.0.exe.sha256', 'checksum file'],
@@ -197,7 +197,7 @@ describe('detectInstallableAssets — 排除非安装资产', () => {
   });
 });
 
-describe('detectInstallableAssets — 不确定时并列候选', () => {
+describe('detectInstallableAssets — concurrent candidates when uncertain', () => {
   it('keeps every architecture when the device architecture is unknown', () => {
     const result = detectInstallableAssets(
       [asset(1, 'App-x64.dmg'), asset(2, 'App-arm64.dmg')],
@@ -225,15 +225,15 @@ describe('detectInstallableAssets — 不确定时并列候选', () => {
   it('orders candidates by confidence, then architecture fit, then asset id', () => {
     const result = detectInstallableAssets(
       [
-        asset(5, 'App-win64-portable.7z'), // medium（容器 + 已知架构 x64）
-        asset(2, 'App-arm64-setup.exe'), // 排除：架构冲突
-        asset(3, 'App-setup.exe'), // medium（决定性扩展名，但未声明架构）
-        asset(1, 'App-x64-setup.exe'), // high + 精确架构 → 第一
+        asset(5, 'App-win64-portable.7z'), // medium (container + known x64 architecture)
+        asset(2, 'App-arm64-setup.exe'), // Excluded: architecture conflict
+        asset(3, 'App-setup.exe'), // medium (decisive extension, but architecture undeclared)
+        asset(1, 'App-x64-setup.exe'), // high + exact architecture -> first
       ],
       WINDOWS_DEVICE,
     );
 
-    // 同为 medium 时，声明了 x64 的 5 排在架构未知的 3 前面。
+    // When both are medium, item 5 (declaring x64) precedes item 3 (unknown architecture).
     expect(result.matches.map((match) => match.assetId)).toEqual([1, 5, 3]);
     expect(result.matches.map((match) => match.confidence)).toEqual(['high', 'medium', 'medium']);
     expect(result.excluded.map((entry) => entry.assetId)).toEqual([2]);
@@ -251,7 +251,7 @@ describe('detectInstallableAssets — 不确定时并列候选', () => {
   });
 });
 
-describe('detectInstallableAssets — Android AAB 只识别', () => {
+describe('detectInstallableAssets — Android AAB detect-only', () => {
   it('excludes AAB from installable candidates by default', () => {
     const result = detectInstallableAssets([asset(1, 'app-1.2.0.aab')], { platform: 'android' });
 
@@ -270,7 +270,7 @@ describe('detectInstallableAssets — Android AAB 只识别', () => {
   });
 });
 
-describe('detectInstallableAssets — 边界与非目标', () => {
+describe('detectInstallableAssets — boundaries and non-goals', () => {
   it('never claims an asset is safe', () => {
     const result = detectInstallableAssets([asset(1, 'App-x64-setup.exe')], WINDOWS_DEVICE);
     expect(result.matches[0].reason.toLowerCase()).not.toContain('safe');

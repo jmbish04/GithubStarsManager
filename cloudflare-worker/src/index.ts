@@ -1,10 +1,10 @@
 import { compactUpsertVectors } from './metadata';
 
 /**
- * GitHub Stars Vectorize — 极简代理 Worker
+ * GitHub Stars Vectorize — Minimal Proxy Worker
  *
- * 纯 Vectorize 存/查/删代理，不持有任何 AI Key。
- * 前端负责 Embedding 生成，Worker 只负责向量存储和检索。
+ * Plain Vectorize upsert/query/delete proxy that holds no AI keys.
+ * The frontend generates embeddings, while the Worker only handles vector storage and retrieval.
  */
 
 interface Env {
@@ -46,12 +46,12 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // CORS 预检
+    // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS });
     }
 
-    // 认证
+    // Authentication
     if (!env.AUTH_TOKEN) {
       return jsonResponse({ success: false, error: 'Server auth not configured' }, 500);
     }
@@ -63,7 +63,7 @@ export default {
     const url = new URL(request.url);
 
     try {
-      // POST /upsert — 批量写入向量
+      // POST /upsert — Batch upsert vectors
       if (request.method === 'POST' && url.pathname === '/upsert') {
         const { vectors } = (await request.json()) as UpsertRequest;
         if (!Array.isArray(vectors) || vectors.length === 0) {
@@ -74,7 +74,7 @@ export default {
         return jsonResponse({ success: true, upserted: vectors.length });
       }
 
-      // POST /query — 向量相似度查询
+      // POST /query — Vector similarity search
       if (request.method === 'POST' && url.pathname === '/query') {
         const { vector, topK = QUERY_DEFAULT_TOPK, threshold = 0.35 } = (await request.json()) as QueryRequest;
         if (!Array.isArray(vector) || vector.length === 0) {
@@ -90,12 +90,12 @@ export default {
           topK: clampedTopK,
           returnMetadata: 'all' as const,
         });
-        // 过滤低分结果
+        // Filter out low-scoring results
         const filtered = matches.matches.filter((m) => m.score >= threshold);
         return jsonResponse({ success: true, matches: filtered });
       }
 
-      // POST /delete — 删除指定向量
+      // POST /delete — Delete specified vectors
       if (request.method === 'POST' && url.pathname === '/delete') {
         const { ids } = (await request.json()) as DeleteRequest;
         if (!Array.isArray(ids) || ids.length === 0) {
@@ -105,7 +105,7 @@ export default {
         return jsonResponse({ success: true, deleted: ids.length });
       }
 
-      // POST /cleanup — 删除不在 keepIds 列表中的向量（清理已 unstar 的仓库）
+      // POST /cleanup — Delete vectors not in keepIds (clean up unstarred repositories)
       if (request.method === 'POST' && url.pathname === '/cleanup') {
         const { keepIds } = (await request.json()) as { keepIds: string[] };
         if (!Array.isArray(keepIds)) {
@@ -116,12 +116,12 @@ export default {
         if ((info.vectorCount ?? 0) === 0) {
           return jsonResponse({ success: true, deleted: 0 });
         }
-        // 使用 query + 零向量采样，循环删除不在 keepSet 中的向量
-        // Vectorize binding 不支持 listVectors，topK 上限 100
+        // Loop and delete vectors not in keepSet using query + zero-vector sampling.
+        // The Vectorize binding does not support listVectors; topK is capped at 100.
         const dimensions = info.dimensions ?? 1536;
         let totalDeleted = 0;
         const zeroVector = new Array(dimensions).fill(0);
-        // 最多迭代 10 轮（覆盖最多 1000 个向量）
+        // Iterate at most 10 rounds (covering up to 1,000 vectors)
         for (let round = 0; round < 10; round++) {
           const result = await env.VECTORIZE.query(zeroVector, {
             topK: 100,
@@ -137,7 +137,7 @@ export default {
         return jsonResponse({ success: true, deleted: totalDeleted });
       }
 
-      // GET /status — 返回索引信息
+      // GET /status — Return index info
       if (request.method === 'GET' && url.pathname === '/status') {
         const info = await env.VECTORIZE.describe();
         return jsonResponse({

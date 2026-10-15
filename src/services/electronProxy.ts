@@ -113,7 +113,6 @@ interface ElectronAPI {
   /**
    * X tweet channel authenticated path: the main process issues x.com GraphQL / static asset GET requests
    * (with the user's auth_token/ct0 cookies and Bearer, bypassing renderer CORS)
-   * （带用户的 auth_token/ct0 Cookie 与 Bearer，绕开渲染进程 CORS）
    */
   xFetchGraphQL?: (url: string, auth: { authToken: string; ct0: string } | null) => Promise<{ success: boolean; body?: string; error?: string }>;
   /** Telegram channel: the main process fetches the t.me/s/<name> public preview HTML (optional before cursor to page through history) */

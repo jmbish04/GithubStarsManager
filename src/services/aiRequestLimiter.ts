@@ -1,29 +1,29 @@
 import { logger } from './logger';
 
 /**
- * 共享 AI 请求限流器：为批量 AI 分析提供统一的 429/RPM 处理。
+ * Shared AI request rate limiter: provides unified 429/RPM handling for batch AI analysis.
  *
- * 设计参考 OpenAI / Anthropic SDK 与成熟 agent 的做法：
- * - Retry-After 优先（合理值内听服务端的等待时长），否则用带抖动的指数退避
- * - 连续 429 触发全局熔断冷却：所有 worker 停手，冷却窗口过后恢复
- * - 并发上限（信号量）与每分钟请求数（RPM，60s 滑动窗口）作为主动准入控制，
- *   值为 0 表示不限制（默认）
- * - 单次 429 也会设置一个短冷却，避免其余 worker 继续冲击已被限流的桶
+ * Design modeled after OpenAI / Anthropic SDKs and mature agent practices:
+ * - Retry-After priority (adheres to server wait duration within sane bounds), otherwise uses jittered exponential backoff
+ * - Consecutive 429s trigger global circuit-breaker cooldown: all workers pause until the cooldown window elapses
+ * - Concurrency cap (semaphore) and requests per minute (RPM, 60s sliding window) for active admission control,
+ *   with 0 meaning unconstrained (default)
+ * - Single 429s also set a short cooldown to keep remaining workers from hammering an already rate-limited bucket
  */
 export interface AIRateLimitConfig {
-  /** 并发上限：同时最多几个请求在飞。0 = 不限制 */
+  /** Concurrency limit: maximum number of in-flight requests. 0 = unconstrained */
   maxConcurrency?: number;
-  /** 每分钟请求数上限（60s 滑动窗口）。0 = 不限制 */
+  /** Requests per minute limit (60s sliding window). 0 = unconstrained */
   requestsPerMinute?: number;
-  /** 触发全局熔断的连续 429 次数。默认 3 */
+  /** Consecutive 429 count that triggers global circuit breaker. Defaults to 3 */
   cooldownThreshold?: number;
-  /** 指数退避基数（ms）。默认 1000 */
+  /** Exponential backoff base (ms). Defaults to 1000 */
   backoffBaseMs?: number;
-  /** 退避上限（ms）。默认 60000 */
+  /** Backoff cap (ms). Defaults to 60000 */
   backoffCapMs?: number;
-  /** 尊重 Retry-After 的上限（ms）。默认 60000 */
+  /** Maximum Retry-After duration respected (ms). Defaults to 60000 */
   maxRetryAfterMs?: number;
-  /** RPM 统计窗口（ms）。默认 60000；主要供测试缩小窗口 */
+  /** RPM statistical window (ms). Defaults to 60000; primarily used by tests to shrink window */
   rpmWindowMs?: number;
 }
 
@@ -66,15 +66,15 @@ export class AIRateLimiter {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  /** 请求开始前调用：等待并占用一个并发槽（含冷却 / RPM / 并发上限等待）。 */
+  /** Call before starting request: waits for and acquires a concurrency slot (including cooldown / RPM / concurrency cap waits). */
   async acquire(signal?: AbortSignal): Promise<() => void> {
     for (;;) {
       this.assertNotAborted(signal);
       const now = Date.now();
       const wait = this.computeWaitMs(now);
       const max = this.config.maxConcurrency ?? 0;
-      // 冷却 / RPM 窗口 / 并发槽全部满足时，同步完成准入：校验与占位之间
-      // 不存在 await，单线程下不会与其它并发 acquire 交错，保证原子性。
+      // When cooldown, RPM window, and concurrency slots are all satisfied, complete admission synchronously:
+      // no await between validation and slot assignment ensures atomic acquire without interleaving on a single thread.
       if (wait <= 0 && (max === 0 || this.active < max)) {
         this.active++;
         if ((this.config.requestsPerMinute ?? 0) > 0) {
@@ -89,14 +89,14 @@ export class AIRateLimiter {
     }
   }
 
-  /** 请求成功返回后调用：清零连续 429 计数。 */
+  /** Call after request succeeds: resets consecutive 429 count. */
   notifySuccess(): void {
     this.consecutiveRateLimits = 0;
   }
 
   /**
-   * 触发 429 时调用。返回本次应等待的毫秒数（已写入全局冷却）。
-   * @param retryAfterMs 服务端返回的 Retry-After（可选，ms）
+   * Call when 429 is encountered. Returns the number of milliseconds to wait (already written to global cooldown).
+   * @param retryAfterMs Server-provided Retry-After (optional, ms)
    */
   notifyRateLimit(retryAfterMs?: number): number {
     this.consecutiveRateLimits++;
@@ -113,10 +113,10 @@ export class AIRateLimiter {
       (this.config.backoffBaseMs ?? DEFAULT_CONFIG.backoffBaseMs) * 2 ** Math.min(attempt, 6)
     );
 
-    // 抖动只作用于本地指数退避；服务端 Retry-After 作为最短等待，绝不被缩短
+    // Jitter applies only to local exponential backoff; server Retry-After serves as a floor and is never reduced
     const jitteredBackoff = Math.round(backoff * (0.75 + Math.random() * 0.5));
     const waitMs = Math.max(retryWait, jitteredBackoff);
-    // 最终等待受退避上限约束，避免单次 Retry-After 造成过长停摆
+    // Final wait is bounded by backoff cap to prevent a single Retry-After from stalling indefinitely
     const cappedWait = Math.min(this.config.backoffCapMs ?? DEFAULT_CONFIG.backoffCapMs, waitMs);
     this.cooldownUntil = Math.max(this.cooldownUntil, now + cappedWait);
 
@@ -144,12 +144,12 @@ export class AIRateLimiter {
     };
   }
 
-  /** 仅统计用：当前在飞请求数 */
+  /** For metrics only: current number of in-flight requests */
   get activeRequests(): number {
     return this.active;
   }
 
-  /** 需要等待的毫秒数：最大（冷却剩余，RPM 释放时刻）。 */
+  /** Milliseconds to wait: max(remaining cooldown, RPM release timestamp). */
   private computeWaitMs(now: number): number {
     let ms = 0;
     if (this.cooldownUntil > now) {
@@ -158,8 +158,8 @@ export class AIRateLimiter {
     const rpm = this.config.requestsPerMinute ?? 0;
     if (rpm > 0) {
       const windowMs = this.config.rpmWindowMs ?? RPM_WINDOW_MS;
-      // 注意：429 之类的失败请求同样计入每分钟请求数（与 OpenAI 文档一致），
-      // 因此按「请求开始时间」计数而不是按成功数。
+      // Note: failed requests like 429s also count against requests per minute (consistent with OpenAI docs),
+      // so counting is based on request start timestamp rather than success count.
       this.requestTimestamps = this.requestTimestamps.filter((ts) => ts > now - windowMs);
       if (this.requestTimestamps.length >= rpm) {
         const earliest = this.requestTimestamps[0];
@@ -182,7 +182,7 @@ export class AIRateLimiter {
     }
   }
 
-  /** 可中止的轮询等待：最多等待 WAIT_POLL_MS，供准入循环按区块重判。 */
+  /** Abortable polling sleep: waits up to WAIT_POLL_MS, allowing admission loop to re-evaluate conditions in chunks. */
   private sleep(ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
       const onAbort = () => {

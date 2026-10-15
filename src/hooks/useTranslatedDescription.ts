@@ -5,15 +5,15 @@ import { isLikelySameLanguage } from '../utils/textLanguage';
 import type { AppLanguage } from '../i18n/languages';
 
 /**
- * 卡片仓库描述的自动翻译（设置 - AI 配置 - 翻译引擎 - 自动翻译仓库描述）。
+ * Automatic translation of repository card descriptions (Settings -> AI Configuration -> Translation Engine -> Auto-translate repository descriptions).
  *
- * 开关开启时，把与界面语言不同的原始描述翻译成界面语言展示；翻译进行中、
- * 翻译失败或描述本就是界面语言时回退显示原文。结果按「目标语言:原文」
- * 做会话级缓存，同一文本整个应用内只翻译一次；开关关闭时返回 undefined，
- * 调用方直接回退原文。
+ * When enabled, translates original descriptions differing from the interface language into the interface language.
+ * While translation is in progress, failed, or when the description is already in the interface language, falls back to the original text.
+ * Results are cached at the session level by `${targetLanguage}:${originalText}`; identical text is translated only once across the application.
+ * When disabled, returns undefined so callers directly fall back to the original text.
  */
 
-/** 同一时刻最多并发的翻译请求数：列表页几十张卡片同时挂载也不能打满翻译端点。 */
+/** Maximum concurrent translation requests: avoids overwhelming translation endpoints when dozens of list cards mount simultaneously. */
 export const MAX_CONCURRENT_TRANSLATIONS = 4;
 
 let activeTranslations = 0;
@@ -26,7 +26,7 @@ const acquireSlot = (): Promise<void> =>
       resolve();
       return;
     }
-    // 排队等待：回调只负责唤醒；槽位由 releaseSlot 直接转交，不重复计数。
+    // Queue wait: callback only wakes up; slot is handed off directly by releaseSlot without double counting.
     waitingQueue.push(() => {
       resolve();
     });
@@ -35,17 +35,17 @@ const acquireSlot = (): Promise<void> =>
 const releaseSlot = (): void => {
   const next = waitingQueue.shift();
   if (next) {
-    // 槽位转交：结束方与接手方一一对应，activeTranslations 保持不变。
+    // Slot handoff: completing and receiving sides match 1:1, activeTranslations remains unchanged.
     next();
   } else {
     activeTranslations -= 1;
   }
 };
 
-/** 会话级缓存：key 为 `${目标语言}:${原文}`，value 为最终展示文本（同语言/失败时即原文）。 */
+/** Session cache: key is `${targetLanguage}:${originalText}`, value is final display text (original text if same language/failed). */
 const MAX_RESOLVED_CACHE_ENTRIES = 2000;
 const resolvedCache = new Map<string, string>();
-/** 进行中的请求去重：同一文本的并发挂载卡片共享同一个 Promise。 */
+/** In-flight request deduplication: concurrently mounting cards with identical text share the same Promise. */
 const inflightRequests = new Map<string, Promise<string>>();
 
 const cacheKey = (text: string, language: string): string => `${language}:${text}`;
@@ -60,7 +60,7 @@ const requestTranslation = (text: string, language: AppLanguage, key: string): P
       const result = await translateText({ text, to: language, textType: 'plain' });
       return result.translatedText?.trim() ? result.translatedText : text;
     } catch {
-      // 翻译失败（网络 / 引擎未配置等）回退原文；缓存住避免滚动列表时反复重试。
+      // Fall back to original text on translation failure (network / engine unconfigured, etc.); cache to avoid retry loops during scrolling.
       return text;
     } finally {
       releaseSlot();
@@ -78,15 +78,15 @@ const requestTranslation = (text: string, language: AppLanguage, key: string): P
   return promise;
 };
 
-/** 译文与其缓存 key 绑定保存，渲染期校验 key 匹配后才返回译文。 */
+/** Translation state stored bound to its cache key; verified during render before returning translation. */
 interface TranslationState {
   key: string;
   value: string;
 }
 
 /**
- * 返回当前应展示的翻译文本；`undefined` 表示本次渲染没有可用的译文，
- * 调用方应显示原始描述。
+ * Returns the translation text that should be displayed; `undefined` indicates no translation is available
+ * for this render pass and the caller should display the original description.
  */
 export const useTranslatedDescription = (
   text: string | null | undefined
@@ -97,8 +97,8 @@ export const useTranslatedDescription = (
   const shouldTranslate = Boolean(enabled && text && text.trim() !== '');
   const key = shouldTranslate && text ? cacheKey(text, language) : null;
 
-  // 译文绑定 key：key 变化后的首次渲染（effect 尚未重跑）不能把旧 key 的
-  // 译文显示给新 key（卡片复用换了仓库、切换界面语言的场景）。
+  // Bind translation to key: first render after key changes (before effect re-runs) must not display the old key's
+  // translation for the new key (e.g., card recycled for another repo, switching UI language).
   const [translation, setTranslation] = useState<TranslationState | null>(() => {
     if (!key || !text) return null;
     const cached = resolvedCache.get(key);

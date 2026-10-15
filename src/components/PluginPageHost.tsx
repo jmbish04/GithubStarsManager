@@ -9,7 +9,7 @@ const LazyPluginPageModal = React.lazy(() =>
 );
 
 /**
- * 应用级插件页面弹窗。会话存在期间常驻应用根，卡片和菜单卸载不影响它。
+ * Application-level plugin page modal. Persists at the app root during the session; unmounting cards or menus does not affect it.
  */
 export const PluginPageHost: React.FC = () => {
   const session = useSyncExternalStore(
@@ -17,7 +17,7 @@ export const PluginPageHost: React.FC = () => {
     pluginPageSession.getSnapshot,
     pluginPageSession.getSnapshot,
   );
-  // 页面文案在 app 命名空间；卡片菜单用的是 repositories，不能混用。
+  // Page copy belongs to the app namespace; card menus use repositories, so do not mix them.
   const t = useT('app');
   if (!session?.repository) return null;
 

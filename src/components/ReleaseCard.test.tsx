@@ -21,7 +21,7 @@ vi.mock('../hooks/useDialog', () => ({
 }));
 
 vi.mock('../services/rpcDownloadService', () => ({
-  // 永不 resolve，避免异步 setState 触发 act() 警告；点击行为本身是同步的
+  // Never resolves, avoiding async setState act() warnings; click handling itself is synchronous
   sendToRpcDownload: vi.fn(() => new Promise(() => {})),
 }));
 
@@ -84,13 +84,13 @@ const renderCard = (props: Partial<Parameters<typeof ReleaseCard>[0]> = {}) => {
 describe('ReleaseCard asset updated indicator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // 模块级 store 状态被所有用例共享：英文用例设置的 en 不得泄漏到后续用例
+    // Module-level store state is shared across tests: en set by English tests must not leak into subsequent tests
     storeState.language = 'zh';
   });
 
   it('shows container-level and per-asset indicators from the same source (updated_asset_ids)', () => {
     renderCard({ isUnread: true });
-    // 容器级与资产级标识都会展示
+    // Both container-level and asset-level indicators are shown
     expect(screen.getAllByText('资产已更新')).toHaveLength(2);
   });
 
@@ -103,8 +103,8 @@ describe('ReleaseCard asset updated indicator', () => {
   });
 
   it('regression: asset updated_at newer than published_at alone shows no indicator', () => {
-    // makeRelease 的资产 updated_at 晚于 published_at，但没有 updated_asset_ids
-    // （即资产相对上次拉取未变化）时不得出现任何“资产已更新”标识。
+    // When makeRelease has an asset updated_at later than published_at, but updated_asset_ids is absent
+    // (i.e. the asset has not changed since the last fetch), no "assets updated" indicator should appear.
     renderCard({
       isUnread: true,
       release: makeRelease(1, { updated_asset_ids: undefined }),
@@ -120,7 +120,7 @@ describe('ReleaseCard asset updated indicator', () => {
         { name: 'Source code (v1.zip)', url: 'https://example.com/v1.zip', size: 0, downloadCount: 0 },
       ],
     });
-    // 容器级标识仍展示（updated_asset_ids 非空），但源码行没有 assetId，不展示资产级标识
+    // Container indicator is still shown (updated_asset_ids is non-empty), but the source code row has no assetId, so no per-asset indicator is shown
     expect(screen.getAllByText('资产已更新')).toHaveLength(1);
   });
 
@@ -144,7 +144,7 @@ describe('ReleaseCard asset updated indicator', () => {
     fireEvent.click(assetRow);
 
     await waitFor(() => expect(sendToRpcDownload).toHaveBeenCalledTimes(1));
-    // 成功后按钮必须保持可点（仅下载进行中才禁用）
+    // Button must remain clickable after success (disabled only while download is in progress)
     await waitFor(() => expect(assetRow).not.toBeDisabled());
 
     fireEvent.click(assetRow);
@@ -161,12 +161,12 @@ describe('ReleaseCard asset updated indicator', () => {
     renderCard({});
     const assetRow = screen.getByRole('button', { name: /app\.dmg/ });
     fireEvent.click(assetRow);
-    // 首次成功后显示 ✓（CheckCircle2 带 text-success）
+    // Displays ✓ (CheckCircle2 with text-success) after initial success
     await waitFor(() => expect(assetRow.querySelector('.text-success')).not.toBeNull());
 
     fireEvent.click(assetRow);
     await waitFor(() => expect(mocked).toHaveBeenCalledTimes(2));
-    // 重试失败后不得残留 ✓
+    // No stale ✓ should remain after a failed retry
     await waitFor(() => expect(assetRow.querySelector('.text-success')).toBeNull());
   });
 
@@ -183,7 +183,7 @@ describe('ReleaseCard asset updated indicator', () => {
     await waitFor(() => expect(mocked).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByRole('button', { name: /app\.dmg/ }).querySelector('.text-success')).not.toBeNull());
 
-    // 同 URL 新版本：不得沿用旧 key 的 ✓，且仍可发送
+    // Same URL, new version: must not reuse the old key's ✓ and must still be sendable
     view.rerender(<ReleaseCard {...buildCardProps({ downloadLinks: [linkV2] })} />);
     const v2Row = screen.getByRole('button', { name: /app\.dmg/ });
     expect(v2Row.querySelector('.text-success')).toBeNull();
@@ -207,8 +207,8 @@ describe('ReleaseCard asset updated indicator', () => {
   });
 
   it('renders relative times in Chinese (release header and asset row) when language is zh', () => {
-    // 资产 updated_at 为 2026-01-02，早于当前时间；头部 effectiveTime 同理，
-    // 相对时间必然以 “…前” 结尾
+    // Asset updated_at is 2026-01-02, earlier than current time; same for header effectiveTime.
+    // Relative times will end with "... ago"
     renderCard({
       downloadLinks: [
         {
@@ -221,7 +221,7 @@ describe('ReleaseCard asset updated indicator', () => {
         },
       ],
     });
-    // 头部（effectiveReleaseTime）与资产行各渲染一条中文相对时间
+    // Header (effectiveReleaseTime) and asset row each render one Chinese relative time
     expect(screen.getAllByText(/个月前|周前|天前|小时前|分钟前|年前/).length).toBe(2);
     const assetRow = screen.getByRole('button', { name: /app\.dmg/ });
     expect(within(assetRow).getByText(/前$/)).toBeInTheDocument();
@@ -233,7 +233,7 @@ describe('ReleaseCard asset updated indicator', () => {
         { name: 'app.dmg', url: 'https://example.com/app.dmg', size: 1000, downloadCount: 5, assetId: 101 },
       ],
     });
-    // 头部仍有中文相对时间，只能断言资产行内没有
+    // Header still contains Chinese relative time, so assert only on the absence within the asset row
     const assetRow = screen.getByRole('button', { name: /app\.dmg/ });
     expect(within(assetRow).queryByText(/前$/)).not.toBeInTheDocument();
   });
@@ -251,7 +251,7 @@ describe('ReleaseCard asset updated indicator', () => {
 describe('ReleaseCard asset list filtering', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // 前面的用例会把 store 语言切成 en（模块级共享状态），这里复位到 zh
+    // Previous tests switch store language to en (module-level shared state); reset to zh here
     storeState.language = 'zh';
   });
 
@@ -267,7 +267,7 @@ describe('ReleaseCard asset list filtering', () => {
     expect(screen.getByText('app.dmg')).toBeInTheDocument();
     expect(screen.queryByText('app.exe')).not.toBeInTheDocument();
     expect(screen.queryByText('app.AppImage')).not.toBeInTheDocument();
-    // 标题计数跟随可见资产数
+    // Title count tracks visible assets
     expect(screen.getByText('(1)')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '显示全部 3 个' }));
@@ -286,8 +286,8 @@ describe('ReleaseCard asset list filtering', () => {
     fireEvent.click(screen.getByRole('button', { name: '显示全部 3 个' }));
     expect(screen.getByText('app.exe')).toBeInTheDocument();
 
-    // 过滤器被切换或关键词被编辑（命中集合变化）→ 自动回到「只显示命中的资产」，
-    // 不让旧的展开态继续展示未命中的文件
+    // Filter switched or keywords edited (match set changed) -> auto-resets to "show matched assets only",
+    // preventing stale expanded state from continuing to show unmatched files
     view.rerender(<ReleaseCard {...buildCardProps({ downloadLinks: [links[1]], allDownloadLinks: links })} />);
     expect(screen.queryByText('app.dmg')).not.toBeInTheDocument();
     expect(screen.getByText('app.exe')).toBeInTheDocument();

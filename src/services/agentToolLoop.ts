@@ -40,21 +40,23 @@ import {
 } from './repositoryChatMetaSources';
 
 /**
- * 受控工具循环（实验性执行模式）：用模型原生 function calling 替换编排式
- * 循环中的 plan/gate JSON 决策，模型在预算内自主决定下一步读取。
+ * Controlled tool loop (experimental execution mode): replaces plan/gate JSON decisions
+ * in the orchestrated loop with model-native function calling, letting the model decide
+ * its next read within budget.
  *
- * 与编排式循环共享全部安全底座（createEvidenceToolbox 的预算/去重/超时、
- * 证据结构、引用校验阶梯）：
- * - 本循环只负责"找证据"，出口是 ready_to_answer；最终回答与引用校验由
- *   synthesizeVerifiedAnswer 原样完成，回答质量路径零改动。
- * - README 优先仍是代码级硬规则：未读文档前，调度器直接拒绝其他读取。
- * - 端点不支持工具调用时抛 AIToolCallUnsupportedError，由 runRepositoryChatTurn
- *   落回编排式循环。
+ * Shares all security foundations with the orchestrated loop (createEvidenceToolbox budget/dedup/timeout,
+ * evidence structures, citation validation ladder):
+ * - This loop is solely responsible for "finding evidence", exiting at ready_to_answer; final answer
+ *   synthesis and citation verification are handled unchanged by synthesizeVerifiedAnswer, with zero modifications
+ *   to the answer quality path.
+ * - README-first remains a code-level hard rule: before documentation is read, the scheduler rejects other reads.
+ * - If the endpoint lacks tool-calling support, it throws AIToolCallUnsupportedError, and runRepositoryChatTurn
+ *   falls back to the orchestrated loop.
  */
 
-/** 单次 FC 决策超时；整轮时间预算仍由 toolbox 约束。 */
+/** Single FC decision timeout; total turn time budget is still enforced by toolbox. */
 const TOOL_LOOP_MODEL_TIMEOUT_MS = 45_000;
-/** FC 对话的字符上限：超过后强制收束到回答阶段，防止工具结果无限累积。 */
+/** FC conversation character cap: once exceeded, forces transition to answer phase to prevent unbounded tool output accumulation. */
 const TOOL_LOOP_MAX_CONVERSATION_CHARS = 120_000;
 
 export const buildToolLoopSystemPrompt = (language: AppLanguage): string => language === 'zh'
@@ -190,8 +192,9 @@ export const runToolLoopRepositoryChatTurn = async (input: RepositoryChatTurnInp
     ? await github.getRepositoryMarkdownEvidenceFile(owner, repo, path, input.session.sourceRefSha, signal)
     : await github.getRepositoryFile(owner, repo, path, input.session.sourceRefSha, signal);
 
-  // 与编排式 loadDocument 相同的语义：已读路径直接复用缓存（同一文件的
-  // 不同章节是合法的后续读取，不能被 invokeTool 的重复动作拦截挡住）。
+  // Same semantics as orchestrated loadDocument: previously read paths reuse cache directly
+  // (different sections of the same file are valid subsequent reads and cannot be blocked
+  // by invokeTool's duplicate action check).
   const loadToolLoopDocument = async (path: string, scope: 'documentation' | 'code', round: number): Promise<CachedDocument | null> => {
     const cached = documents.get(path);
     if (cached) return cached;
@@ -246,7 +249,8 @@ export const runToolLoopRepositoryChatTurn = async (input: RepositoryChatTurnInp
     const plannedSegments = scope === 'documentation'
       ? citableSegmentsForDocument(document, sections, searchTerms)
       : buildEvidenceWindows(document.content, focus, sections.length > 0 ? sections : searchTerms);
-    // 指定章节没有命中时，仍按问题术语取可引用窗口，避免无标题配置只返回目录。
+    // When the requested section has no hit, still return a citable window based on question terms
+    // to prevent heading-less configurations from returning only the outline.
     const segments = plannedSegments.length > 0
       ? plannedSegments
       : buildEvidenceWindows(document.content, focus, searchTerms);
@@ -289,7 +293,7 @@ export const runToolLoopRepositoryChatTurn = async (input: RepositoryChatTurnInp
       async (signal) => await github.getRepositoryReleases(owner, repo, 1, 5, signal),
     );
     if (!releasesResult.ok) {
-      // 瞬时工具失败时回退标记，让模型在本轮内可以重试该来源。
+      // Roll back the mark on transient tool failure so the model can retry this source within the turn.
       if (releasesResult.errorCode === 'tool_error') metaFetched.delete(META_RELEASES_TARGET);
       return zh ? `工具错误：${releasesResult.message}` : `Tool error: ${releasesResult.message}`;
     }
@@ -316,7 +320,7 @@ export const runToolLoopRepositoryChatTurn = async (input: RepositoryChatTurnInp
       async (signal) => {
         const searchKeywords = keywords.length > 0 ? keywords : [input.question.slice(0, 120)];
         const hits = await github.searchRepositoryIssues(owner, repo, searchKeywords, { signal });
-        // 解决方案常在评论里：仅为前几条命中补充评论摘录，单条失败不阻断。
+        // Solutions often live in comments: supplement comment excerpts only for top hits; single failures do not block.
         const withComments: IssueHitWithComments[] = [];
         for (const [index, hit] of hits.entries()) {
           let comments: IssueComment[] = [];
@@ -324,7 +328,7 @@ export const runToolLoopRepositoryChatTurn = async (input: RepositoryChatTurnInp
             try {
               comments = await github.getRepositoryIssueComments(owner, repo, hit.number, { perPage: 6, signal });
             } catch (error) {
-              // 中止（用户停止 / 工具超时）必须向上传播，不能被静默吞掉。
+              // Abort (user cancellation / tool timeout) must propagate upward and not be swallowed silently.
               if (signal.aborted) throw error;
               comments = [];
             }
@@ -366,7 +370,7 @@ export const runToolLoopRepositoryChatTurn = async (input: RepositoryChatTurnInp
       return zh ? '已确认。接下来基于已收集的证据生成最终回答。' : 'Confirmed. The final answer will now be generated from the gathered evidence.';
     }
 
-    // README 优先是代码级硬规则：未读到文档证据之前，调度器直接拒绝其他来源。
+    // README-first is a code-level hard rule: until documentation evidence is read, the scheduler rejects other sources.
     if (documentationEvidenceCount === 0 && call.name !== 'read_documentation') return docsMissing;
 
     if (call.name === 'read_documentation') return await readToolLoopTarget(args, 'documentation', round);
@@ -419,8 +423,8 @@ export const runToolLoopRepositoryChatTurn = async (input: RepositoryChatTurnInp
       result = await callToolLoopModel();
     } catch (error) {
       if (input.signal?.aborted) throw error;
-      // 瞬时错误重试一次；仍失败时若已有证据则降级到回答阶段，否则上抛
-      // （首轮失败由 runRepositoryChatTurn 落回编排式循环）。
+      // Retry transient errors once; if still failing and evidence exists, degrade to answer phase, otherwise rethrow
+      // (a first-round failure falls back to the orchestrated loop via runRepositoryChatTurn).
       if (isTransientAgentError(error) && !retriedModelCall && ctx.hasTime()) {
         retriedModelCall = true;
         await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 500));

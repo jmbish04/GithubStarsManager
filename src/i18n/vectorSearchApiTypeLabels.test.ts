@@ -10,9 +10,10 @@ import {
 } from '../constants/embeddingApiTypes';
 
 /**
- * 设置页「模型来源」按钮文案走动态键（`vectorSearchSettings.api-type-*`），
- * scripts/check-i18n.cjs 只校验字面量 t('key')，模板键不在其覆盖范围。
- * 这里补上这段保护：任一语言漏配就会露出 raw key，新增来源也会被拦下。
+ * Settings page "Model provider" button labels use dynamic keys (`vectorSearchSettings.api-type-*`).
+ * scripts/check-i18n.cjs only validates literal t('key') calls, so template keys are not covered.
+ * This test provides that safeguard: if any language is missing a translation, raw keys would be exposed,
+ * and newly added providers are caught here as well.
  */
 const localesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'locales');
 
@@ -26,8 +27,8 @@ const loadLabelStrings = (language: string): Record<string, unknown> => {
 const localLabelKey = (apiType: (typeof EMBEDDING_API_TYPES)[number]): string =>
   embeddingApiTypeLabelKey(apiType).replace(/^vectorSearchSettings\./, '');
 
-describe('向量搜索「模型来源」文案覆盖', () => {
-  it.each(APP_LANGUAGES)('$code 覆盖全部 EmbeddingApiType 且不是 raw key', (language) => {
+describe('vector search model provider label coverage', () => {
+  it.each(APP_LANGUAGES)('$code covers all EmbeddingApiTypes and is not a raw key', (language) => {
     const strings = loadLabelStrings(language.code);
     const missing = EMBEDDING_API_TYPES.map(localLabelKey).filter(
       (key) => typeof strings[key] !== 'string' || (strings[key] as string).trim() === '',
@@ -39,7 +40,7 @@ describe('向量搜索「模型来源」文案覆盖', () => {
     expect(rawKeyValues).toEqual([]);
   });
 
-  it('来源列表无重复且与默认维度表一一对应', () => {
+  it('has no duplicate providers and maps 1:1 with the default dimensions table', () => {
     expect([...EMBEDDING_API_TYPES].sort()).toEqual(
       Object.keys(DEFAULT_EMBEDDING_DIMENSIONS).sort(),
     );

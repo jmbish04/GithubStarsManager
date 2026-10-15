@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { APP_LANGUAGES } from './languages';
 
 /**
- * 翻译键集一致性检查：内置语言必须与 zh 键集完全相等。
- * 缺键会露出 raw key 或回退英文；孤儿键说明源字典改了名却没清干净。
- * 值是否各自翻译由 scripts/check-i18n.cjs 在 PR diff 上检查。
+ * Translation key set consistency check: built-in languages must strictly match the zh key set.
+ * Missing keys expose raw keys or fall back to English; orphaned keys indicate renamed keys not cleaned up in source dictionaries.
+ * Whether values are translated individually is checked by scripts/check-i18n.cjs on PR diffs.
  */
 const localesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'locales');
 
@@ -36,10 +36,10 @@ const loadLanguageKeys = (): Record<string, Set<string>> => {
   return result;
 };
 
-describe('i18n 字典键集一致性', () => {
+describe('i18n dictionary key set consistency', () => {
   const keys = loadLanguageKeys();
 
-  it.each(APP_LANGUAGES)('$code 与 zh 键集严格相等', (language) => {
+  it.each(APP_LANGUAGES)('strictly matches the zh key set for $code', (language) => {
     const zhKeys = [...keys.zh].sort();
     const current = [...keys[language.code]].sort();
     expect(current).toEqual(zhKeys);

@@ -56,7 +56,7 @@ describe('isPrereleaseRelease', () => {
     expect(isPrereleaseRelease({ tag_name: 'v1.2.0-rc1' })).toBe(true);
     expect(isPrereleaseRelease({ tag_name: 'v1.2.0-beta.2' })).toBe(true);
     expect(isPrereleaseRelease({ tag_name: 'nightly-2026-01-01' })).toBe(true);
-    // 'presto' 只是普通单词，不能因为含有 'pre' 就被当作预发布
+    // 'presto' is an ordinary word and should not be treated as a prerelease just because it contains 'pre'
     expect(isPrereleaseRelease({ tag_name: 'presto-1.0.0' })).toBe(false);
     expect(isPrereleaseRelease({ tag_name: 'v1.2.0' })).toBe(false);
   });
@@ -100,7 +100,7 @@ describe('deriveRepositoryHealthSnapshot', () => {
     expect(snapshot.latestReleaseAt).toBe('2026-06-01T00:00:00.000Z');
     expect(snapshot.latestStableVersion).toBe('v1.1.0');
     expect(snapshot.latestPrereleaseVersion).toBe('v2.0.0-rc1');
-    // 仓库年龄恰好 6 年（含闰年共 2191 天）→ 3 个 release ≈ 0.5 次/年
+    // Repository age is exactly 6 years (2191 days with leap years) -> 3 releases ~= 0.5 per year
     expect(snapshot.ageDays).toBe(2191);
     expect(snapshot.releasesPerYear).toBe(0.5);
     expect(snapshot.daysSinceLastPush).toBe(16);
@@ -135,7 +135,7 @@ describe('deriveRepositoryHealthSnapshot', () => {
   });
 
   it('keeps release frequency unknown instead of reporting zero when nothing is known', () => {
-    // 既没有可解析的创建时间、也没有 Release 数据：只能承认「不知道」。
+    // Neither a parsable creation date nor release data exists: must remain unknown.
     const unknown = deriveRepositoryHealthSnapshot(
       makeRepo({ created_at: 'not-a-date' }),
       undefined,
@@ -145,7 +145,7 @@ describe('deriveRepositoryHealthSnapshot', () => {
     expect(unknown.releasesPerYear).toBeNull();
     expect(unknown.ageDays).toBeNull();
 
-    // 给了 Release 数组（哪怕是空数组）就说明调用方知道 Release 情况，此时 0 才是事实。
+    // Providing a release array (even if empty) indicates release status is known, so 0 is factually accurate.
     const knownEmpty = deriveRepositoryHealthSnapshot(
       makeRepo({ created_at: 'not-a-date' }),
       [],
@@ -156,8 +156,8 @@ describe('deriveRepositoryHealthSnapshot', () => {
   });
 
   it('does not report a release total as a per-year frequency when the age is unknown', () => {
-    // created_at 不可解析 → 没有时间窗口可以换算「频率」。
-    // 此时把 Release 总数当成「次/年」是错的（例如 3 条会被读成 3 次/年）。
+    // Unparsable created_at -> no time window available to calculate frequency.
+    // Treating total release count as per-year frequency here would be incorrect (e.g. 3 releases misread as 3/year).
     const snapshot = deriveRepositoryHealthSnapshot(
       makeRepo({ created_at: 'not-a-date', has_fetched_releases: true }),
       [
@@ -174,15 +174,15 @@ describe('deriveRepositoryHealthSnapshot', () => {
   });
 
   it('keeps missing GitHub status fields unknown instead of reporting false', () => {
-    // 后端 schema 不存储这些列，旧数据也可能缺失：必须保持 undefined，
-    // 否则面板会把「未知」显示成「否」，等于伪造事实。
+    // Backend schema does not store these columns and legacy data may lack them: must remain undefined,
+    // otherwise the panel would display "unknown" as "no", misrepresenting facts.
     const snapshot = deriveRepositoryHealthSnapshot(makeRepo(), [], undefined, NOW);
     expect(snapshot.archived).toBeUndefined();
     expect(snapshot.disabled).toBeUndefined();
     expect(snapshot.fork).toBeUndefined();
     expect(snapshot.isTemplate).toBeUndefined();
 
-    // 已知事实照实传递
+    // Pass through known facts as-is
     const known = deriveRepositoryHealthSnapshot(
       makeRepo({ archived: false, fork: true, is_template: false }),
       [],
@@ -242,10 +242,10 @@ describe('conservative health signals', () => {
     const signal = snapshot.signals.find((item) => item.id === 'no-recent-activity');
 
     expect(signal).toBeDefined();
-    // 观测值就是最后一次 push 时间，供 UI 原样展示，不含任何判定
+    // Observed value is simply the timestamp of the last push for the UI to display verbatim, without subjective judgment
     expect(signal?.since).toBe(Date.parse('2024-01-01T00:00:00.000Z'));
     expect(snapshot.daysSinceLastPush).toBeGreaterThan(NO_RECENT_ACTIVITY_DAYS);
-    // 成熟项目仍然保留完整的客观事实
+    // Mature projects still retain full objective facts
     expect(snapshot.stars).toBe(1500);
     expect(snapshot.license).toBe('MIT');
   });
@@ -287,13 +287,13 @@ describe('groupRepositoryHealthFacts', () => {
     const licenseFact = groupRepositoryHealthFacts(noLicense)
       .flatMap((view) => view.facts)
       .find((fact) => fact.id === 'license');
-    // 已知且为空 → null
+    // Known and empty -> null
     expect(licenseFact?.value).toBeNull();
 
     const unknownContributors = groupRepositoryHealthFacts(noLicense)
       .flatMap((view) => view.facts)
       .find((fact) => fact.id === 'contributors');
-    // 尚未获得 → undefined
+    // Not yet fetched -> undefined
     expect(unknownContributors?.value).toBeUndefined();
   });
 
@@ -330,7 +330,7 @@ describe('groupRepositoryHealthFacts', () => {
 
 describe('list filter predicates', () => {
   it('keeps a missing archived field unknown instead of claiming it is not archived', () => {
-    // 未知必须是 undefined：否则 healthArchived=false 会把本地没有该字段的仓库也算进来
+    // Unknown must be undefined: otherwise healthArchived=false would include repositories lacking this field
     expect(isArchivedRepository(makeRepo())).toBeUndefined();
     expect(isArchivedRepository(makeRepo({ archived: true }))).toBe(true);
     expect(isArchivedRepository(makeRepo({ archived: false }))).toBe(false);

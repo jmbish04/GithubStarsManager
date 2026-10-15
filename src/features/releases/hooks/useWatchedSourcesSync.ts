@@ -14,10 +14,10 @@ import {
 } from '../../../utils/releaseSources';
 
 /**
- * 同步 Watch 仓库为 Release 来源（原 ReleaseSourceSettingsModal →
- * WatchCustomReleaseSyncPanel.handleSync）：无 confirm、无 forceSync、无 Abort。
- * 独立于 useReleaseTimelineActions 的窄订阅 hook：设置弹窗只需要这两项，
- * 不应随整个 Release 时间线状态重渲染。
+ * Syncs watched repositories as release sources (formerly ReleaseSourceSettingsModal →
+ * WatchCustomReleaseSyncPanel.handleSync): no confirm, no forceSync, no Abort.
+ * A narrow-subscription hook independent of useReleaseTimelineActions: the settings modal
+ * only needs these two items and should not re-render with the entire release timeline state.
  */
 export const useWatchedSourcesSync = () => {
   const githubToken = useAppStore((s) => s.githubToken);
@@ -32,11 +32,12 @@ export const useWatchedSourcesSync = () => {
     setIsSyncingWatchedSources(true);
     try {
       const githubApi = createGitHubApiService(githubToken);
-      // 只拉 /user/subscriptions（含私有仓）。/users/{login}/subscriptions 已被 GitHub 改为
-      // 恒定返回 204 空响应体，且其结果本就是前者的公开子集，并行合并只会拖垮整个同步。
+      // Only fetch /user/subscriptions (includes private repos). /users/{login}/subscriptions was
+      // changed by GitHub to consistently return 204 No Content, and its results were already a public subset
+      // of the former; merging them in parallel would only drag down the entire sync.
       const watchedRepos = await githubApi.getAllWatchedRepositories();
-      // hiddenByRepo 在 await 之后从最新 state 读取：同步期间用户仍可在设置面板
-      // 切换 release_hidden，旧快照会在 setReleaseSourceRepositories 时覆盖该修改。
+      // Read hiddenByRepo from the latest state after await: the user can still toggle
+      // release_hidden in the settings panel during sync, and a stale snapshot would overwrite those edits on setReleaseSourceRepositories.
       const hiddenByRepo = new Map(
         useAppStore.getState().releaseSourceSettings.watchCustomReleaseRepos.map(repo => [normalizeRepoKey(repo.full_name), repo.release_hidden]),
       );

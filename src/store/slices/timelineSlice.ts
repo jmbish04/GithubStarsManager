@@ -56,7 +56,7 @@ export const createTimelineSlice: AppStoreSlice<Pick<import('../types').AppActio
           const update = byId.get(r.id);
           if (!update) return r;
           updatedIds.add(r.id);
-          // 内容已变化（资产等），重置为未读，让用户注意到本次更新
+          // Content has changed (assets, etc.): reset to unread so user notices this update
           return {
             ...update,
             is_read: false,
@@ -192,9 +192,9 @@ export const createTimelineSlice: AppStoreSlice<Pick<import('../types').AppActio
         const newReadReleases = new Set(state.readReleases);
         newReadReleases.add(releaseId);
 
-        // 点击 Release 即视为已看过其资产更新：被标记已读的条目同时清除资产级
-        // “资产已更新”标识（updated_asset_ids）。仅改动确有标识的记录，避免
-        // 每次点击都生成新的 releases 数组触发多余的重渲染与持久化。
+        // Clicking a Release implies user has viewed its updated assets: clear asset-level
+        // "asset updated" badges (updated_asset_ids) on the read items. Only mutate records
+        // that actually have badges to avoid generating a new releases array triggering redundant re-renders/persistence.
         const clearedIds = new Set<number>([releaseId]);
 
         // In 'latest' mode, marking the latest release as read also marks all other releases of that repo
@@ -225,8 +225,8 @@ export const createTimelineSlice: AppStoreSlice<Pick<import('../types').AppActio
 
         return { readReleases: newReadReleases, releases };
       }),
-      // 资产级已读：仅从 release.updated_asset_ids 移除该资产 id，不动 readReleases/is_read。
-      // 无命中时直接返回，避免多余的重渲染与 autoSync 推送。
+      // Asset-level read: only remove the asset id from release.updated_asset_ids, leaving readReleases/is_read untouched.
+      // Return immediately on miss to avoid redundant re-renders and autoSync pushes.
       markAssetAsRead: (assetId) => {
         const state = get();
         const hasAsset = state.releases.some(release => release.updated_asset_ids?.includes(assetId));
@@ -241,9 +241,9 @@ export const createTimelineSlice: AppStoreSlice<Pick<import('../types').AppActio
       },
       markAllReleasesAsRead: () => set((state) => {
         const allReleaseIds = new Set(state.releases.map(r => r.id));
-        // "全部已读"视为用户已看过所有更新：一并清除资产级"资产已更新"标识，
-        // 并同步记录上的 is_read=true，避免后续 autoSync 整表推送时用陈旧的
-        // is_read:false 覆盖后端 mark-all-read 已置为已读的状态。
+        // "Mark all as read" implies the user has seen all updates: clear asset-level "asset updated" badges
+        // as well as setting is_read=true on the record, preventing subsequent autoSync full-table pushes
+        // from overwriting the backend's mark-all-read state with stale is_read:false.
         const releases = state.releases.map(release => {
           const hasBadges = !!release.updated_asset_ids && release.updated_asset_ids.length > 0;
           if (release.is_read === true && !hasBadges) return release;

@@ -16,7 +16,7 @@ describe('useRepositoryChatSessions global history notification', () => {
     Object.defineProperty(window, 'indexedDB', { configurable: true, value: undefined });
   });
 
-  it('创建会话后派发全局历史刷新事件', async () => {
+  it('dispatches a global history refresh event after creating a session', async () => {
     const dispatchSpy = vi.fn();
     window.addEventListener('gsm:global-chat-history-changed', dispatchSpy);
     try {
@@ -41,7 +41,7 @@ describe('useRepositoryChatSessions global history notification', () => {
     }
   });
 
-  it('删除会话后派发全局历史刷新事件', async () => {
+  it('dispatches a global history refresh event after deleting a session', async () => {
     const dispatchSpy = vi.fn();
     window.addEventListener('gsm:global-chat-history-changed', dispatchSpy);
     try {

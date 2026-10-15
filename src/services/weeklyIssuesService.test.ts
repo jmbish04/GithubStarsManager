@@ -12,7 +12,7 @@ import {
 } from './weeklyIssuesService';
 import type { WeeklyStoredIssue, WeeklyStoredRepo } from './weeklyIssuesStorage';
 
-// 内存版存储替身（jsdom 无 IndexedDB）：验证 syncWeeklyChannel 的分页/游标/缓存语义
+// In-memory storage test double (jsdom lacks IndexedDB): verifies pagination/cursor/cache semantics of syncWeeklyChannel
 const storage = vi.hoisted(() => {
   const issuesStore = new Map<number, unknown>();
   const reposStore = new Map<string, unknown>();
@@ -67,7 +67,7 @@ vi.mock('./weeklyIssuesStorage', () => ({
       repos: Array<{ fullName: string }>;
       meta: { lastSyncedAt: string | null; deepNextPage: number; historyComplete: boolean };
     }) => {
-      // 原子语义在真实现由单事务保证；替身以"先抛错后应用"模拟失败回滚
+      // Atomic semantics are guaranteed by a single transaction in real implementation; double simulates rollback via "throw before apply"
       if (storage.failWalkPageNow()) throw new Error('walk page tx failed');
       storage.applyWalkPage(payload);
     },
@@ -181,11 +181,11 @@ describe('processWeeklyIssue', () => {
     expect(repos.get('foo/bar')?.sourceIssueNumber).toBe(2);
     expect(repos.get('foo/bar')?.issueLabels).toEqual(['weekly']);
 
-    // 同一原贴 label 补加（issue 编辑后 updated_at 变化）
+    // Re-adding label to existing source post (updated_at changed after issue edit)
     const updateMarks = marks();
     processWeeklyIssue(makeIssue({ number: 2, updated_at: '2026-02-05T00:00:00Z', labels: ['weekly', 'issue-300'] }), issues, repos, updateMarks);
     expect(repos.get('foo/bar')?.issueLabels).toEqual(['weekly', 'issue-300']);
-    // 已知仓库的再次变更必须登记到页级脏集合（跨页重复变更不丢）
+    // Subsequent changes to known repositories must be registered in page-level dirty set (cross-page repeat changes are not lost)
     expect([...updateMarks.dirtyRepoKeys]).toEqual(['foo/bar']);
   });
 
@@ -233,7 +233,7 @@ describe('enrichment target selection', () => {
       })],
       ['dead/dead', repo({
         fullName: 'dead/dead',
-        lastFetchedAt: '2026-06-28T00:00:00Z', // 3 天前，未到 7 天重试期
+        lastFetchedAt: '2026-06-28T00:00:00Z', // 3 days ago, within 7-day retry interval
         detail: null,
       })],
       ['new/new', repo({ fullName: 'new/new' })],
@@ -241,7 +241,7 @@ describe('enrichment target selection', () => {
     const changedKeys = new Set(['new/new']);
     const result = refreshMaintenanceRepos(repos, changedKeys, now);
     expect(result.map(r => r.fullName)).toEqual(['stale/stale']);
-    // 不在 changed 集合内的游离 pending 会被维护队列兜底收录
+    // Straggler pending repos not in changed set are picked up by maintenance queue
     const resultWithoutChanged = refreshMaintenanceRepos(repos, new Set<string>(), now);
     expect(resultWithoutChanged.map(r => r.fullName)).toContain('new/new');
   });
@@ -283,7 +283,7 @@ describe('buildWeeklyDiscoveryRepos', () => {
 });
 
 describe('syncWeeklyChannel on-demand paging', () => {
-  /** 构造按页返回的 mock API；issues 数组的每页条目 number 连续。 */
+  /** Construct mock API returning pages; issues array has sequential numbers across pages. */
   const makeApi = (pages: GitHubIssueListRead[][]) => {
     return {
       listRepositoryIssues: vi.fn(async (_owner: string, _repo: string, opts?: { page?: number; since?: string }) => {
@@ -299,7 +299,7 @@ describe('syncWeeklyChannel on-demand paging', () => {
     } as unknown as GitHubApiService & { listRepositoryIssues: ReturnType<typeof vi.fn>; graphqlFetchRepositories: ReturnType<typeof vi.fn>; getRepositoryDetails: ReturnType<typeof vi.fn> };
   };
 
-  /** 生成一页 100 条 issue，仓库 full_name 由 nameOf(i) 决定。 */
+  /** Generate a page of 100 issues, repo full_name determined by nameOf(i). */
   const issuePage = (startNumber: number, nameOf: (i: number) => string, count = 100, labelOf?: (i: number) => string[]) =>
     Array.from({ length: count }, (_, i) => makeIssue({
       number: startNumber + i,
@@ -336,11 +336,11 @@ describe('syncWeeklyChannel on-demand paging', () => {
     const api = makeApi([issuePage(1, (i) => `org${i}/repo${i}`)]);
     storage.setFailWalkPage(true);
     await expect(syncWeeklyChannel(api, 1, false, () => {})).rejects.toThrow('walk page tx failed');
-    // 原子写入失败：游标不推进、historyComplete 不标记，下轮同步重拉该页
+    // Atomic write failure: cursor not advanced, historyComplete not marked, re-fetch page on next sync
     expect(storage.metaRef.current.deepNextPage).toBe(1);
     expect(storage.metaRef.current.historyComplete).toBe(false);
 
-    // 恢复后重试成功
+    // Successful retry after recovery
     storage.setFailWalkPage(false);
     const result = await syncWeeklyChannel(api, 1, false, () => {});
     expect(result.repos).toHaveLength(50);
@@ -348,15 +348,15 @@ describe('syncWeeklyChannel on-demand paging', () => {
   });
 
   it('persists a repo re-updated on a later page (Set.size watermark regression)', async () => {
-    // P1 满页：#1 引用 dup/repo，其余 orgN；P2 满页：#101（created_at 更新）再次
-    // 引用 dup/repo → 原贴应更新为 #101 并落盘；旧实现按 Set.size 切片，
-    // dup/repo 位于已保存水位之前，其变更会被遗漏
+    // P1 full page: #1 references dup/repo, rest orgN; P2 full page: #101 (newer created_at) references
+    // dup/repo again -> source post should update to #101 and persist; legacy implementation sliced by Set.size,
+    // so dup/repo was before the saved watermark and its change was missed
     const p1 = issuePage(1, (i) => (i === 0 ? 'dup/repo' : `org${i}/repo${i}`));
     const p2 = issuePage(101, (i) => (i === 0 ? 'dup/repo' : `zed${i}/repo${i}`));
     const api = makeApi([p1, p2]);
 
     await syncWeeklyChannel(api, 1, false, () => {});
-    // 页 3 需要 150 张卡片 > 100 → 深度遍历：重叠重读 P1（跳过）+ P2（更新 + 新增）
+    // Page 3 needs 150 cards > 100 -> deep walk: overlapping re-read of P1 (skipped) + P2 (update + additions)
     await syncWeeklyChannel(api, 3, false, () => {});
 
     const stored = (storage.reposStore as Map<string, WeeklyStoredRepo & { sourceIssueNumber: number; issueCreatedAt: string }>).get('dup/repo');
@@ -365,10 +365,10 @@ describe('syncWeeklyChannel on-demand paging', () => {
   });
 
   it('deep-walk stop condition ignores straggler pendings not enriched this round', async () => {
-    // 60 个游离 pending（此前中止同步遗留）：不在本轮 changedRepoKeys 内、本轮
-    // 不会补全，不应计入停止条件。P2 全部为已知 issue（快速跳过）：
-    // 旧实现把游离 pending 计入 → P2 后 prospective=160≥150 提前停，页 3 永远差卡；
-    // 新实现继续到 P3 → 200 张卡
+    // 60 straggler pending repos (orphaned from previous aborted sync): not in changedRepoKeys this round,
+    // not enriched this round, should not count towards stop condition. P2 contains all known issues (fast-skipped):
+    // Legacy implementation counted straggler pendings -> after P2, prospective=160>=150 stopped early, leaving Page 3 permanently short;
+    // New implementation continues to P3 -> 200 cards
     const strays = Array.from({ length: 60 }, (_, i) => ({
       fullName: `stray${i}/repo${i}`, detail: null, lastFetchedAt: '',
       sourceIssueNumber: 101 + i, issueLabels: [], issueCreatedAt: '2025-06-01T00:00:00Z',
@@ -376,7 +376,7 @@ describe('syncWeeklyChannel on-demand paging', () => {
     for (const stray of strays) storage.reposStore.set(stray.fullName.toLowerCase(), stray);
     const p1 = issuePage(1, (i) => `org${i}/repo${i}`);
     const p2 = issuePage(101, (i) => (i < 60 ? `stray${i}/repo${i}` : `org${i - 60}/repo${i - 60}`));
-    // 预置已知 issue（WeeklyStoredIssue 形状，updatedAt 与拉取一致）→ P2 全部快速跳过
+    // Pre-populate known issues (WeeklyStoredIssue shape with matching updatedAt) -> P2 all fast-skipped
     for (const issue of p2) {
       storage.issuesStore.set(issue.number, {
         number: issue.number,
@@ -395,15 +395,15 @@ describe('syncWeeklyChannel on-demand paging', () => {
 
     await syncWeeklyChannel(api, 1, false, () => {});
     const result = await syncWeeklyChannel(api, 3, false, () => {});
-    expect(api.listRepositoryIssues).toHaveBeenCalledTimes(4); // 首刷 1 + 深度 P1/P2/P3
-    // 230 = P1 100 + P3 100 + 首轮维护合法补全的 30 个游离 pending；
-    // 旧实现把 60 个游离 pending 全部计入停止条件 → 在 P2 后提前停（只 130 卡）
+    expect(api.listRepositoryIssues).toHaveBeenCalledTimes(4); // Initial refresh 1 + deep P1/P2/P3
+    // 230 = P1 100 + P3 100 + 30 straggler pendings legally enriched in first round maintenance;
+    // Legacy implementation counted all 60 straggler pendings in stop condition -> stopped early after P2 (only 130 cards)
     expect(result.totalCount).toBe(230);
     expect(storage.metaRef.current.historyComplete).toBe(false);
   });
 
   it('fetches deeper pages only when the requested UI page exceeds cached cards', async () => {
-    // P1: 100 个新仓库；P2: 50 新 + 50 重复引用 P1 仓库；P3: 100 新；P4: 空
+    // P1: 100 new repos; P2: 50 new + 50 duplicates referencing P1 repos; P3: 100 new; P4: empty
     const p1 = issuePage(1, (i) => `org${i}/repo${i}`);
     const p2 = issuePage(101, (i) => (i < 50 ? `zed${i}/repo${i}` : `org${i - 50}/repo${i - 50}`));
     const p3 = issuePage(201, (i) => `gamma${i}/repo${i}`);
@@ -413,18 +413,18 @@ describe('syncWeeklyChannel on-demand paging', () => {
     expect(api.listRepositoryIssues).toHaveBeenCalledTimes(1);
     expect(storage.metaRef.current.deepNextPage).toBe(2);
 
-    // 页 2（需要 100 张卡片，缓存恰好 100）→ 纯缓存切片
+    // Page 2 (needs 100 cards, cache has exactly 100) -> pure cache slice
     const spy = api.listRepositoryIssues as ReturnType<typeof vi.fn>;
     spy.mockClear();
     await syncWeeklyChannel(api, 2, false, () => {});
     expect(spy).not.toHaveBeenCalled();
 
-    // 页 3（需要 150 > 100）→ 深度遍历：重叠重读 P1（跳过）+ P2（+50）
+    // Page 3 (needs 150 > 100) -> deep walk: overlapping re-read of P1 (skipped) + P2 (+50)
     await syncWeeklyChannel(api, 3, false, () => {});
     expect(spy).toHaveBeenCalledTimes(2);
     expect(storage.metaRef.current.deepNextPage).toBe(3);
 
-    // 页 4（需要 200 > 150）→ 从游标 3-1=2 继续：P2（跳过）+ P3（+100）
+    // Page 4 (needs 200 > 150) -> continue from cursor 3-1=2: P2 (skipped) + P3 (+100)
     spy.mockClear();
     await syncWeeklyChannel(api, 4, false, () => {});
     expect(spy).toHaveBeenCalledTimes(2);
@@ -434,7 +434,7 @@ describe('syncWeeklyChannel on-demand paging', () => {
   it('stops at history end and reports hasMore=false', async () => {
     const p1 = issuePage(1, (i) => `org${i}/repo${i}`);
     const api = makeApi([p1, []]);
-    // 先取到第 5 页触发深度遍历直到空页
+    // Request page 5 to trigger deep walk until empty page
     await syncWeeklyChannel(api, 1, false, () => {});
     const result = await syncWeeklyChannel(api, 5, false, () => {});
     expect(result.hasMore).toBe(false);
@@ -443,14 +443,14 @@ describe('syncWeeklyChannel on-demand paging', () => {
 
   it('refresh walk passes since and does not advance the deep cursor', async () => {
     const api = makeApi([issuePage(1, (i) => `org${i}/repo${i}`), issuePage(101, (i) => `late${i}/repo${i}`, 3)]);
-    // 预置旧同步水位（不在 60 秒窗口内）
+    // Pre-populate old sync watermark (outside 60-second window)
     storage.setLastSyncedAt('2026-06-01T00:00:00Z');
 
     await syncWeeklyChannel(api, 1, false, () => {});
-    expect(api.listRepositoryIssues).toHaveBeenCalledTimes(2); // P1 满 100 继续，P2 仅 3 条停止
+    expect(api.listRepositoryIssues).toHaveBeenCalledTimes(2); // P1 full 100 continues, P2 only 3 items stops
     const firstCallOpts = (api.listRepositoryIssues as ReturnType<typeof vi.fn>).mock.calls[0][2];
-    expect(firstCallOpts.since).toBe('2026-05-25T00:00:00.000Z'); // 上次同步 - 7 天
-    // since 遍历不推进深度游标、不标记取尽
+    expect(firstCallOpts.since).toBe('2026-05-25T00:00:00.000Z'); // Last sync - 7 days
+    // Walk with since does not advance deep cursor and does not mark complete
     expect(storage.metaRef.current.deepNextPage).toBe(1);
     expect(storage.metaRef.current.historyComplete).toBe(false);
   });
@@ -460,7 +460,7 @@ describe('syncWeeklyChannel on-demand paging', () => {
     storage.setLastSyncedAt('not-a-timestamp');
 
     const result = await syncWeeklyChannel(api, 1, false, () => {});
-    // 损坏水位按首次运行处理：不带 since、只取 1 页；走完覆盖为合法水位
+    // Corrupted watermark treated as first run: omits since, fetches only 1 page; overwritten with valid watermark on completion
     expect(api.listRepositoryIssues).toHaveBeenCalledTimes(1);
     const callOpts = (api.listRepositoryIssues as ReturnType<typeof vi.fn>).mock.calls[0][2];
     expect(callOpts.since).toBeUndefined();
@@ -469,13 +469,13 @@ describe('syncWeeklyChannel on-demand paging', () => {
   });
 
   it('deep-walks to fill a filtered page when onlyCollected is on', async () => {
-    // P1: 100 条中仅 10 条带 weekly label；P2: 100 条中 45 条带 label
+    // P1: only 10 out of 100 have weekly label; P2: 45 out of 100 have label
     const p1 = issuePage(1, (i) => `org${i}/repo${i}`, 100, (i) => (i < 10 ? ['weekly'] : []));
     const p2 = issuePage(101, (i) => `zed${i}/repo${i}`, 100, (i) => (i < 45 ? ['weekly'] : []));
     const api = makeApi([p1, p2, []]);
 
     const result = await syncWeeklyChannel(api, 1, true, () => {});
-    // 刷新遍历 1 页 + 深度遍历补足过滤后的 50 张卡片（重叠重读 P1 + P2）
+    // Refresh walk 1 page + deep walk to fill 50 filtered cards (overlapping re-read of P1 + P2)
     expect(api.listRepositoryIssues).toHaveBeenCalledTimes(3);
     expect(result.repos).toHaveLength(50);
     expect(result.repos.every(r => r.weeklyIssue?.labels.some(l => l.toLowerCase() === 'weekly'))).toBe(true);

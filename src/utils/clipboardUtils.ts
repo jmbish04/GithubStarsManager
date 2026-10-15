@@ -6,8 +6,8 @@ import { getCurrentAppLanguage } from '../i18n';
 
 
 /**
- * 剪贴板工具函数
- * 提供兼容性检查和降级方案
+ * Clipboard utility functions.
+ * Provides compatibility checks and fallback mechanisms.
  */
 
 export interface ClipboardSupport {
@@ -17,7 +17,7 @@ export interface ClipboardSupport {
 }
 
 /**
- * 检查剪贴板 API 支持情况
+ * Checks clipboard API support.
  */
 export const checkClipboardSupport = (): ClipboardSupport => {
   const isSecureContext = typeof window !== 'undefined' && window.isSecureContext;
@@ -31,21 +31,21 @@ export const checkClipboardSupport = (): ClipboardSupport => {
 };
 
 /**
- * 检查是否支持写入剪贴板
+ * Checks whether writing to the clipboard is supported.
  */
 export const isWriteSupported = (): boolean => {
   return checkClipboardSupport().writeText;
 };
 
 /**
- * 检查是否支持读取剪贴板
+ * Checks whether reading from the clipboard is supported.
  */
 export const isReadSupported = (): boolean => {
   return checkClipboardSupport().readText;
 };
 
 /**
- * 获取剪贴板不支持时的错误信息
+ * Gets an error message when the clipboard operation is not supported.
  */
 export const getClipboardErrorMessage = (
   operation: 'read' | 'write',
@@ -70,14 +70,13 @@ export const getClipboardErrorMessage = (
 };
 
 /**
- * 安全的剪贴板写入函数
- * 带有兼容性检查和降级方案
+ * Safe clipboard write function with compatibility checks and fallback mechanism.
  */
 export const safeWriteText = async (text: string): Promise<{ success: boolean; error?: string }> => {
   const support = checkClipboardSupport();
 
   if (!support.writeText) {
-    // 尝试使用降级方案（execCommand）
+    // Try fallback mechanism (execCommand)
     try {
       const textarea = document.createElement('textarea');
       textarea.value = text;
@@ -95,7 +94,7 @@ export const safeWriteText = async (text: string): Promise<{ success: boolean; e
         return { success: true };
       }
     } catch {
-      // 降级方案失败，返回错误
+      // Fallback failed, return error
     }
 
     return {
@@ -116,8 +115,7 @@ export const safeWriteText = async (text: string): Promise<{ success: boolean; e
 };
 
 /**
- * 安全的剪贴板读取函数
- * 带有兼容性检查
+ * Safe clipboard read function with compatibility checks.
  */
 export const safeReadText = async (): Promise<{ success: boolean; text?: string; error?: string }> => {
   const support = checkClipboardSupport();

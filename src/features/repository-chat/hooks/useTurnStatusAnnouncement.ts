@@ -5,8 +5,8 @@ import type { RepositoryChatMessage } from '../../../types/repositoryChat';
 export type TurnAnnouncementStatus = '' | RepositoryChatMessage['status'];
 
 /**
- * 仅在回答由流式进入终态时产出一次性的屏幕阅读器通报文本。
- * 进入流式状态时先清空旧通报，保证连续两轮回答完成时同一文案也能再次播报。
+ * Produces a one-time screen reader announcement text only when an answer transitions from streaming to a terminal state.
+ * Clears old announcements upon entering the streaming state, ensuring the same announcement text can be broadcast again across consecutive completed turns.
  */
 export const useTurnStatusAnnouncement = (lastAssistantStatus: TurnAnnouncementStatus, language: AppLanguage): string => {
   const [announcement, setAnnouncement] = useState('');

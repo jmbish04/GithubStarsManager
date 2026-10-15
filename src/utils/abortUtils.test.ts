@@ -47,7 +47,7 @@ describe('createCombinedAbortController', () => {
     const controller = createCombinedAbortController(undefined, 5_000);
     controller.abort();
 
-    // 定时器已被清理：挂起定时器计数归零，推进时间也不应再触发任何 abort 副作用
+    // Timer was cleaned up: pending timer count drops to zero; advancing time should not trigger any abort side effects
     expect(vi.getTimerCount()).toBe(0);
     vi.advanceTimersByTime(10_000);
     expect(controller.signal.aborted).toBe(true);

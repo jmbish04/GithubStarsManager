@@ -28,7 +28,7 @@ interface DownloadLink {
   contentType?: string;
 }
 
-/** 资产相对时间：updated_at 非法时不渲染，避免 date-fns 对 Invalid Date 抛错；中文界面用 zhCN。 */
+/** Relative asset time: omit rendering when updated_at is invalid to avoid date-fns throwing on Invalid Date; uses zhCN in Chinese UI. */
 const AssetUpdatedTime = ({ updatedAt, language }: { updatedAt?: string; language: AppLanguage }) => {
   if (!updatedAt) return null;
   const time = new Date(updatedAt).getTime();
@@ -45,9 +45,9 @@ const AssetUpdatedTime = ({ updatedAt, language }: { updatedAt?: string; languag
 
 interface ReleaseCardProps {
   release: Release;
-  /** 默认展示的下载链接：已启用过滤器时只有命中过滤器的资产 */
+  /** Default download links to display: only assets matching active filters when filtering is enabled. */
   downloadLinks: DownloadLink[];
-  /** 该 Release 的全部下载链接（未裁剪）；省略时视为与 downloadLinks 相同 */
+  /** All download links for this release (untrimmed); defaults to downloadLinks when omitted. */
   allDownloadLinks?: DownloadLink[];
   isUnread: boolean;
   isAssetsExpanded: boolean;
@@ -87,21 +87,20 @@ const ReleaseCard: React.FC<ReleaseCardProps> = memo(({
   const effectiveTime = effectiveReleaseTime(release);
   const showAssetsUpdatedIndicator = shouldShowAssetsUpdatedIndicator(release);
 
-  // RPC 发送与 AI 总结动作由共享 hook 承担（useRepositoryReleaseSheet 同源委托）
+  // RPC dispatch and AI summary actions are delegated to a shared hook (mirrors useRepositoryReleaseSheet).
   const { rpcDownloadConfig } = useAppStore(useShallow((state) => ({
     rpcDownloadConfig: state.rpcDownloadConfig,
   })));
   const { summaries, rpcDownloadStates, sendRpcDownload, generateSummary } = useReleaseArtifactActions();
-  // AI 总结状态内聚在 hook（展开态留在卡片内，不持久化）；
-  // 卡片卸载时的请求取消由 hook 的 unmount 副作用承担（卡片卸载即 hook 卸载）。
+  // AI summary state is managed inside the hook (expansion state remains local to the card and is not persisted);
+  // request cancellation on unmount is handled by the hook's cleanup effect.
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const summary = useMemo(() => summaries[release.id] ?? { status: 'idle' as const }, [summaries, release.id]);
 
-  // 资产清单裁剪：已启用过滤器命中的资产默认展示，未命中的资产由用户按需展开。
-  // 「展开全部」状态用**当前命中资产集合的签名**记录，而不是布尔值：过滤器被切换、
-  // 或关键词被编辑导致命中集合变化时自动回到「只显示命中的资产」，避免旧的展开态
-  // 让人再次误以为过滤器没生效（审计发现）。展开态留在卡片内、不持久化，与资产/日志/
-  // 总结展开态一致。
+  // Asset list trimming: assets matching enabled filters are displayed by default, while unmatched assets can be expanded on demand.
+  // "Expand all" state tracks the **signature of the currently matched asset set** rather than a boolean:
+  // switching filters or editing keywords resets to "show matched assets only", preventing stale expansion state
+  // from making filters appear broken. Expansion state is local to the card and not persisted, matching assets/changelog/summary expansion behavior.
   const everyDownloadLink = allDownloadLinks ?? downloadLinks;
   const hiddenDownloadCount = Math.max(everyDownloadLink.length - downloadLinks.length, 0);
   const matchedLinksSignature = downloadLinks.map(link => link.name).join('\u0000');
@@ -116,14 +115,14 @@ const ReleaseCard: React.FC<ReleaseCardProps> = memo(({
     );
   }, [matchedLinksSignature]);
 
-  // 完成或失败后自动展开（原 runSummaryAnalysis 成功/失败分支的 setIsSummaryExpanded(true)）
+  // Auto-expand on completion or failure (matches setIsSummaryExpanded(true) in runSummaryAnalysis success/error branches)
   useEffect(() => {
     if (summary.status === 'done' || summary.status === 'error') {
       setIsSummaryExpanded(true);
     }
   }, [summary.status]);
 
-  // 判断是否有任何内容展开
+  // Check whether any section is expanded
   const isAnyExpanded = isAssetsExpanded || isReleaseNotesExpanded || isSummaryExpanded;
 
   const handleRpcDownload = useCallback(async (link: DownloadLink) => {
@@ -133,19 +132,19 @@ const ReleaseCard: React.FC<ReleaseCardProps> = memo(({
   const handleToggleSummary = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // 已展开时：一律收起（出错态也先收起，再次点击已收起的错误态才会重试）
+    // When already expanded: collapse (collapses error states too; clicking a collapsed error state retries)
     if (isSummaryExpanded) {
       setIsSummaryExpanded(false);
       return;
     }
 
-    // 已有结论且未展开 → 直接展开（不重复分析）
+    // Already summarized and collapsed -> expand directly without re-analyzing
     if (summary.status === 'done' && summary.content) {
       setIsSummaryExpanded(true);
       return;
     }
 
-    // 未分析或上次失败 → 触发 AI 分析（按钮转圈，完成后自动展开）
+    // Not yet analyzed or previously failed -> trigger AI analysis (spins button, auto-expands on completion)
     await generateSummary(release);
   }, [isSummaryExpanded, summary, generateSummary, release]);
 
@@ -156,7 +155,7 @@ const ReleaseCard: React.FC<ReleaseCardProps> = memo(({
         isAnyExpanded ? 'is-expanded' : ''
       }`}
     >
-      {/* 头部区域 - 仅显示元信息，不可点击展开 */}
+      {/* Header area - displays metadata only, not clickable for expansion */}
       <div className="p-3 sm:p-4">
         <div className="flex items-stretch justify-between gap-3">
           <div className="flex items-center min-w-0 flex-1">
@@ -186,9 +185,9 @@ const ReleaseCard: React.FC<ReleaseCardProps> = memo(({
             </div>
           </div>
 
-          {/* 元信息列不设固定上限：出现“资产已更新”徽标时整行向左扩展（min-w 保证
-              无徽标时仍维持 140px 栏宽对齐），否则 140px 内放不下徽标会把时间和
-              徽标文字都挤到换行；按钮区仍固定 344px 靠右，位置不受影响。 */}
+          {/* Metadata column has no rigid upper width limit: when the "assets updated" badge appears, the row expands to the left (min-w ensures
+              140px alignment when no badge is present). Otherwise, 140px cannot fit the badge without wrapping both time and badge text;
+              the button area stays pinned to the right at 344px. */}
           <div className="flex items-center gap-6 flex-shrink-0 self-center md:justify-end">
             <div className="hidden md:flex md:min-w-[140px] shrink-0 flex-col justify-center gap-1.5 text-xs text-muted-foreground dark:text-muted-foreground">
               <div className="flex items-center gap-1.5 whitespace-nowrap">
@@ -212,7 +211,7 @@ const ReleaseCard: React.FC<ReleaseCardProps> = memo(({
                 </div>
               )}
             </div>
-            {/* 固定宽度需容纳英文五控件（Assets/Notes/Summary+2图标，约340px），否则换行按钮会溢出头部 */}
+            {/* Fixed width must accommodate five controls in English (Assets/Notes/Summary + 2 icons, ~340px) to prevent button wrapping */}
             <div className="flex items-center justify-end gap-1 flex-shrink-0 md:w-[344px] md:min-w-[344px]">
             {downloadLinks.length > 0 && (
               <Button
@@ -300,7 +299,7 @@ const ReleaseCard: React.FC<ReleaseCardProps> = memo(({
         </div>
       </div>
 
-      {/* 可展开内容区域 */}
+      {/* Expandable content area */}
       <div
         className="grid transition-[grid-template-rows] duration-300 ease-in-out"
         style={{ gridTemplateRows: (isAssetsExpanded || isReleaseNotesExpanded || isSummaryExpanded) ? '1fr' : '0fr' }}
@@ -338,7 +337,7 @@ const ReleaseCard: React.FC<ReleaseCardProps> = memo(({
               <div className="ui-inset-surface max-h-72 overflow-hidden overflow-y-auto">
                 {visibleDownloadLinks.map((link, index) => {
                   const isRpcEnabled = rpcDownloadConfig.enabled;
-                  // 与 sendRpcDownload 使用相同的版本化 key
+                  // Uses the same versioned key as sendRpcDownload
                   const rpcKey = computeRpcDownloadKey(link);
                   const isDownloading = rpcDownloadStates[rpcKey] === 'sending';
                   const isDownloaded = rpcDownloadStates[rpcKey] === 'sent';

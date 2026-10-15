@@ -1,24 +1,24 @@
 /**
- * 阮一峰周刊频道数据服务（按需分页抓取）。
+ * Ruan Yifeng Weekly channel data service (on-demand paginated fetching).
  *
- * 数据管道：分页拉取 ruanyf/weekly 的 issues → 标题含"开源"过滤 → 正文提取
- * GitHub 仓库链接 → 按 full_name 去重（原贴取最新投稿）→ 仓库详情补全
- * （GraphQL 批量优先，REST 逐仓回退）→ 独立 IndexedDB 持久化 → 客户端按
- * 投稿时间倒序 + "周刊收录"过滤 + 分页切片。
+ * Data pipeline: Fetch ruanyf/weekly issues page by page -> filter titles containing "开源" -> extract
+ * GitHub repository links from body -> deduplicate by full_name (link to latest submission) -> enrich
+ * repository details (GraphQL batch first, REST fallback) -> persist in dedicated IndexedDB -> client-side
+ * sort descending by submission time + "Weekly publication" filter + paginated slicing.
  *
- * 分页语义（不一次性取全量）：
- * - 刷新遍历（page 1 / 手动刷新）：`state=all&sort=updated&since=上次同步-7天`，
- *   label 变更会 bump updated_at，单遍即覆盖"新投稿 + 编辑 + 发布几天后才补加
- *   的收录 label"；服务端已按窗口过滤，走到底（不足一页/空页）即窗口覆盖完。
- *   首次运行（无同步水位）不带 since、只取 1 页，秒级出数据。
- * - 深度遍历（缓存卡片不够当前分页时）：不带 since，从持久化游标
- *   deepNextPage-1（1 页重叠防删除位移）继续，每页落盘并推进游标，凑够目标
- *   卡片数或遇到不足一页/空页（→ historyComplete，历史取尽）或单次页数上限。
- * - 重复扫描由 updatedAt 快速跳过；每页增量落盘，中途取消不丢已处理条目。
+ * Pagination semantics (does not fetch everything at once):
+ * - Refresh walk (page 1 / manual refresh): `state=all&sort=updated&since=lastSync-7days`,
+ *   label changes bump updated_at, so a single pass covers "new submissions + edits + inclusion labels
+ *   added days after release"; server-side filtering by window means stopping at short/empty page completes the window.
+ *   First run (no watermark) omits since and fetches only 1 page for sub-second initial data.
+ * - Deep walk (when cached cards are insufficient for current page): omits since, resumes from persisted cursor
+ *   deepNextPage-1 (1 page overlap to guard against shift from deletions), persisting each page and advancing cursor,
+ *   until target card count is reached, short/empty page encountered (-> historyComplete), or single-pass page limit reached.
+ * - Repeated scans quickly skipped via updatedAt; incremental persistence per page, cancelation does not lose processed items.
  *
- * 不用 search/issues API 的原因：结果有 1000 条硬上限且独立限速 30 次/分；
- * list 端点走核心 API（5000 次/小时）。详情补全用 GraphQL alias 批量
- * （100 仓库/请求），失败自动回退 REST 逐仓。
+ * Why search/issues API is not used: hard cap of 1,000 results and independent rate limit of 30 req/min;
+ * list endpoint uses core API (5,000 req/hour). Details enriched via GraphQL alias batching
+ * (100 repos/request), falling back to REST per repository on failure.
  */
 
 import type {
@@ -40,11 +40,11 @@ import {
 export const WEEKLY_REPO_OWNER = 'ruanyf';
 export const WEEKLY_REPO_NAME = 'weekly';
 const WEEKLY_CHANNEL: DiscoveryChannelId = 'weekly';
-/** issue 标题关键字（【开源自荐】/【开源项目】等投稿标题均含此词） */
+/** Issue title keyword (submission titles like 【开源自荐】/【开源项目】contain this word) */
 export const WEEKLY_TITLE_KEYWORD = '开源';
-/** 周刊收录 label（收录进周刊的投稿会带上） */
+/** Weekly collection label (added to submissions included in the weekly newsletter) */
 export const WEEKLY_COLLECTED_LABEL = 'weekly';
-/** GitHub 站点级路径（github.com/<这些>/... 不是仓库链接） */
+/** GitHub site-level paths (github.com/<these>/... are not repository links) */
 const NON_REPO_OWNER_PATHS = new Set([
   'features', 'topics', 'collections', 'sponsors', 'marketplace', 'settings', 'orgs',
   'enterprises', 'account', 'notifications', 'explore', 'trending', 'about', 'pricing',
@@ -54,19 +54,19 @@ const NON_REPO_OWNER_PATHS = new Set([
 ]);
 const ISSUE_PAGE_SIZE = 100;
 const CARD_PAGE_SIZE = 50;
-/** label 宽限窗口：每次增量多回看 7 天，覆盖"发布几天后才补加收录 label" */
+/** Label grace window: look back 7 extra days on incremental sync to catch inclusion labels added days later */
 const LABEL_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
-/** 仓库详情的刷新周期：30 天内的快照视为新鲜 */
+/** Repository detail refresh interval: snapshots within 30 days are considered fresh */
 const REPO_DETAIL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-/** 不可用仓库（404/私有）的重试周期 */
+/** Retry interval for unavailable repositories (404/private) */
 const UNAVAILABLE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
-/** 每轮刷新遍历做详情维护（过期快照/不可用重试）的仓库上限 */
+/** Maximum repositories for detail maintenance per refresh walk (expired snapshots / unavailable retries) */
 const MAINTENANCE_CAP = 30;
-/** 深度遍历单次（一次"加载更多"）最多拉取的 issue 页数 */
+/** Maximum issue pages to fetch in a single deep walk ("load more") */
 const DEEP_WALK_MAX_PAGES = 10;
-/** 刷新遍历单次最多页数（since 窗口异常扩大时的保险丝） */
+/** Maximum issue pages in a refresh walk (safety fuse if since window expands abnormally) */
 const REFRESH_WALK_MAX_PAGES = 20;
-/** 60 秒内同步过则跳过刷新遍历（过滤器切换等签名变化触发的重刷走缓存） */
+/** Skip refresh walk if synced within 60 seconds (re-renders from filter toggle use cache) */
 const RECENT_SYNC_SKIP_MS = 60 * 1000;
 const ISSUE_LIST_THROTTLE_MS = 100;
 const REST_ENRICH_THROTTLE_MS = 80;
@@ -86,9 +86,9 @@ const isTokenInvalidError = (error: unknown): boolean =>
   error instanceof Error && error.message.includes('token expired or invalid');
 
 /**
- * 从 issue 正文提取 GitHub 仓库 full_name。
- * 只认完整 https 链接，剥离子路径（/tree/、/blob/ 等）；排除附件图片、
- * 站点级路径和周刊仓库自身；没有可提取链接时返回空数组（调用方舍弃该条目）。
+ * Extract GitHub repository full_name from issue body.
+ * Only recognizes complete https links, stripping subpaths (/tree/, /blob/, etc.); excludes attachment images,
+ * site-level paths, and the weekly repository itself; returns empty array when no links found (caller drops item).
  */
 export function extractRepoFullNames(body: string | null | undefined): string[] {
   if (!body) return [];
@@ -102,8 +102,8 @@ export function extractRepoFullNames(body: string | null | undefined): string[] 
     const ownerLower = owner.toLowerCase();
     if (NON_REPO_OWNER_PATHS.has(ownerLower)) continue;
     if (ownerLower === WEEKLY_REPO_OWNER && name.toLowerCase() === WEEKLY_REPO_NAME) continue;
-    // GitHub 仓库名不能以句点结尾（`bar.` 是正文标点被 [\w.-] 吞进来了）；
-    // 末尾连字符是合法仓库名，保留
+    // GitHub repository names cannot end with a period (`bar.` punctuation matched by [\w.-]);
+    // trailing hyphen is valid in repo names, keep it
     name = name.replace(/\.+$/, '');
     if (!name) continue;
     if (name.toLowerCase().endsWith('.git')) name = name.slice(0, -4);
@@ -116,9 +116,10 @@ export const hasCollectedLabel = (labels: string[]): boolean =>
   labels.some((label) => label.toLowerCase() === WEEKLY_COLLECTED_LABEL);
 
 /**
- * issue 处理的变更登记：累计集合供遍历后的详情补全定位（跨页保留）；
- * 页级脏集合供逐页原子落盘（事务成功后清空）。同一仓库跨页再次变更时，
- * 累计集合去重不会推进、页级集合仍会登记——落盘必须走页级集合。
+ * Issue change registration marks: cumulative sets for post-walk detail enrichment (preserved across pages);
+ * page-level dirty sets for atomic persistence per page (cleared on transaction success). When the same repo
+ * changes again across pages, cumulative deduplication does not advance, but page-level sets still register —
+ * persistence must use page-level sets.
  */
 export interface IssueChangeMarks {
   changedIssueNumbers: Set<number>;
@@ -128,9 +129,9 @@ export interface IssueChangeMarks {
 }
 
 /**
- * 处理单条 issue：命中（标题含"开源"且正文提取到仓库链接）则 upsert 到
- * issues/repos 映射，并登记到变更集合。updatedAt 未变化的已知 issue 走快速跳过。
- * 返回是否命中投稿条目。
+ * Process a single issue: if matched (title contains keyword and body contains repo link), upsert to
+ * issues/repos map and register to change marks. Known issues with unchanged updatedAt are fast-skipped.
+ * Returns whether issue was a matched submission item.
  */
 export function processWeeklyIssue(
   issue: GitHubIssueListRead,
@@ -171,12 +172,12 @@ export function processWeeklyIssue(
         issueCreatedAt: issue.created_at,
       });
     } else if (issue.created_at > repo.issueCreatedAt) {
-      // 同仓库多期投稿：原贴指向投稿时间最新的 issue
+      // Multiple submissions for same repo: link original post to the newest submission issue
       repo.sourceIssueNumber = issue.number;
       repo.issueLabels = issue.labels;
       repo.issueCreatedAt = issue.created_at;
     } else if (repo.sourceIssueNumber === issue.number) {
-      // 原贴 label 更新（weekly label 可能发布几天后才补加）
+      // Update original issue labels (weekly label may be added days after publication)
       repo.issueLabels = issue.labels;
     }
     marks.changedRepoKeys.add(key);
@@ -188,7 +189,7 @@ export function processWeeklyIssue(
 const bySubmissionDesc = (a: WeeklyStoredRepo, b: WeeklyStoredRepo) =>
   b.issueCreatedAt.localeCompare(a.issueCreatedAt);
 
-/** 本轮遍历新触达、且尚未补全详情的仓库（不设上限，遍历自身的新增必须补全）。 */
+/** Repositories newly reached this walk that lack details (no cap; additions from walk must be enriched). */
 export function pendingReposFromKeys(
   repos: Map<string, WeeklyStoredRepo>,
   keys: Set<string>,
@@ -202,9 +203,9 @@ export function pendingReposFromKeys(
 }
 
 /**
- * 刷新遍历附带的详情维护（各自限额，控制单次 API 预算）：
- * 30 天未刷新的过期快照、到期重试的不可用仓库，以及游离的未补全仓库
- * （此前同步被中止遗留、不在本轮 changed 集合内的）。
+ * Detail maintenance bundled with refresh walk (individual quotas to manage API budget):
+ * Stale snapshots (>30 days), unavailable repositories due for retry, and straggler pending repositories
+ * (orphaned from previously aborted syncs, outside this walk's changed set).
  */
 export function refreshMaintenanceRepos(
   repos: Map<string, WeeklyStoredRepo>,
@@ -230,7 +231,7 @@ export function refreshMaintenanceRepos(
   ];
 }
 
-/** 把补全结果写回仓库映射（null = 不可用，标记时间供到期重试）。 */
+/** Write enrichment results back to repos map (null = unavailable, timestamped for retry). */
 function applyEnrichmentResults(
   details: Map<string, GitHubRepoDetailRead | null>,
   repos: Map<string, WeeklyStoredRepo>,
@@ -246,7 +247,7 @@ function applyEnrichmentResults(
   }
 }
 
-/** REST 逐仓补全回退路径（GraphQL 不可用时），限流/鉴权错误直接上抛中止本轮。 */
+/** REST per-repository enrichment fallback (when GraphQL is unavailable); throws immediately on rate limit/auth errors to abort walk. */
 async function enrichReposViaRest(
   api: GitHubApiService,
   targets: WeeklyStoredRepo[],
@@ -265,7 +266,7 @@ async function enrichReposViaRest(
       repo.lastFetchedAt = new Date().toISOString();
     } catch (error) {
       if (isAbortError(error) || isRateLimitError(error) || isTokenInvalidError(error)) throw error;
-      // 404/410/其他 4xx：标记不可用，到期重试（makeRequest 已做过网络/5xx 重试）
+      // 404/410/other 4xx: mark unavailable for future retry (makeRequest already handles network/5xx retries)
       logger.warn('weeklyIssues', `Repo details unavailable: ${repo.fullName}`, error);
       repo.lastFetchedAt = new Date().toISOString();
     }
@@ -275,7 +276,7 @@ async function enrichReposViaRest(
   }
 }
 
-/** GraphQL 批量补全；部分批次失败时仅对未成功的仓库回退 REST。 */
+/** GraphQL batch enrichment; falls back to REST only for repositories that failed in batch. */
 async function enrichRepos(
   api: GitHubApiService,
   targets: WeeklyStoredRepo[],
@@ -313,7 +314,7 @@ async function enrichRepos(
   }
 }
 
-/** 遍历共享的可变状态：issue/repo 内存映射、变更集合（累计 + 页级脏）。 */
+/** Mutable state shared across walks: in-memory issue/repo maps, change marks (cumulative + page-level dirty). */
 interface WalkContext {
   api: GitHubApiService;
   signal: AbortSignal | undefined;
@@ -328,18 +329,18 @@ interface WalkContext {
 }
 
 interface WalkOptions {
-  /** 仅拉取 updated_at >= since 的 issue（刷新遍历）；深度遍历不传 */
+  /** Only fetch issues with updated_at >= since (refresh walk); omitted for deep walk */
   since?: string;
   startPage: number;
   maxPages: number;
-  /** 是否推进深度分页游标（仅无 since 的全序遍历） */
+  /** Whether to advance deep pagination cursor (only for fully-ordered walk without since) */
   advanceCursor: boolean;
-  /** 每页处理完后的停止条件（深度遍历：凑够目标卡片数即停） */
+  /** Stop condition evaluated after each page (deep walk: stop once target cards reached) */
   stopWhen?: () => boolean;
   /**
-   * 从该页起短页/空页才视为历史取尽并标记 historyComplete。深度遍历的游标
-   * 重叠区（startPage = deepNextPage-1）是此前已消费的旧页，其"不足一页"
-   * 可能是删除位移造成的过时信息，不能据此取尽；undefined = 永不标记。
+   * Short/empty pages from this page onward mark historyComplete. Overlap region of deep walk cursor
+   * (startPage = deepNextPage-1) is a previously consumed page; its short length could be stale information
+   * caused by deletion shift, so it cannot mark completion; undefined = never mark.
    */
   completeFromPage?: number;
 }
@@ -348,14 +349,15 @@ interface WalkResult {
   pagesFetched: number;
   scanned: number;
   matched: number;
-  /** 历史取尽：仅无 since 的遍历在遇到不足一页/空页时为 true */
+  /** History exhausted: true only when walk without since encounters a short or empty page */
   hitEnd: boolean;
 }
 
 /**
- * 原子落盘本页脏数据 + 游标：issues、repos、meta（deepNextPage/historyComplete）
- * 走同一事务。事务成功后才清空页级脏集合并推进内存游标；失败抛出中止遍历，
- * 下轮同步重新拉取该页，避免"游标已推进但数据未落盘"的永久缺口。
+ * Atomically persist dirty data + cursor for this page: issues, repos, meta (deepNextPage/historyComplete)
+ * within the same transaction. Page-level dirty sets are cleared and in-memory cursor advanced only upon
+ * transaction success; failures throw to abort walk, and next sync will re-fetch this page, preventing
+ * permanent gaps where the cursor was advanced without data persisting.
  */
 async function flushWalkPage(
   ctx: WalkContext,
@@ -382,9 +384,9 @@ async function flushWalkPage(
 }
 
 /**
- * 按 updated 倒序遍历 issue 页：逐页处理、原子落盘、推进游标。
- * 停止条件：页数上限 / 不足一页或空页（无 since 时即历史取尽，随本页原子
- * 标记 historyComplete）/ 深度遍历凑够目标卡片数。
+ * Walk issue pages in descending updated order: process page by page, persist atomically, advance cursor.
+ * Stop conditions: page limit reached / short or empty page (marks historyComplete atomically when without since)
+ * / deep walk reaches target card count.
  */
 async function walkIssuePages(ctx: WalkContext, opts: WalkOptions): Promise<WalkResult> {
   let page = opts.startPage;
@@ -418,7 +420,7 @@ async function walkIssuePages(ctx: WalkContext, opts: WalkOptions): Promise<Walk
       hitEnd = markComplete;
       break;
     }
-    // 短的重叠旧页：取尽判断已过时（历史越过此处），继续深入（maxPages 兜底）
+    // Short overlapping old page: completion check is stale (history already moved past this point), continue deeper (capped by maxPages)
     if (opts.stopWhen?.()) break;
     page++;
     await sleep(ISSUE_LIST_THROTTLE_MS);
@@ -426,7 +428,7 @@ async function walkIssuePages(ctx: WalkContext, opts: WalkOptions): Promise<Walk
   return { pagesFetched, scanned, matched, hitEnd };
 }
 
-/** 由存储的仓库/issue 数据构建发现频道卡片（未补全详情的条目暂不展示）。 */
+/** Build discovery channel cards from stored repo/issue data (items without enriched details are hidden). */
 export function buildWeeklyDiscoveryRepos(
   repos: Map<string, WeeklyStoredRepo>,
   issues: Map<number, WeeklyStoredIssue>,
@@ -457,7 +459,7 @@ export function buildWeeklyDiscoveryRepos(
   return list;
 }
 
-/** 当前可展示的卡片数（含过滤语义，仅统计已补全详情的），用于外层判断是否需要深度遍历。 */
+/** Current displayable cards (respecting filters, counting only enriched items), used to decide if deep walk is needed. */
 const countCards = (repos: Map<string, WeeklyStoredRepo>, onlyCollected: boolean): number => {
   let count = 0;
   for (const repo of repos.values()) {
@@ -467,10 +469,10 @@ const countCards = (repos: Map<string, WeeklyStoredRepo>, onlyCollected: boolean
 };
 
 /**
- * 遍历完成后预期可展示的卡片数：已补全的仓库 + 本轮详情补全实际会处理的
- * 待补全仓库（enrichKeys 内）。遗留自此前被中止同步的游离 pending 不在
- * enrichKeys 内、不会在本轮补全，不计入——否则停止条件与补全集合不一致，
- * 分页会反复返回不足一页的数据。不可用仓库永不出卡，排除。
+ * Expected displayable cards after walk finishes: already enriched repos + pending repos actually scheduled
+ * for enrichment this walk (in enrichKeys). Straggler pending items from previously aborted syncs outside
+ * enrichKeys will not be enriched this round and are excluded — otherwise mismatch between stop condition
+ * and enrichment set causes pagination to repeatedly return short pages. Unavailable repos never display cards, excluded.
  */
 const countProspectiveCards = (
   repos: Map<string, WeeklyStoredRepo>,
@@ -496,13 +498,13 @@ const isRecentlySynced = (lastSyncedAt: string | null): boolean =>
 let syncAbortController: AbortController | null = null;
 let syncInFlight: Promise<void> | null = null;
 
-/** 互斥执行：新请求中止上一轮并等待其落盘结算后再开新一轮。 */
+/** Mutually exclusive execution: new requests abort previous run and wait for its persistence to settle before starting. */
 async function runExclusiveSync(
   body: (signal: AbortSignal) => Promise<void>,
   onStatus: StatusCallback,
 ): Promise<void> {
   syncAbortController?.abort();
-  // 等待被中止轮次完成落盘，避免旧快照覆盖新一轮刚写入的结果
+  // Wait for aborted run to finish persistence, preventing stale snapshot from overwriting freshly written results
   if (syncInFlight) await syncInFlight.catch(() => {});
   const controller = new AbortController();
   syncAbortController = controller;
@@ -511,7 +513,7 @@ async function runExclusiveSync(
   try {
     await run;
   } finally {
-    // 仅在仍持有同步权时清空状态，避免被中止的旧轮次清掉新一轮的进度显示
+    // Clear status only if still holding sync ownership, preventing an aborted old run from clearing progress of a new one
     if (syncAbortController === controller) {
       syncAbortController = null;
       onStatus?.(null);
@@ -519,7 +521,7 @@ async function runExclusiveSync(
   }
 }
 
-/** 补全 targets 并在 finally 中落盘（中途限流/中止也不丢已获取详情）。 */
+/** Enrich targets and persist in finally block (prevents losing fetched details even if rate limited/aborted midway). */
 async function enrichAndPersist(
   ctx: WalkContext,
   targets: WeeklyStoredRepo[],
@@ -536,10 +538,10 @@ async function enrichAndPersist(
 }
 
 /**
- * 频道抓取入口（refreshChannel 调用）。按需分页：
- * - page 1：60 秒内未同步则做一次有界刷新遍历（since 窗口 / 首次 1 页）；
- * - 任意页：缓存卡片不足该页所需时做一次有界深度遍历（游标续页）；
- * - 缓存充足时纯切片不触网。"周刊收录"过滤为客户端行为。
+ * Channel fetch entry point (called by refreshChannel). On-demand pagination:
+ * - page 1: bounded refresh walk if unsynced within 60s (since window / 1 page on first run);
+ * - any page: bounded deep walk if cached cards are insufficient for the requested page (cursor continuation);
+ * - when cache is sufficient: pure slicing without network requests. "Weekly publication" filter is client-side.
  */
 export async function syncWeeklyChannel(
   api: GitHubApiService,
@@ -549,7 +551,7 @@ export async function syncWeeklyChannel(
 ): Promise<PaginatedDiscoveryRepositories> {
   const meta0 = await weeklyIssuesStorage.getSyncMeta();
   const needsRefreshWalk = page <= 1 && !isRecentlySynced(meta0.lastSyncedAt);
-  // 刷新路径会在互斥体内重读仓库并自行评估深度遍历条件，这里跳过冗余的全量读取
+  // Refresh path re-reads repositories and evaluates deep walk conditions within mutex; skip redundant full read here
   const needsDeepWalk = !needsRefreshWalk
     && !meta0.historyComplete
     && countCards(await weeklyIssuesStorage.getAllRepos(), onlyCollected) < page * CARD_PAGE_SIZE;
@@ -559,7 +561,7 @@ export async function syncWeeklyChannel(
 
   if (needsRefreshWalk || needsDeepWalk) {
     await runExclusiveSync(async (signal) => {
-      // 上一轮可能已落盘新数据，重读最新状态
+      // Previous run may have persisted new data, re-read latest state
       const meta = await weeklyIssuesStorage.getSyncMeta();
       const issues = await weeklyIssuesStorage.getAllIssues();
       const repos = await weeklyIssuesStorage.getAllRepos();
@@ -577,9 +579,9 @@ export async function syncWeeklyChannel(
       };
 
       if (page <= 1 && !isRecentlySynced(meta.lastSyncedAt)) {
-        // 水位损坏（不可解析）时退化为首次运行：避免 Date.parse → NaN 在
-        // toISOString 处抛 RangeError 使频道永久无法刷新；走完首次遍历后
-        // lastSyncedAt 会被合法时间戳覆盖，自动自愈
+        // Fall back to first-run on corrupted (unparseable) watermark: prevents Date.parse -> NaN
+        // from throwing RangeError at toISOString and permanently breaking channel refresh;
+        // after initial walk, lastSyncedAt is overwritten with a valid timestamp to self-heal
         const lastSyncedMs = meta.lastSyncedAt === null ? NaN : Date.parse(meta.lastSyncedAt);
         const firstRun = !Number.isFinite(lastSyncedMs);
         onStatus?.({ phase: 'syncing', current: 0, total: 0 });
@@ -604,7 +606,7 @@ export async function syncWeeklyChannel(
 
       if (countCards(repos, onlyCollected) < page * CARD_PAGE_SIZE && !ctx.meta.historyComplete) {
         onStatus?.({ phase: 'syncing', current: 0, total: 0 });
-        // 重叠区起点之前的页都已消费过，短页/空页的取尽判断只对该页之后的页生效
+        // Pages before overlap start were already consumed; completion check for short/empty page applies only after this page
         const completeFromPage = ctx.meta.deepNextPage;
         const walk = await walkIssuePages(ctx, {
           startPage: Math.max(1, ctx.meta.deepNextPage - 1),
@@ -637,7 +639,7 @@ export async function syncWeeklyChannel(
   };
 }
 
-/** "查看原贴"弹窗取 issue 正文：优先离线缓存（无需 token，logout 后仍可看），缓存未命中且提供了 api 时实时拉取兜底，否则原样返回缓存（可能为 null）。 */
+/** Fetch issue body for "View original post" modal: prefers offline cache (works without token, still readable after logout); falls back to real-time fetch if cache misses and API is provided; otherwise returns cache as-is (possibly null). */
 export async function fetchWeeklyIssueBody(
   api: GitHubApiService | null,
   issueNumber: number,

@@ -2,8 +2,8 @@ import { makeT } from './useT';
 import type { AppLanguage } from './languages';
 
 /**
- * Discovery 频道/平台的本地化名称：内置频道按稳定 id 走翻译资源，
- * 用户自定义频道回退 nameEn（再回退中文规范名）。zh 直接用规范名。
+ * Localized name for Discovery channels/platforms: built-in channels look up translation resources by stable id;
+ * custom channels fall back to nameEn (then fall back to canonical Chinese name). zh uses the canonical name directly.
  */
 export function discoveryChannelName(
   channel: { id: string; name: string; nameEn?: string },

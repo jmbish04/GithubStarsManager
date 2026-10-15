@@ -50,7 +50,7 @@ describe('parseCitationToken', () => {
     expect(parseCitationToken('http://localhost:3000')).toBeNull();
     expect(parseCitationToken('https://example.com - 8080')).toBeNull();
     expect(parseCitationToken('https://example.com/page')).toBeNull();
-    // 裸 host:port（无协议）同样不是 file:line 引用。
+    // Bare host:port (without protocol) is likewise not a file:line citation.
     expect(parseCitationToken('example.com:8080')).toBeNull();
     expect(parseCitationToken('127.0.0.1:8080')).toBeNull();
     expect(parseCitationToken('example.com - 8080')).toBeNull();
@@ -72,7 +72,7 @@ describe('resolveCitation', () => {
       evidence({ id: 'c', path: 'docs/nested/README.md', lineStart: 1, lineEnd: 4 }),
     ];
     expect(resolveCitation('/README.md - 9-10', evidences)?.evidence.id).toBe('b');
-    // 未覆盖行号时回退到同路径证据中最精确（行区间最小）的一条。
+    // When line numbers are uncovered, fall back to the most specific (smallest line range) evidence with the same path.
     expect(resolveCitation('/README.md - 100-120', evidences)?.evidence.id).toBe('b');
     expect(resolveCitation('/nested/README.md - 2-3', evidences)?.evidence.id).toBe('c');
   });

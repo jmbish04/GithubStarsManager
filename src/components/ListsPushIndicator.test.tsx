@@ -30,62 +30,62 @@ const setPush = (patch: Partial<PushState>) => {
   mocks.state.resetListsPush ??= vi.fn();
 };
 
-describe('ListsPushIndicator 错误提示', () => {
+describe('ListsPushIndicator error notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setPush({});
   });
 
-  it('未运行时出现的错误（如启动前校验失败）只 toast 一次', () => {
+  it('toasts errors occurring while not running (e.g. pre-flight validation) only once', () => {
     const { rerender } = render(<ListsPushIndicator />);
     expect(mocks.toast).not.toHaveBeenCalled();
 
-    setPush({ error: '未配置 token' });
+    setPush({ error: 'Token not configured' });
     rerender(<ListsPushIndicator />);
     rerender(<ListsPushIndicator />);
 
     expect(mocks.toast).toHaveBeenCalledTimes(1);
-    expect(mocks.toast).toHaveBeenCalledWith('未配置 token', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Token not configured', 'error');
   });
 
-  it('运行结束且带错误时只 toast 一次，不重复', () => {
+  it('toasts once without repeating when run finishes with error', () => {
     setPush({ isRunning: true, total: 2, done: 1 });
     const { rerender } = render(<ListsPushIndicator />);
 
-    setPush({ isRunning: false, error: '推送失败' });
+    setPush({ isRunning: false, error: 'Push failed' });
     rerender(<ListsPushIndicator />);
     rerender(<ListsPushIndicator />);
 
     expect(mocks.toast).toHaveBeenCalledTimes(1);
-    expect(mocks.toast).toHaveBeenCalledWith('推送失败', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Push failed', 'error');
   });
 
-  it('未运行时相同文案的错误连续写入两次，每次都 toast', () => {
+  it('toasts each time when identical error messages are written twice consecutively while not running', () => {
     const { rerender } = render(<ListsPushIndicator />);
 
-    setPush({ error: '网络不可用' });
+    setPush({ error: 'Network unavailable' });
     rerender(<ListsPushIndicator />);
-    setPush({ error: '网络不可用' });
+    setPush({ error: 'Network unavailable' });
     rerender(<ListsPushIndicator />);
 
     expect(mocks.toast).toHaveBeenCalledTimes(2);
-    expect(mocks.toast).toHaveBeenNthCalledWith(2, '网络不可用', 'error');
+    expect(mocks.toast).toHaveBeenNthCalledWith(2, 'Network unavailable', 'error');
   });
 
-  it('挂载时已存在的错误不 toast', () => {
-    setPush({ error: '旧错误' });
+  it('does not toast errors that already existed upon mount', () => {
+    setPush({ error: 'Old error' });
     const { rerender } = render(<ListsPushIndicator />);
     rerender(<ListsPushIndicator />);
 
     expect(mocks.toast).not.toHaveBeenCalled();
   });
 
-  it('上一轮的 reset 定时器不会清空 4 秒内开始的新一轮推送', () => {
+  it('does not clear a new push run started within 4 seconds by previous reset timer', () => {
     vi.useFakeTimers();
     try {
       setPush({ isRunning: true, total: 1, done: 0 });
       const { rerender } = render(<ListsPushIndicator />);
-      setPush({ isRunning: false, message: '完成' });
+      setPush({ isRunning: false, message: 'Done' });
       rerender(<ListsPushIndicator />);
       setPush({ isRunning: true, total: 1, done: 0 });
       rerender(<ListsPushIndicator />);
@@ -98,20 +98,20 @@ describe('ListsPushIndicator 错误提示', () => {
     }
   });
 
-  it('上一轮的 reset 定时器不会清空 4 秒内出现的启动前错误', () => {
+  it('does not clear a pre-flight error occurring within 4 seconds by previous reset timer', () => {
     vi.useFakeTimers();
     try {
       setPush({ isRunning: true, total: 1, done: 0 });
       const { rerender } = render(<ListsPushIndicator />);
-      setPush({ isRunning: false, message: '完成' });
+      setPush({ isRunning: false, message: 'Done' });
       rerender(<ListsPushIndicator />);
-      setPush({ error: '未配置 token' });
+      setPush({ error: 'Token not configured' });
       rerender(<ListsPushIndicator />);
 
       vi.advanceTimersByTime(5000);
 
       expect(mocks.state.resetListsPush).not.toHaveBeenCalled();
-      expect(mocks.toast).toHaveBeenLastCalledWith('未配置 token', 'error');
+      expect(mocks.toast).toHaveBeenLastCalledWith('Token not configured', 'error');
     } finally {
       vi.useRealTimers();
     }

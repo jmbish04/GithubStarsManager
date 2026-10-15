@@ -82,10 +82,12 @@ export const accountIdKey = (user: Pick<GitHubUser, 'id'> | number | null | unde
 };
 
 /**
- * 带引用保留的类型过滤：过滤后长度不变说明所有元素都通过校验且顺序一致
- * （filter 只会按序保留子集），此时直接返回原数组引用。
- * 分片持久化按字段引用判脏——规整化若总是重建数组，每次启动都会把
- * accountWorkspaces 分片误判为已变更而全量重写。
+ * Type-filtering that preserves array reference: if the length remains unchanged after
+ * filtering, all elements passed validation in the original order (filter preserves a
+ * subset in order), so the original array reference is returned directly.
+ * Sharded persistence detects dirty state by field reference—if normalization always
+ * recreated arrays, every launch would falsely flag the accountWorkspaces shard as
+ * modified and cause a full rewrite.
  */
 const filterPreservingRef = <T>(value: unknown, predicate: (item: unknown) => item is T): T[] => {
   if (!Array.isArray(value)) return [];

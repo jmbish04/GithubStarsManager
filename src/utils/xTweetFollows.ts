@@ -1,22 +1,22 @@
 /**
- * X 推文频道关注配置的纯工具：默认关注与输入归一化。
- * 被 store（hydration/migrate）与设置弹窗共用，不依赖 React / Store。
+ * Pure utilities for X tweet channel follow configuration: default follows and input normalization.
+ * Shared between store (hydration/migration) and settings modals without depending on React or Store.
  */
 
 import type { XTweetAuth, XTweetFollow } from '../types';
 
-/** 初始关注列表（用户可删除/追加） */
+/** Initial follow list (users can remove or append items). */
 export const DEFAULT_XTWEET_FOLLOWS: XTweetFollow[] = [
   { handle: 'geekbb', addedAt: '2026-09-12T00:00:00.000Z' },
 ];
 
-/** X handle 语义：1-15 位字母数字下划线（宽松允许中间连字符以兼容改名过渡期） */
+/** X handle semantics: 1-15 alphanumeric characters or underscores (leniently allowing transitional formats). */
 const HANDLE_PATTERN = /^[A-Za-z0-9_]{1,15}$/;
 
 /**
- * 把用户输入归一化为 handle（不含 @）。接受三种形式：
- * `@handle`、裸 `handle`、`https://x.com/handle`（含 /twitter.com/、末尾路径与查询参数）。
- * 无法识别时返回 null。
+ * Normalizes user input into a handle (without '@'). Accepts three formats:
+ * `@handle`, bare `handle`, and `https://x.com/handle` (including /twitter.com/, trailing paths, and query parameters).
+ * Returns null if unrecognized.
  */
 export const normalizeXTweetHandleInput = (input: string): string | null => {
   const raw = input.trim();
@@ -33,10 +33,10 @@ export const normalizeXTweetHandleInput = (input: string): string | null => {
   return HANDLE_PATTERN.test(candidate) ? candidate : null;
 };
 
-/** 排序键：按 handle 去重时保留最早添加的记录（按实际时间比较，兼容 +08:00 等偏移） */
+/** Sort comparator: preserves earliest added record when deduplicating by handle (compares actual timestamps, accommodating +08:00 and other offsets). */
 const byAddedAtAsc = (a: XTweetFollow, b: XTweetFollow) => Date.parse(a.addedAt) - Date.parse(b.addedAt);
 
-/** 修复持久化/外部输入的关注列表：去重（handle 大小写不敏感）、剔除非法项。 */
+/** Sanitizes persisted or external follow lists: deduplicates (case-insensitive handle) and removes invalid items. */
 export const normalizeXTweetFollows = (value: unknown): XTweetFollow[] => {
   if (!Array.isArray(value)) return DEFAULT_XTWEET_FOLLOWS.map((follow) => ({ ...follow }));
 
@@ -60,9 +60,9 @@ export const normalizeXTweetFollows = (value: unknown): XTweetFollow[] => {
 };
 
 /**
- * 修复鉴权 Cookie：去除首尾空白与包裹引号（如用户直接复制 JSON 字符串带有的引号），
- * 净化后若任一字段为空字符串则整体视为未配置（null）。
- * Cookie 值本身不做特定格式过滤（x.com 校验），无效值由同步阶段报"鉴权失效"。
+ * Sanitizes auth cookies: trims whitespace and surrounding quotes (such as quotes copied directly from JSON strings).
+ * If either field is empty after sanitization, the auth object is treated as unconfigured (null).
+ * Cookie values themselves are not filtered for specific formats (validated by x.com); invalid values report "authentication failed" during sync.
  */
 export const normalizeXTweetAuth = (value: unknown): XTweetAuth | null => {
   if (!value || typeof value !== 'object') return null;

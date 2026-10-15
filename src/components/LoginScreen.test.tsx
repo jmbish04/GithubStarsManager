@@ -79,7 +79,7 @@ describe('LoginScreen token guidance', () => {
   });
 });
 
-describe('LoginScreen 后端登录', () => {
+describe('LoginScreen backend login', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.safeReadText.mockResolvedValue({ success: false, error: 'empty' });
@@ -88,7 +88,7 @@ describe('LoginScreen 后端登录', () => {
     mocks.store.accountWorkspaces = {};
   });
 
-  it('Ctrl+V 粘贴只写入当前聚焦的输入框', async () => {
+  it('writes only to currently focused input on Ctrl+V paste', async () => {
     mocks.safeReadText.mockResolvedValue({ success: true, text: 'https://backend.example.com' });
     const { urlInput, apiKeyInput } = await enterBackendMode();
 
@@ -99,7 +99,7 @@ describe('LoginScreen 后端登录', () => {
     expect(mocks.safeReadText).toHaveBeenCalledOnce();
   });
 
-  it('拒绝远程 HTTP 后端地址，且不发起后端请求', async () => {
+  it('rejects remote HTTP backend address without initiating backend request', async () => {
     const { urlInput, apiKeyInput } = await enterBackendMode();
 
     fireEvent.change(urlInput, { target: { value: 'http://backend.example.com' } });
@@ -110,7 +110,7 @@ describe('LoginScreen 后端登录', () => {
     expect(mocks.restoreBackendSession).not.toHaveBeenCalled();
   });
 
-  it('后端保存的 GitHub Token 失效时引导到令牌配置步骤', async () => {
+  it('guides to token configuration step when backend saved GitHub Token is invalid', async () => {
     mocks.restoreBackendSession.mockResolvedValue({ status: 'restored-token-invalid' });
     const { urlInput, apiKeyInput } = await enterBackendMode();
 
@@ -122,7 +122,7 @@ describe('LoginScreen 后端登录', () => {
     expect(screen.getByLabelText('GitHub Personal Access Token')).toHaveAttribute('id', 'backend-github-token');
   });
 
-  it('连接已有后端成功后先拉后端数据再登录', async () => {
+  it('pulls backend data before logging in upon successfully connecting to existing backend', async () => {
     mocks.restoreBackendSession.mockResolvedValue({
       status: 'connected',
       githubToken: 'ghp_restored',
@@ -142,7 +142,7 @@ describe('LoginScreen 后端登录', () => {
     );
   });
 
-  it('后端数据同步失败时不提交登录状态', async () => {
+  it('does not commit login state when backend data sync fails', async () => {
     mocks.restoreBackendSession.mockResolvedValue({
       status: 'connected',
       githubToken: 'ghp_restored',
@@ -161,7 +161,7 @@ describe('LoginScreen 后端登录', () => {
     expect(mocks.store.setBackendApiSecret).toHaveBeenLastCalledWith(null);
   });
 
-  it('令牌配置流程同步失败时不提交登录状态', async () => {
+  it('does not commit login state when token configuration flow sync fails', async () => {
     mocks.restoreBackendSession.mockResolvedValue({ status: 'github-token-required' });
     mocks.setupBackendGitHubToken.mockResolvedValue({ id: 1, login: 'octocat' });
     mocks.syncBackendData.mockRejectedValueOnce(new Error('sync failed'));
@@ -180,7 +180,7 @@ describe('LoginScreen 后端登录', () => {
     expect(mocks.store.setGitHubToken).not.toHaveBeenCalled();
   });
 
-  it('当本地存在已归档的自定义分类时弹出冲突确认对话框并确认覆盖', async () => {
+  it('displays conflict confirmation dialog and confirms overwrite when local archived custom categories exist', async () => {
     mocks.store.accountWorkspaces = {
       '1': {
         repositories: [],
@@ -208,13 +208,13 @@ describe('LoginScreen 后端登录', () => {
   });
 });
 
-describe('LoginScreen 后端 URL 预填', () => {
+describe('LoginScreen backend URL prefill', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     mocks.configuredBackendUrl = null;
   });
 
-  it('桌面端 file:// origin 不预填无效地址', async () => {
+  it('does not prefill invalid address on desktop file:// origin', async () => {
     vi.stubGlobal('location', { protocol: 'file:', origin: 'file://' } as unknown as Location);
 
     const { urlInput } = await enterBackendMode();
@@ -222,7 +222,7 @@ describe('LoginScreen 后端 URL 预填', () => {
     expect(urlInput).toHaveValue('');
   });
 
-  it('Web 部署时预填同源地址', async () => {
+  it('prefills same-origin address on Web deployment', async () => {
     vi.stubGlobal('location', { protocol: 'https:', origin: 'https://app.example.com' } as unknown as Location);
 
     const { urlInput } = await enterBackendMode();
@@ -230,7 +230,7 @@ describe('LoginScreen 后端 URL 预填', () => {
     expect(urlInput).toHaveValue('https://app.example.com');
   });
 
-  it('记住的后端地址优先于同源地址', async () => {
+  it('prioritizes remembered backend address over same-origin address', async () => {
     mocks.configuredBackendUrl = 'https://stored.example/api';
 
     const { urlInput } = await enterBackendMode();

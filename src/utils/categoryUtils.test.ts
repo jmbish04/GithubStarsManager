@@ -223,7 +223,7 @@ describe('matchesCategory', () => {
       custom_tags: ['AI'],
       ai_tags: ['AI/机器学习'],
     };
-    // 自定义标签只按关键词匹配默认分类，默认分类名不参与匹配
+    // Custom tags match default categories only by keyword; the default category name itself does not participate in matching
     expect(matchesCategory(repository, aiCategory, 'effective')).toBe(true);
     expect(matchesCategory(repository, webCategory, 'effective')).toBe(false);
   });
@@ -246,7 +246,7 @@ describe('resolveCategoryAssignment', () => {
       custom_category: '我的项目',
       custom_tags: ['我的项目'],
     };
-    // 未锁定的 custom_category 视为 AI 分析写入的值，重新计算而非直接保留
+    // Unlocked custom_category is treated as a value written by AI analysis; recomputed rather than directly preserved
     expect(resolveCategoryAssignment(repository, ['AI/机器学习'], categories)).toBe(undefined);
   });
 
@@ -306,7 +306,7 @@ describe('resolveCategoryAssignment', () => {
       ...baseRepository,
       custom_category: undefined,
     };
-    // "应用" 是默认分类 "Web应用" 的子串，但默认分类仅精确匹配名称
+    // "应用" is a substring of default category "Web应用", but default categories require exact name match
     expect(resolveCategoryAssignment(repository, ['应用'], categories)).toBe(undefined);
   });
 });
@@ -330,7 +330,7 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
       topics: ['agent', 'ai', 'skill', 'skills', 'vibecoding'],
       custom_category: undefined,
     };
-    // AI 返回通用标签，仅通过 topics 中的 skill/skills 命中自定义分类
+    // AI returns generic tags; matches custom category solely through skill/skills in topics
     expect(resolveCategoryAssignment(repository, ['AI/机器学习', '开发工具', '效率工具'], [customSkills, aiCategory])).toBe('skills');
   });
 
@@ -385,7 +385,7 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
       custom_category: 'Web应用',
       category_locked: false,
     };
-    // 未锁定的旧值视为 AI 写入，重新按元数据兜底计算
+    // Unlocked legacy value is treated as AI-written; recomputed using metadata fallback
     expect(resolveCategoryAssignment(repository, ['AI/机器学习'], [customSkills, aiCategory, webCategory])).toBe('skills');
   });
 
@@ -417,7 +417,7 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
 });
 
 describe('resolveCategoryAssignment with real repositories and other custom categories', () => {
-  // 真实仓库元数据（来自 GitHub API 抓取，离线固化防 flaky）
+  // Real repository metadata (fetched from GitHub API, frozen offline to prevent flakiness)
   const customDataAnalysis: Category = {
     id: 'custom-data',
     name: '数据分析',
@@ -488,7 +488,7 @@ describe('buildCategoryHints', () => {
     const categories: Category[] = [
       { id: 'c1', name: 'skills', icon: '💡', keywords: [' ', '  ', 'Skill'], isCustom: true },
     ];
-    // 仅保留有效关键词，生成精确的提示文本
+    // Retain only valid keywords to generate precise hint text
     expect(buildCategoryHints(categories)).toBe('skills（Skill）');
   });
 });
@@ -512,7 +512,7 @@ describe('resolveCategoryAssignment whitespace-keyword regression', () => {
       topics: ['web'],
       custom_category: undefined,
     };
-    // 关键词全部为空白时应回退到分类名匹配，仓库名不含该分类名 → 不命中
+    // When keywords are all whitespace, fall back to category name matching; repo name does not contain category name -> no match
     expect(resolveCategoryAssignment(repository, ['Web应用'], [whitespaceCategory, aiCategory, webCategory])).toBe(undefined);
   });
 
@@ -570,7 +570,7 @@ describe('resolveCategoryAssignment summary-only metadata match', () => {
       ai_summary: 'A curated collection of reusable agent skills and prompt libraries',
       custom_category: undefined,
     };
-    // name/description/topics 均不含 skills，仅 ai_summary 命中
+    // Neither name, description, nor topics contain skills; matched solely by ai_summary
     expect(resolveCategoryAssignment(repository, ['开发工具'], [customSkills, aiCategory])).toBe('skills');
   });
 

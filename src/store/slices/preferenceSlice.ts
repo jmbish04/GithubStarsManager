@@ -43,8 +43,8 @@ export const createPreferenceSlice: AppStoreSlice<Pick<import('../types').AppAct
       // UI actions
       setTheme: (theme) => set({ theme }),
       setThemePreset: (themePreset) => set({ themePreset }),
-      // Theme token 只存声明式偏好；写 CSS 变量的副作用在 App 的 effect 里。
-      // 合并当前值后再 normalize，调用方传局部即可，脏值也进不了根节点。
+      // Theme tokens store only declarative preferences; side effects writing CSS variables reside in App effects.
+      // Merge with current values before normalizing: callers can pass partial patches, and dirty values won't leak into the root.
       updateThemeTokens: (patch) => set((state) => ({
         themeTokens: normalizeThemeTokens({ ...state.themeTokens, ...patch }),
       })),
@@ -77,7 +77,7 @@ export const createPreferenceSlice: AppStoreSlice<Pick<import('../types').AppAct
       })),
 
       // Repository list view actions
-      // 卡片字段开关：合并当前值后 normalize，缺失字段自动按默认处理
+      // Repository card field toggles: merge with current values then normalize; missing fields are automatically assigned defaults
       setRepositoryCardField: (id, visible) => set((state) => ({
         repositoryCardFields: normalizeRepositoryCardFields({ ...state.repositoryCardFields, [id]: visible }),
       })),

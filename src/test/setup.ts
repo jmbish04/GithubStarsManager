@@ -116,8 +116,9 @@ vi.mock('../store/useAppStore', () => ({
   }),
 }));
 
-// 测试环境不走生产端的语言包懒加载：直接从磁盘把全部语言资源同步装载进
-// i18next，组件经 useT 按 store mock 的 language（默认 zh）取词。
+// The test environment bypasses production lazy loading of language bundles:
+// all locale resources are loaded synchronously from disk into i18next directly,
+// and components retrieve terms via useT matching the mocked store language (defaulting to zh).
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

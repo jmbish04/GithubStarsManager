@@ -37,8 +37,8 @@ interface MarkdownRendererProps {
   /** Convert single newlines to <br> (GitHub READMEs do not; AI summaries rely on it). */
   breaks?: boolean;
   /**
-   * 可选的行内 code 自定义渲染（如仓库问答的引用 Badge）：返回 ReactNode 时替换
-   * 默认的 <code>（含 0、''、false 等合法节点）；返回 null/undefined 时保持原样式。
+   * Optional custom inline code renderer (e.g. repo Q&A citation Badge): returns ReactNode to replace
+   * default <code> (including valid nodes like 0, '', false); returns null/undefined to keep original styling.
    */
   renderInlineCode?: (text: string) => React.ReactNode | null;
 }
@@ -59,8 +59,8 @@ interface MathPlugins {
   rehype: typeof import('rehype-katex')['default'];
 }
 
-// react-markdown 会把 AST 节点作为 `node` prop 传给自定义组件，
-// 展开到原生 DOM 元素前需要剥掉这个非 DOM 属性
+// react-markdown passes AST node as `node` prop to custom components;
+// strip this non-DOM prop before spreading onto native DOM elements.
 function stripAstNode<T extends { node?: unknown }>(props: T): Omit<T, 'node'> {
   const rest = { ...props };
   delete (rest as { node?: unknown }).node;
@@ -108,8 +108,8 @@ const CodeBlock: React.FC<{
 
   const codeText = useMemo(() => {
     const raw = typeof children === 'string' ? children : String(children);
-    // 围栏内容首尾的空行是模型/编辑器留下的噪音，会渲染成代码块内部大段空白
-    // （GitHub 单行代码块高约 52px，带首尾空行会翻倍）。只裁首尾，保留内部空行。
+    // Leading and trailing blank lines in fenced blocks are noise from models/editors, which render as large blank spaces inside code blocks
+    // (GitHub single-line code blocks are ~52px high; leading/trailing blank lines double that). Trim only ends, keep internal blank lines.
     return raw.replace(/^\n+/, '').replace(/\n+$/, '');
   }, [children]);
 
@@ -1103,7 +1103,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(({
         );
       },
       code: ({ className, children, ...props }) => {
-        // 检查 props 中是否有 'data-code-block' 标记（由 pre 组件添加）
+        // Check if props has 'data-code-block' marker (added by pre component)
         const isCodeBlock = 'data-code-block' in props || !!className;
         const isInline = !isCodeBlock;
         const match = /language-(\w+)/.exec(className || '');
@@ -1112,7 +1112,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(({
         if (isInline) {
           const codeText = typeof children === 'string' ? children : extractTextFromChildren(children);
           const rendered = renderInlineCode?.(codeText);
-          // 仅 null/undefined 回退默认 <code>，保留回调返回的合法 ReactNode（含 0、''、false）。
+          // Only null/undefined falls back to default <code>, preserving valid ReactNode returned by callback (including 0, '', false).
           if (rendered !== null && rendered !== undefined) return rendered;
           return <code {...stripAstNode(props)}>{children}</code>;
         }
@@ -1124,9 +1124,9 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(({
         return <CodeBlock language={language}>{children}</CodeBlock>;
       },
       pre: ({ children }) => {
-        // 给 code 子元素添加标记，表明它是代码块而不是行内代码。
-        // react-markdown v10 传给 pre 的是覆写后的 code 组件元素（type 是组件
-        // 函数而非 'code' 字符串），因此用 hast node 的 tagName 识别 code 子元素。
+        // Mark code children to indicate it is a code block rather than inline code.
+        // react-markdown v10 passes overwritten code component elements to pre (type is component
+        // function rather than 'code' string), so identify code children using hast node tagName.
         const nodes = React.Children.toArray(children);
         const onlyChild = nodes.length === 1 ? nodes[0] : null;
         const isCodeChild = React.isValidElement(onlyChild)
@@ -1136,11 +1136,11 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(({
           type CodeBlockMarkerProps = React.ComponentPropsWithoutRef<'code'> & { 'data-code-block'?: boolean };
           return <>{React.cloneElement(onlyChild as React.ReactElement<CodeBlockMarkerProps>, { 'data-code-block': true })}</>;
         }
-        // 对于非 code 子元素（如 ASCII 字符画），保留 pre 标签
+        // For non-code child elements (e.g. ASCII art), retain pre tag
         return <pre>{children}</pre>;
       },
       table: (outerProps) => {
-        // 宽表格（模型常输出多列对比表）在窄容器内横向滚动，而不是撑破布局或被截断。
+        // Wide tables (models often output multi-column comparison tables) scroll horizontally in narrow containers rather than breaking layout or getting truncated.
         const domProps = stripAstNode(outerProps);
         return (
           <div className="markdown-table-scroll">

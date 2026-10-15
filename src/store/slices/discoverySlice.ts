@@ -102,7 +102,7 @@ export const createDiscoverySlice: AppStoreSlice<Pick<import('../types').AppActi
     }),
     toggleDiscoveryChannel: (channelId) => set((state) => {
       const channel = state.discoveryChannels.find(ch => ch.id === channelId);
-      // 启用判定只统计可见频道：纯浏览器模式下隐藏的 x-tweet/telegram 不算数
+      // Enabled check only counts visible channels: hidden x-tweet/telegram in pure browser mode do not count
       const visibleEnabledCount = state.discoveryChannels.filter(ch => ch.enabled && isChannelScrapable(ch.id)).length;
       if (!channel || (channel.enabled && isChannelScrapable(channelId) && visibleEnabledCount === 1)) {
         return state;
@@ -141,7 +141,7 @@ export const createDiscoverySlice: AppStoreSlice<Pick<import('../types').AppActi
     removeExternalDiscoveryChannel: (channelId) => set(state => {
       if (!isExternalDiscoveryChannelId(channelId)) return state;
       let discoveryChannels = state.discoveryChannels.filter(channel => channel.id !== channelId);
-      // 可见频道全部被停用（隐藏频道的 enabled 不算）时恢复「趋势」频道
+      // Restore the "trending" channel when all visible channels are disabled (enabled on hidden channels does not count)
       if (!discoveryChannels.some(channel => channel.enabled && isChannelScrapable(channel.id))) {
         discoveryChannels = discoveryChannels.map(channel => channel.id === 'trending'
           ? { ...channel, enabled: true } : channel);
@@ -243,8 +243,8 @@ export const createDiscoverySlice: AppStoreSlice<Pick<import('../types').AppActi
         [channel]: [...(state.discoveryRepos[channel] || []), ...repos]
       },
     })),
-    // Trending 快照（开发守则 §7）：去重、上限与超期清理都在 utils 的纯函数里，
-    // 这里只负责把结果写回 Store。
+    // Trending snapshots: deduplication, limits, and expiration cleanup are in pure functions in utils;
+    // this only writes the result back to the Store.
     recordTrendingSnapshot: (snapshot) => set((state) => ({
       trendingSnapshots: recordTrendingSnapshot(state.trendingSnapshots, snapshot),
     })),

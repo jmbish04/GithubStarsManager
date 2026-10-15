@@ -6,10 +6,12 @@ import { computeCustomCategory, matchesCategory, resolveCategoryAssignment } fro
 import { fixturePath, readFixture, shouldUpdateFixtures, writeFixture } from '../../test/fixtureIo';
 
 /**
- * i18n 迁移保障网：固化内置分类在 language=zh/en 下的显示名、变体集合与归类匹配行为。
- * 迁移后 zh/en 列必须逐值相等；锁定分类跨语言匹配基线记录了现状（切语言丢失归类），
- * 提交 4 引入变体匹配后该基线会随行为改进**有意更新**。
- * 重新生成：UPDATE_I18N_FIXTURES=1 npx vitest run src/store/__fixtures__/categoryLanguage.test.ts
+ * i18n migration safety net: solidifies built-in category display names, variant sets,
+ * and category matching behavior under language=zh/en.
+ * After migration, the zh/en columns must match value-for-value; the locked category
+ * cross-language matching baseline records the current status (switching languages loses category),
+ * which is **intentionally updated** as behavior improves when variant matching is introduced.
+ * Regenerate: UPDATE_I18N_FIXTURES=1 npx vitest run src/store/__fixtures__/categoryLanguage.test.ts
  */
 const FIXTURE_FILE = fixturePath(import.meta.url, 'category-language.snapshot.json');
 
@@ -97,7 +99,7 @@ const buildSnapshot = () => {
   };
 };
 
-describe('内置分类语言行为 fixture（zh/en 基线）', () => {
+describe('built-in category language behavior fixture (zh/en baseline)', () => {
   it('matches the frozen category fixture', () => {
     const snapshot = buildSnapshot();
     if (shouldUpdateFixtures()) {

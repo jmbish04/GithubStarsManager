@@ -1,25 +1,26 @@
 /**
- * Telegram 频道关注配置的纯工具：默认关注与输入归一化。
- * 被 store（hydration/migrate）与设置弹窗共用，不依赖 React / Store。
+ * Pure utilities for Telegram channel follow configurations: default follows and input normalization.
+ * Shared between the store (hydration/migrate) and the settings modal, without depending on React or the store.
  */
 
 import type { TelegramFollow } from '../types';
 
-/** 初始关注列表（用户可删除/追加） */
+/** Default follow list (users can delete/add) */
 export const DEFAULT_TELEGRAM_FOLLOWS: TelegramFollow[] = [
   { channel: 'geekhub23', addedAt: '2026-09-13T00:00:00.000Z' },
 ];
 
 /**
- * Telegram 频道用户名的宽松语义：3-64 位字母/数字/下划线。公开预览页
- * t.me/s/<name> 是唯一判定标准，这里放宽到不误杀，无效名由抓取阶段报错。
+ * Permissive semantics for Telegram channel usernames: 3-64 alphanumeric characters or underscores.
+ * The public preview page t.me/s/<name> is the sole source of truth; this is relaxed here to avoid false rejections,
+ * while invalid names will error during the fetch stage.
  */
 const CHANNEL_PATTERN = /^[A-Za-z0-9_]{3,64}$/;
 
 /**
- * 把用户输入归一化为频道名（不含 @）。接受多种形式：
- * `@name`、裸 `name`、`https://t.me/name`（含 /s/name 预览链接、末尾消息 id
- * 与查询参数）。无法识别时返回 null。
+ * Normalizes user input into a channel name (without @). Accepts multiple formats:
+ * `@name`, bare `name`, `https://t.me/name` (including /s/name preview links, trailing message IDs,
+ * and query parameters). Returns null if unrecognized.
  */
 export const normalizeTelegramChannelInput = (input: string): string | null => {
   const raw = input.trim();
@@ -36,10 +37,10 @@ export const normalizeTelegramChannelInput = (input: string): string | null => {
   return CHANNEL_PATTERN.test(candidate) ? candidate : null;
 };
 
-/** 排序键：按频道名去重时保留最早添加的记录（按实际时间比较，兼容 +08:00 等偏移） */
+/** Sort key: retains the earliest-added record when deduplicating by channel name (compares real timestamps, supporting offsets like +08:00) */
 const byAddedAtAsc = (a: TelegramFollow, b: TelegramFollow) => Date.parse(a.addedAt) - Date.parse(b.addedAt);
 
-/** 修复持久化/外部输入的关注列表：去重（大小写不敏感）、剔除非法项。 */
+/** Cleans up persisted or external follow lists: deduplicates (case-insensitively) and discards invalid entries. */
 export const normalizeTelegramFollows = (value: unknown): TelegramFollow[] => {
   if (!Array.isArray(value)) return DEFAULT_TELEGRAM_FOLLOWS.map((follow) => ({ ...follow }));
 

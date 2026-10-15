@@ -44,12 +44,12 @@ export interface Repository {
   };
   topics: string[];
   /**
-   * GitHub 原生状态字段。`/user/starred` 原始响应本就包含这些字段，
-   * 这里把它们纳入类型以便 Repository Health 与筛选复用。
+   * GitHub native status fields. The raw `/user/starred` response naturally includes these fields,
+   * which are incorporated into the type definition here for reuse by Repository Health and filtering.
    *
-   * 后端不持久化这些字段，因此 `src/utils/repositoryMerge.ts` 把它们同时列入
-   * `CLIENT_ONLY_REPOSITORY_FIELDS`（不参与后端同步指纹，避免 Issue #304 的哈希抖动）
-   * 与 `LOCAL_REPOSITORY_FIELDS`（拉取时保留本地值，不被后端响应清空）。
+   * The backend does not persist these fields, so `src/utils/repositoryMerge.ts` includes them in both
+   * `CLIENT_ONLY_REPOSITORY_FIELDS` (excluded from backend sync fingerprints to prevent hash churn in Issue #304)
+   * and `LOCAL_REPOSITORY_FIELDS` (retaining local values on fetch so they are not cleared by backend responses).
    */
   archived?: boolean;
   disabled?: boolean;
@@ -70,11 +70,11 @@ export interface Repository {
   category_locked?: boolean;
   last_edited?: string;
   vector_indexed_at?: string;  // ISO timestamp of last successful vector indexing
-  /** 上次向量索引时采用的 license（SPDX id / null）。增量谓词据此判断 license 是否变化以触发重索引。 */
+  /** License (SPDX ID or null) used during the last vector indexing. Incremental predicates use this to detect license changes and trigger reindexing. */
   vector_indexed_license?: string | null;
   last_release_fetch_time?: string;  // ISO timestamp, for incremental sync
   has_fetched_releases?: boolean;   // whether this repo has been synced for releases
-  /** SPDX id（如 'MIT'、'Apache-2.0'）；无许可证/未识别为 null。AI/搜索/过滤均以此为准。 */
+  /** SPDX ID (e.g. 'MIT', 'Apache-2.0'); null if no license or unrecognized. AI, search, and filtering all rely on this. */
   license?: string | null;
 }
 
@@ -254,10 +254,10 @@ export interface GistSearchFilters {
 
 export type AIApiType = 'openai' | 'openai-responses' | 'claude' | 'gemini' | 'deepseek' | 'mimo' | 'openai-compatible';
 
-// Embedding 提供商类型
+// Embedding provider type
 export type EmbeddingApiType = 'openai' | 'openai-compatible' | 'gemini' | 'cohere' | 'ollama' | 'siliconflow';
 
-// Embedding 配置（结构与 AIConfig/WebDAVConfig 平行）
+// Embedding configuration (structured parallel to AIConfig/WebDAVConfig)
 export interface EmbeddingConfig {
   id: string;
   name: string;
@@ -270,23 +270,23 @@ export interface EmbeddingConfig {
   apiKeyStatus?: SecretStatus;
 }
 
-// 索引内容模式
+// Index content mode
 export type VectorIndexMode = 'description' | 'readme';
 
-// 向量搜索整体配置（持久化 + 同步，不含运行时状态）
+// Vector search overall configuration (persisted + synced, excluding runtime state)
 export interface VectorSearchConfig {
   enabled: boolean;
   workerUrl: string;
   authToken: string;
   embeddingConfigId: string;
   indexMode: VectorIndexMode;
-  readmeMaxChars: number;  // README 截取字符数，默认 6000
-  // 搜索参数（可选，有默认值）
-  searchThreshold?: number;   // 相似度阈值，默认 0.35
-  searchTopK?: number;        // 返回结果数，默认 30
-  enableHyDE?: boolean;       // 是否启用 HyDE 查询预处理，默认 true
-  enableReranking?: boolean;  // 是否启用 LLM 语义重排序，默认 true
-  // 嵌入文本格式版本，buildEmbeddingText 格式变化时递增
+  readmeMaxChars: number;  // Max character length truncated from README, default 6000
+  // Search parameters (optional, with defaults)
+  searchThreshold?: number;   // Similarity threshold, default 0.35
+  searchTopK?: number;        // Number of results returned, default 30
+  enableHyDE?: boolean;       // Whether to enable HyDE query preprocessing, default true
+  enableReranking?: boolean;  // Whether to enable LLM semantic reranking, default true
+  // Embedding text format version, incremented when buildEmbeddingText format changes
   embeddingFormatVersion?: number;
 }
 
@@ -317,19 +317,19 @@ export interface McpServiceConfig {
   token: string;
 }
 
-// 相似仓库视图状态：进入"查找相似仓库"后保存当前上下文，重置时恢复
+// Similar repositories view state: saves context when entering "Find Similar Repositories", restored on reset
 export interface SimilarViewState {
   active: boolean;
-  anchorRepoFullName: string;   // 当前锚点仓库 full_name（横幅展示）
-  anchorRepoName: string;        // 锚点仓库名
-  similarResults: Repository[];  // 相似结果，渲染用
-  originalSearchResults: Repository[]; // 进入前的 searchResults 快照，重置恢复用
-  originalSearchFilters: SearchFilters; // 进入前的 searchFilters 快照，重置恢复用
+  anchorRepoFullName: string;   // Current anchor repository full_name (banner display)
+  anchorRepoName: string;        // Anchor repository name
+  similarResults: Repository[];  // Similar results, for rendering
+  originalSearchResults: Repository[]; // Snapshot of searchResults before entry, for restoration on reset
+  originalSearchFilters: SearchFilters; // Snapshot of searchFilters before entry, for restoration on reset
 }
 export type AIReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
 export type MiMoPlan = 'api' | 'token-plan';
 
-/** README 文档翻译使用的引擎：微软 Edge 翻译（免费）、Google 翻译（免费）或用户配置的 AI。 */
+/** README document translation engine: Microsoft Edge Translate (free), Google Translate (free), or user-configured AI. */
 export type TranslationEngine = 'microsoft' | 'google' | 'ai';
 
 export type SecretStatus = 'ok' | 'empty' | 'decrypt_failed';
@@ -337,18 +337,18 @@ export type SecretStatus = 'ok' | 'empty' | 'decrypt_failed';
 export interface AIConfig {
   id: string;
   name: string;
-  apiType?: AIApiType; // API 格式/兼容协议（默认 openai）
+  apiType?: AIApiType; // API format / compatibility protocol (default openai)
   baseUrl: string;
   apiKey: string;
   model: string;
   isActive: boolean;
-  customPrompt?: string; // 自定义提示词
-  useCustomPrompt?: boolean; // 是否使用自定义提示词
-  concurrency?: number; // AI分析并发数，默认为1
-  requestsPerMinute?: number; // 每分钟 AI 请求数上限（供批量分析的共享限流器使用），0/缺省=不限制
-  reasoningEffort?: AIReasoningEffort; // OpenAI GPT-5/Responses 可选 reasoning 强度
-  mimoPlan?: MiMoPlan; // MiMo 渠道：api（按量付费）或 token-plan（订阅制）
-  supportsToolCalls?: boolean; // 端点/模型支持 OpenAI 风格 function calling（仓库问答工具循环用，默认关闭）
+  customPrompt?: string; // Custom prompt
+  useCustomPrompt?: boolean; // Whether to use custom prompt
+  concurrency?: number; // AI analysis concurrency, default 1
+  requestsPerMinute?: number; // Max AI requests per minute (used by shared rate limiter for batch analysis), 0/default = unlimited
+  reasoningEffort?: AIReasoningEffort; // Optional reasoning effort for OpenAI GPT-5/Responses
+  mimoPlan?: MiMoPlan; // MiMo channel: api (pay-as-you-go) or token-plan (subscription)
+  supportsToolCalls?: boolean; // Endpoint/model supports OpenAI-style function calling (used for repository Q&A tool loop, default false)
   apiKeyStatus?: SecretStatus;
 }
 
@@ -365,7 +365,7 @@ export interface WebDAVConfig {
 
 export type ProxyType = 'http' | 'socks5';
 
-/** GitHub/Release 数据面请求出口偏好；仅影响本设备，不参与后端/autoSync 同步。 */
+/** GitHub / Release data plane request egress preference; local device only, excluded from backend/autoSync sync. */
 export type RouteMode = 'auto' | 'backend' | 'browser';
 
 export interface ProxyConfig {
@@ -388,23 +388,23 @@ export interface SearchFilters {
   query: string;
   tags: string[];
   languages: string[];
-  platforms: string[]; // 新增：平台过滤
+  platforms: string[]; // Platform filter
   sortBy: 'stars' | 'updated' | 'name' | 'starred' | 'created';
   sortOrder: 'desc' | 'asc';
   minStars?: number;
   maxStars?: number;
-  isAnalyzed?: boolean; // 新增：是否已AI分析
-  isSubscribed?: boolean; // 新增：是否订阅Release
-  isEdited?: boolean; // 新增：是否已编辑
-  isCategoryLocked?: boolean; // 新增：分类是否已锁定
-  analysisFailed?: boolean; // 新增：分析是否失败
-  /** SPDX id 过滤；过滤面板可采用 `NO_LICENSE_SENTINEL` 表示「无/未声明 license」。 */
-  licenses: string[]; // 新增：开源许可过滤
+  isAnalyzed?: boolean; // Whether AI analysis is complete
+  isSubscribed?: boolean; // Whether subscribed to releases
+  isEdited?: boolean; // Whether customized / edited
+  isCategoryLocked?: boolean; // Whether category is locked
+  analysisFailed?: boolean; // Whether AI analysis failed
+  /** SPDX ID filter; the filter panel may use `NO_LICENSE_SENTINEL` to represent "none / undeclared license". */
+  licenses: string[]; // Open source license filter
   /**
-   * Repository Health 客观事实施加的筛选（见 `src/utils/repositoryHealth.ts`）。
-   * 仅使用本地已存在的 `Repository` 字段，不触发额外网络请求；
-   * 依赖 Release 的事实（是否有 Release、最新版本）由 Health 面板与 MCP/AI 复用，
-   * 不进列表筛选——列表筛选器拿不到 Release 数组，硬塞会产生全量重渲染。
+   * Filters applied based on objective Repository Health facts (see `src/utils/repositoryHealth.ts`).
+   * Uses only existing local `Repository` fields without triggering extra network requests;
+   * Release-dependent facts (whether releases exist, latest version) are shared by the Health panel and MCP/AI,
+   * but excluded from list filters — list filters do not have access to the Release array, and forcing them in causes full re-renders.
    */
   healthArchived?: boolean;
   healthRecentActivity?: boolean;
@@ -427,21 +427,21 @@ export interface AssetFilter {
   name: string;
   keywords: string[];
   /**
-   * 黑名单关键词：资产文件名命中任一关键词时，即使命中 keywords 也不匹配。
-   * 用于在同平台过滤器内剔除安装包等噪声（如 "setup"、"installer"）。
+   * Blacklisted keywords: when an asset filename matches any of these keywords, it does not match even if it matches keywords.
+   * Used to filter out installer noise within the same platform filter (e.g. "setup", "installer").
    */
   excludeKeywords?: string[];
   /**
-   * 始终包含的仓库（Repository.full_name）：该过滤器启用时，这些仓库的 Release
-   * 无需命中关键词也会出现在筛选结果中（用于 Release 不含过滤器关键词的仓库，
-   * 如仅发布 zip 或源码归档的项目）；未选过滤器时列表不受影响，也不影响订阅。
+   * Always-included repositories (Repository.full_name): when this filter is active, releases from these repositories
+   * appear in filter results even without matching keywords (useful for repositories whose releases lack filter keywords,
+   * such as projects releasing only zip or source archives); unselected filters do not affect the list or subscriptions.
    */
   includeRepos?: string[];
   /**
-   * 始终排除的仓库（Repository.full_name）：仅作用于所属过滤器。该过滤器启用时，
-   * 这些仓库的 Release 不通过本过滤器（优先于本过滤器的关键词与 includeRepos），
-   * 但不会否决其它已启用过滤器的命中。不复用 #405 遗留的 `excludeRepos` 键，
-   * 避免历史数据被重新解释为该语义。
+   * Always-excluded repositories (Repository.full_name): scoped only to this filter. When this filter is active,
+   * releases from these repositories do not pass this filter (takes precedence over filter keywords and includeRepos),
+   * but does not veto matches from other active filters. Does not reuse the legacy `excludeRepos` key from #405
+   * to avoid historical data being reinterpreted with this semantic.
    */
   alwaysExcludeRepos?: string[];
   isPreset?: boolean;
@@ -501,12 +501,12 @@ export interface AppState {
   lastSync: string | null;
   analyzingRepositoryIds: Set<number>;
   repositoryViewMode: 'grid' | 'list';
-  /** 仓库卡片显示哪些字段（开发守则 §14）：只保存声明式开关 */
+  /** Which fields to display on repository cards (Development Guidelines §14): stores declarative toggles only */
   repositoryCardFields: RepositoryCardFields;
   /** Quick-action order and toolbar visibility; hidden actions remain in the menu. */
   repositoryCardActions: RepositoryCardActionPreference[];
 
-  // Theme tokens（开发守则 §14）：声明式外观偏好，落到 <html> 的 CSS 变量上
+  // Theme tokens (Development Guidelines §14): declarative appearance preferences applied as CSS variables on <html>
   themeTokens: ThemeTokens;
 
   // Gists
@@ -531,7 +531,7 @@ export interface AppState {
   vectorSearchStatus?: VectorSearchStatus;
   vectorIndexingState: VectorIndexingState;
 
-  // Similar repositories view (triggered by "查找相似仓库")
+  // Similar repositories view (triggered by "Find Similar Repositories")
   similarView: SimilarViewState | null;
 
   // WebDAV
@@ -547,29 +547,29 @@ export interface AppState {
   releases: Release[];
   releaseSubscriptions: Set<number>;
   releaseSourceSettings: ReleaseSourceSettings;
-  readReleases: Set<number>; // 新增：已读Release
+  readReleases: Set<number>; // Read releases
   
   // Categories
-  customCategories: Category[]; // 新增：自定义分类
+  customCategories: Category[]; // Custom categories
   hiddenDefaultCategoryIds: string[];
   defaultCategoryOverrides: Record<string, Partial<Category>>;
-  categoryOrder: string[]; // 新增：分类排序顺序
-  collapsedSidebarCategoryCount: number; // 新增：折叠状态下显示的分类个数
-  categoryMatchMode: CategoryMatchMode; // 分类匹配模式：按卡片展示标签（含自定义）或仅AI标签
+  categoryOrder: string[]; // Category display order
+  collapsedSidebarCategoryCount: number; // Number of categories displayed when sidebar is collapsed
+  categoryMatchMode: CategoryMatchMode; // Category matching mode: based on card visible tags (including custom) or AI tags only
   
   // Asset Filters
-  assetFilters: AssetFilter[]; // 新增：资源过滤器
+  assetFilters: AssetFilter[]; // Asset filters
   
   // UI
   theme: 'light' | 'dark';
-  /** 主题配色预设（默认 + 内置精选），见 constants/themePresets */
+  /** Theme color presets (default + built-in curated), see constants/themePresets */
   themePreset: ThemePresetId;
   currentView: 'repositories' | 'gists' | 'releases' | 'forks' | 'settings' | 'subscription';
   selectedCategory: string;
   language: AppLanguage;
-  /** README 文档翻译引擎（微软 / Google / AI），见 TranslationEngine */
+  /** README document translation engine (Microsoft / Google / AI), see TranslationEngine */
   translationEngine: TranslationEngine;
-  /** 自动翻译卡片上的仓库原始描述为界面语言（默认关闭；同语言/失败时显示原文） */
+  /** Automatically translate repository description on cards to UI language (default off; shows original on same language or failure) */
   autoTranslateRepoDescription: boolean;
   isSidebarCollapsed: boolean;
   readmeModalOpen: boolean;
@@ -590,7 +590,7 @@ export interface AppState {
   // Network Proxy
   proxyConfig: ProxyConfig;
   rpcDownloadConfig: RpcDownloadConfig;
-  /** 本地路由偏好；不参与后端/autoSync 同步 */
+  /** Local route preference; excluded from backend/autoSync sync */
   routeMode: RouteMode;
 
   // Fork Timeline View
@@ -637,28 +637,29 @@ export interface AppState {
   discoveryScrollPositions: Record<DiscoveryChannelId, number>;
   trendingTimeRange: TrendingTimeRange;
   /**
-   * Trending 快照历史（开发守则 §7）：本地记录每次看到的榜单，用于算排名变化、首次上榜与
-   * 连续上榜。按「周期 × 语言 × 自然日」去重，条数与天数都有上限。
+   * Trending snapshot history (Development Guidelines §7): records rankings seen locally over time,
+   * used to compute rank changes, first-time entries, and consecutive runs.
+   * Deduplicated by [time range x language x calendar day], capped by max entries and days.
    */
   trendingSnapshots: TrendingSnapshot[];
-  /** 周刊频道过滤器：仅显示已被周刊收录（issue labels 含 'weekly'）的条目 */
+  /** Weekly channel filter: show only items included in weekly issues (issue labels contain 'weekly') */
   weeklyOnlyCollected: boolean;
-  /** 周刊频道同步进度（会话级，不持久化） */
+  /** Weekly channel sync progress (session-level, not persisted) */
   weeklySyncStatus: WeeklySyncStatus | null;
-  /** X 推文频道：关注博主列表（handle 不含 @，初始化含 geekbb） */
+  /** X tweet channel: followed creators list (handles without @, initialized with geekbb) */
   xTweetFollows: XTweetFollow[];
   /**
-   * X 推文频道：可选登录鉴权 Cookie（配置后走 GraphQL 抓取 + 历史翻页）。
-   * 仅内存态，不持久化到 IndexedDB/localStorage（明文 Cookie 防同源脚本读取）。
+   * X tweet channel: optional logged-in authentication cookies (enables GraphQL fetching + historical pagination).
+   * In-memory only; never persisted to IndexedDB or localStorage (protects plaintext cookies from same-origin script access).
    */
   xTweetAuth: XTweetAuth | null;
-  /** X 鉴权修订号：每次 set/clear 递增的非敏感计数器，用于请求失效判定与列表刷新 */
+  /** X auth revision: non-sensitive counter incremented on set/clear, used for invalidating requests and refreshing lists */
   xTweetAuthRevision: number;
-  /** X 推文频道同步/详情补全进度（会话级，不持久化） */
+  /** X tweet channel sync / detail enrichment progress (session-level, not persisted) */
   xTweetSyncStatus: WeeklySyncStatus | null;
-  /** Telegram 频道：关注频道列表（channel 不含 @，初始化含 geekhub23） */
+  /** Telegram channel: followed channels list (channel name without @, initialized with geekhub23) */
   telegramFollows: TelegramFollow[];
-  /** Telegram 频道同步/详情补全进度（会话级，不持久化） */
+  /** Telegram channel sync / detail enrichment progress (session-level, not persisted) */
   telegramSyncStatus: WeeklySyncStatus | null;
 
   // Subscription
@@ -667,14 +668,14 @@ export interface AppState {
   subscriptionIsLoading: Record<string, boolean>;
   subscriptionChannels: SubscriptionChannel[];
 
-  // GitHub Lists 同步模式：仅星标 / 星标及 list
+  // GitHub Lists sync mode: stars only / stars and lists
   syncMode: SyncMode;
-  /** 用户是否已明确选择过同步模式（首次登录弹窗后置为 true） */
+  /** Whether the user has explicitly selected a sync mode (set to true after initial login modal) */
   syncModeConfigured: boolean;
 
-  // GitHub Lists 回写进度（会话级，不持久化）
+  // GitHub Lists push progress (session-level, not persisted)
   listsPush: ListsPushState;
-  /** 分类 id → GitHub List id 的稳定映射（跨语言持久化，避免切换语言时重复建 list） */
+  /** Stable mapping from category ID to GitHub List ID (persisted across languages to avoid creating duplicate lists on language switch) */
   categoryListIdMap: Record<string, string>;
 }
 
@@ -687,7 +688,7 @@ export interface ListsPushState {
   error: string | null;
 }
 
-/** GitHub 同步范围：'stars' = 仅星标仓库（现状）；'stars-and-lists' = 星标仓库及 Lists */
+/** GitHub sync scope: 'stars' = starred repositories only; 'stars-and-lists' = starred repositories and Lists */
 export type SyncMode = 'stars' | 'stars-and-lists';
 
 export interface UpdateNotification {
@@ -730,7 +731,7 @@ export type DiscoveryChannelId = 'trending' | 'hot-release' | 'most-popular' | '
 
 export type DiscoveryChannelIcon = 'trending' | 'rocket' | 'star' | 'tag' | 'tweet' | 'telegram' | 'weekly' | 'search';
 
-/** 阮一峰周刊频道：来源 issue 的引用信息（周刊收录 = labels 含 'weekly'） */
+/** Ruan Yifeng Weekly channel: reference metadata for source issue (weekly inclusion = labels include 'weekly') */
 export interface WeeklyIssueRef {
   number: number;
   title: string;
@@ -739,59 +740,59 @@ export interface WeeklyIssueRef {
   createdAt: string;
 }
 
-/** 周刊频道同步/详情补全进度 */
+/** Weekly channel sync / detail enrichment progress */
 export interface WeeklySyncStatus {
   phase: 'syncing' | 'enriching';
   current: number;
   total: number;
 }
 
-/** X 推文频道：一条关注配置（handle 不含 @） */
+/** X tweet channel: a follow configuration entry (handle without @) */
 export interface XTweetFollow {
   handle: string;
   addedAt: string;
 }
 
 /**
- * X 推文频道：可选的登录态鉴权 Cookie（用户在设置中自行填写）。
- * 配置后改走 x.com GraphQL 接口：每位博主每页约 20 条推文且支持游标回溯
- * 历史翻页；留空则退回未登录抓取（每次仅最新一小批、无历史翻页）。
+ * X tweet channel: optional logged-in authentication cookies (configured manually by user in Settings).
+ * When configured, requests use the x.com GraphQL API: ~20 tweets per creator per page with cursor-based
+ * historical pagination; if empty, falls back to unauthenticated scraping (latest small batch only, no pagination).
  */
 export interface XTweetAuth {
   authToken: string;
   ct0: string;
 }
 
-/** X 推文频道：仓库来源推文的引用信息（正文缓存供"查看原贴"离线渲染） */
+/** X tweet channel: reference info for the source tweet of a repo (body cached for offline "View Original Post" rendering) */
 export interface XTweetRef {
   tweetId: string;
-  /** 博主 handle（不含 @） */
+  /** Creator handle (without @) */
   handle: string;
   displayName: string;
-  /** 推文正文（RSS 输出的 HTML 片段） */
+  /** Tweet body (HTML snippet from RSS output) */
   content: string;
-  /** 推文链接（https://x.com/<handle>/status/<id>） */
+  /** Tweet link (https://x.com/<handle>/status/<id>) */
   html_url: string;
   createdAt: string;
 }
 
-/** Telegram 频道：一条关注配置（channel 不含 @） */
+/** Telegram channel: a follow configuration entry (channel name without @) */
 export interface TelegramFollow {
   channel: string;
   addedAt: string;
 }
 
-/** Telegram 频道：仓库来源消息的引用信息（正文缓存供"查看消息原文"离线渲染） */
+/** Telegram channel: reference info for the source message of a repo (body cached for offline "View Original Message" rendering) */
 export interface TelegramRef {
-  /** 复合 ID `<channel>/<messageId>` */
+  /** Composite ID `<channel>/<messageId>` */
   messageId: string;
-  /** 频道名（不含 @） */
+  /** Channel name (without @) */
   channel: string;
-  /** 频道显示名 */
+  /** Channel display name */
   displayName: string;
-  /** 消息正文（t.me 公开预览输出的 HTML 片段） */
+  /** Message body (HTML snippet from t.me public preview output) */
   content: string;
-  /** 消息链接（https://t.me/<channel>/<id>） */
+  /** Message link (https://t.me/<channel>/<id>) */
   html_url: string;
   createdAt: string;
 }
@@ -823,11 +824,11 @@ export interface DiscoveryRepo extends Repository {
   rank: number;
   channel: DiscoveryChannelId;
   platform: DiscoveryPlatform;
-  /** 仅 weekly 频道：该仓库对应的周刊投稿 issue */
+  /** Weekly channel only: corresponding weekly submission issue for this repository */
   weeklyIssue?: WeeklyIssueRef;
-  /** 仅 x-tweet 频道：该仓库来源的推文 */
+  /** X tweet channel only: source tweet for this repository */
   xTweet?: XTweetRef;
-  /** 仅 telegram 频道：该仓库来源的频道消息 */
+  /** Telegram channel only: source channel message for this repository */
   telegram?: TelegramRef;
 }
 

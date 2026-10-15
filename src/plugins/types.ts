@@ -7,7 +7,7 @@ export interface PluginRepositoryAction {
   title: string;
   icon?: string;
   placement: PluginPlacement;
-  /** V1.4：指向本插件 contributes.pages 的页面 id。点击动作时宿主在弹窗中打开该页面，而非运行 Worker。 */
+  /** V1.4: Page ID pointing to contributes.pages of this plugin. Clicking the action opens this page in a dialog instead of running a Worker. */
   opensPage?: string;
 }
 
@@ -60,7 +60,7 @@ export type PluginOperationResult =
   | { success: true; dataRemoved?: boolean }
   | { success: false; error: PluginError };
 
-/** 插件市场的一个自助插件源：GitHub 仓库目录。 */
+/** A self-hosted plugin source in the marketplace: a GitHub repository directory. */
 export interface PluginSource {
   id: string;
   url: string;
@@ -68,7 +68,7 @@ export interface PluginSource {
   addedAt: string;
 }
 
-/** 源目录里探测到的一个插件（manifest 已在主进程通过完整校验）。 */
+/** A plugin detected in the source directory (manifest has passed full validation in the main process). */
 export interface MarketplacePluginEntry {
   directoryName: string;
   manifest: PluginManifest;
@@ -95,10 +95,10 @@ export type MarketplaceMutationResult =
 export interface MarketplaceInstallRequest {
   sourceId: string;
   directoryName: string;
-  /** 用户在界面上看到的插件身份：主进程校验下载到的 manifest 与之一致。 */
+  /** Plugin identity displayed to the user: the main process verifies the downloaded manifest matches this. */
   expectedPluginId: string;
   expectedVersion: string;
-  /** 更新场景：由主进程原子替换（失败自动回滚），并恢复/停用启用状态。 */
+  /** Update scenario: atomically replaced by the main process (auto-rollback on failure) and preserves or restores enabled state. */
   replace?: boolean;
 }
 

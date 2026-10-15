@@ -1,13 +1,14 @@
 /**
- * 组合外部信号与超时，返回单个 AbortController。
- * 不依赖 AbortSignal.timeout / AbortSignal.any（Chrome<124 / Safari<16 不支持），
- * 用原生 AbortController 实现等价语义：任一来源中止即中止。
- * controller 中止后清理定时器与监听，避免泄漏。
+ * Combines an external AbortSignal and a timeout into a single AbortController.
+ * Avoids AbortSignal.timeout / AbortSignal.any (unsupported in Chrome < 124 / Safari < 16),
+ * using standard AbortController semantics: aborts whenever either source aborts.
+ * Cleans up the timer and listeners once aborted to prevent leaks.
  */
 export function createCombinedAbortController(parentSignal: AbortSignal | undefined, timeoutMs: number): AbortController {
   const controller = new AbortController();
-  // 父信号已中止时立即中止并返回：此时注册监听器不会被触发（abort 事件只广播一次），
-  // 先建定时器再靠监听器中止反而会白等一个完整超时周期。
+  // If parent signal is already aborted, abort immediately and return.
+  // Registering a listener now would never fire (the abort event is only emitted once),
+  // and setting a timer first would needlessly wait out the timeout period.
   if (parentSignal?.aborted) {
     controller.abort();
     return controller;

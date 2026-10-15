@@ -3,18 +3,20 @@ import type { ToolEvidence } from '../types/repositoryChat';
 import { detectAssetPlatform } from '../utils/releaseAssets';
 
 /**
- * 仓库问答的"元信息来源"工具层：Release 资产与 Issue 搜索。
+ * "Meta info sources" tool layer for repository chat: Release assets and Issue search.
  *
- * 这类来源没有仓库文件那样的固定 SHA 行号，改用「虚拟路径 + 摘要内行号」
- * 表示：每条 Release / Issue 生成一段行结构已知的 Markdown 摘要作为一条
- * ToolEvidence，path 是 release-v1.2.3.md / issue-1234.md 这类虚拟路径，
- * url 指向真实的 GitHub 页面。引用格式（/path - a-b）与校验阶梯因此完全
- * 复用，唯一差别是证据不带 refSha。
+ * Unlike repository files, these sources do not have fixed SHA line numbers. They are represented
+ * using "virtual path + line numbers within digest": each Release / Issue generates a Markdown
+ * digest with known line structure as a ToolEvidence. The path uses virtual paths like
+ * release-v1.2.3.md / issue-1234.md, while url points to the actual GitHub page. The citation
+ * format (/path - a-b) and verification ladder are thus completely reused, with the only difference
+ * being that the evidence has no refSha.
  *
- * 摘要由确定性代码生成（不经过模型），编排循环与工具循环共享本模块。
+ * Digests are generated deterministically (without invoking models). This module is shared by
+ * both the orchestration loop and the tool loop.
  */
 
-/** 检索计划中的虚拟 meta 目标路径（scope: 'meta'）。 */
+/** Virtual meta target paths in retrieval planning (scope: 'meta'). */
 export const META_RELEASES_TARGET = '@meta/releases';
 export const META_ISSUES_TARGET = '@meta/issues';
 export const META_TARGETS = [META_RELEASES_TARGET, META_ISSUES_TARGET] as const;
@@ -34,7 +36,7 @@ const createId = (prefix: string): string => {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
-// eslint-disable-next-line no-control-regex -- 控制字符清理与 aiService.sanitizeForPrompt 同规则
+// eslint-disable-next-line no-control-regex -- Control character stripping follows the same rules as aiService.sanitizeForPrompt
 const sanitize = (value: string): string => value.replace(/\r\n?/g, '\n').replace(/[\0-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
 const truncate = (value: string, maxChars: number): string => {
@@ -84,7 +86,7 @@ const makeMetaEvidence = (repository: Repository, virtualPath: string, url: stri
 const virtualReleasePath = (tag: string): string => `release-${tag.replace(/[^\w.-]+/g, '-')}.md`;
 const virtualIssuePath = (number: number): string => `issue-${number}.md`;
 
-/** 单条 Release 的可引用摘要：发布信息、release notes 与带平台标签的资产清单。 */
+/** Digest for a single Release: publication info, release notes, and platform-labeled assets. */
 export const buildReleaseDigest = (release: Pick<Release, 'tag_name' | 'name' | 'body' | 'published_at' | 'html_url' | 'prerelease' | 'assets'>): string => {
   const lines = [
     `# Release ${release.tag_name}${release.name && release.name !== release.tag_name ? ` — ${release.name}` : ''}`,
@@ -127,7 +129,7 @@ export interface IssueComment {
   body: string;
 }
 
-/** 单条 Issue 的可引用摘要：状态、正文与（可选）评论区摘录。 */
+/** Digest for a single Issue: status, body, and (optional) comment thread excerpts. */
 export const buildIssueDigest = (issue: IssueSearchHit, comments: IssueComment[] = []): string => {
   const lines = [
     `# Issue #${issue.number}: ${issue.title}`,
@@ -148,7 +150,7 @@ export const buildIssueDigest = (issue: IssueSearchHit, comments: IssueComment[]
   return lines.join('\n');
 };
 
-/** 一批 Release 摘要证据；按规范化后的虚拟路径去重，避免不同 tag 归一化后冲突。 */
+/** A batch of Release digest evidences; de-duplicated by normalized virtual path to avoid collisions between different tags. */
 export const buildReleasesEvidence = (repository: Repository, releases: Array<Pick<Release, 'tag_name' | 'name' | 'body' | 'published_at' | 'html_url' | 'prerelease' | 'assets'>>): ToolEvidence[] => {
   const seenPaths = new Set<string>();
   return releases.slice(0, MAX_RELEASES).flatMap((release) => {
@@ -160,15 +162,15 @@ export const buildReleasesEvidence = (repository: Repository, releases: Array<Pi
   });
 };
 
-/** 搜索命中 + 可选的评论摘录（commentThreads 与 Issue.comments 计数字段区分开）。 */
+/** Search hit + optional comment excerpts (commentThreads is distinct from Issue.comments count field). */
 export type IssueHitWithComments = IssueSearchHit & { commentThreads?: IssueComment[] };
 
-/** 一批 Issue 摘要证据（评论已由调用方按需抓取）。 */
+/** A batch of Issue digest evidences (comments fetched on demand by caller). */
 export const buildIssuesEvidence = (repository: Repository, issues: IssueHitWithComments[]): ToolEvidence[] => issues
   .slice(0, MAX_ISSUE_RESULTS)
   .map((issue) => makeMetaEvidence(repository, virtualIssuePath(issue.number), issue.html_url, buildIssueDigest(issue, issue.commentThreads ?? [])));
 
-/** 仓库没有任何 Release 时的事实性证据（让"没发过版"成为可引用结论）。 */
+/** Factual evidence when repository has no Releases (enables citing "no releases published" as a verifiable conclusion). */
 export const buildNoReleasesEvidence = (repository: Repository, checkedAt: Date): ToolEvidence => makeMetaEvidence(
   repository,
   'releases-empty.md',
@@ -179,7 +181,7 @@ export const buildNoReleasesEvidence = (repository: Repository, checkedAt: Date)
   ].join('\n'),
 );
 
-/** Issue 搜索无命中时的事实性证据。 */
+/** Factual evidence when Issue search yields no hits. */
 export const buildNoIssuesEvidence = (repository: Repository, keywords: string[], checkedAt: Date): ToolEvidence => makeMetaEvidence(
   repository,
   'issues-search-empty.md',
@@ -191,9 +193,9 @@ export const buildNoIssuesEvidence = (repository: Repository, keywords: string[]
 );
 
 /**
- * 确定性 meta 意图识别（安全网）：识别"最近更新 / 构建包 / 疑难排查"三类
- * 表述。检索规划器提出 meta 目标是主路径；文档停滞时该信号用于自动解锁，
- * 保证三类场景在 quick 档（仅 2 轮）也能覆盖。
+ * Deterministic meta intent recognition (safety net): detects "recent updates / build packages / troubleshooting"
+ * query intents. The retrieval planner proposing meta targets is the primary path; this signal automatically unlocks
+ * when documentation evidence stalls, ensuring all three scenarios are covered even in quick mode (2 turns only).
  */
 export const detectMetaIntent = (question: string): MetaInfoKind[] => {
   const normalized = question.toLowerCase();
@@ -201,9 +203,9 @@ export const detectMetaIntent = (question: string): MetaInfoKind[] => {
   if (/(?:最近|最新|更新了|更新日志|变更|新版本|版本历史|what'?s new|changelog|recent(?:ly)?\s+(?:update|release|change)|latest\s+(?:release|update|version)|release\s+notes?)/i.test(normalized)) kinds.push('releases');
   if (/(?:构建包|安装包|安装文件|安装介质|哪些平台|什么平台|平台.*(?:构建|包|下载)|下载.*(?:包|文件)|binar|artifact|installer|build\s*packages?|prebuilt|download\s+(?:page|link|asset)|which\s+platforms?)/i.test(normalized)) kinds.push('releases');
   if (/(?:报错|出错|错误|异常|崩溃|闪退|无法|失败|遇到.{0,8}问题|疑难|已知问题|bug|crash|broken|error|fail(?:ed|ure)?|not\s+work|issue\s+with|troubleshoot|doesn'?t\s+work)/i.test(normalized)) kinds.push('issues');
-  // 两个 releases 正则可能同时命中：去重，避免重复占用 meta 目标名额。
+  // Both releases regexes may match simultaneously: de-duplicate to avoid occupying multiple meta target slots.
   return Array.from(new Set(kinds));
 };
 
-/** meta 意图 → 虚拟目标路径。 */
+/** meta intent → virtual target path. */
 export const metaTargetForKind = (kind: MetaInfoKind): string => (kind === 'releases' ? META_RELEASES_TARGET : META_ISSUES_TARGET);

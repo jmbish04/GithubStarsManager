@@ -1,10 +1,10 @@
 /**
- * 从 RSS/Atom 订阅内容中提取 GitHub 仓库链接。
- * 订阅条目里的链接可能出现在 <link>、<guid>、description/content 等任意位置，
- * 因此直接对文本做模式提取（只取 owner/repo 两段，拒绝 GitHub 站内功能区路径）。
+ * Extracts GitHub repository links from RSS/Atom feed content.
+ * Links in feed items can appear anywhere, such as in <link>, <guid>, or description/content,
+ * so pattern extraction is applied directly to the text (extracting only the owner/repo segments, rejecting internal GitHub functional paths).
  */
 
-/** GitHub 站内非仓库功能区（这些首段是 GitHub 保留路径，不可能是用户名）。 */
+/** GitHub internal non-repository functional areas (these top-level paths are reserved by GitHub and cannot be usernames). */
 const NON_REPO_SEGMENTS = new Set([
   'topics', 'trending', 'features', 'marketplace', 'collections', 'explore',
   'sponsors', 'orgs', 'apps', 'search', 'settings', 'notifications', 'login',
@@ -13,7 +13,7 @@ const NON_REPO_SEGMENTS = new Set([
   'maintainer', 'sponsored', 'enterprise', 'team', 'pricing',
 ]);
 
-/** 末段不允许以点结尾，避免从正文句子里截出 "repo." 这样的尾部句号。 */
+/** The trailing segment cannot end with a period, preventing trailing punctuation like "repo." from being extracted from body sentences. */
 const GITHUB_REPO_LINK = /https?:\/\/github\.com\/([A-Za-z0-9_.-]*[A-Za-z0-9_-])\/([A-Za-z0-9_.-]*[A-Za-z0-9_-])/gi;
 
 function isRssLike(text: string): boolean {
@@ -33,7 +33,7 @@ export function parseDiscoveryRssRepositories(input: string): string[] {
     if (NON_REPO_SEGMENTS.has(owner.toLowerCase())) continue;
     const fullName = `${owner}/${repo}`;
     if (!names.has(fullName.toLowerCase())) names.set(fullName.toLowerCase(), fullName);
-    // 订阅内容可能提及大量仓库，按出现顺序最多取前 30 个（与 JSON 上限一致）
+    // Feed content may mention many repositories; take up to the first 30 in order of appearance (matching the JSON limit)
     if (names.size === 30) break;
   }
   if (names.size === 0) throw new Error('No GitHub repository links were found in the feed');

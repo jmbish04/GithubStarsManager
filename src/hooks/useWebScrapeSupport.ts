@@ -3,17 +3,18 @@ import { backend } from '../services/backendAdapter';
 import { isScrapeSupportSettled, supportsWebScraping } from '../services/scrapeSupport';
 
 export interface WebScrapeSupport {
-  /** 当前环境是否具备 X 推文/Telegram 抓取通道（桌面 IPC 或后端路由）。 */
+  /** Whether the current environment has an X (Twitter) tweet/Telegram scraping channel (desktop IPC or backend route). */
   supported: boolean;
-  /** 结论是否已确定：Web 端要等 backend.init() 探测结束，之前请勿据其隐藏频道或迁移选中。 */
+  /** Whether the determination is finalized: the web client must wait for backend.init() probing to finish; do not hide channels or migrate selections before then. */
   settled: boolean;
 }
 
 /**
- * X 推文/Telegram 频道抓取只能在桌面端（主进程 IPC）或配置了后端的 Web
- * （服务端路由代抓）中完成；纯浏览器模式两者都不可用。该 hook 响应式地
- * 返回抓取通道支持情况：桌面端恒为 supported=true、settled=true；Web 端
- * 在 backend.init() 探测落定时通过订阅触发重渲染。
+ * Scraping X tweets/Telegram channels can only be performed on desktop (main-process IPC)
+ * or web clients configured with a backend (server routes proxy scraping); neither is available
+ * in pure browser mode. This hook reactively returns channel support status: on desktop it is
+ * always supported=true, settled=true; on web, it triggers re-renders via subscription once
+ * backend.init() probing settles.
  */
 export const useWebScrapeSupport = (): WebScrapeSupport => {
   const supported = useSyncExternalStore(

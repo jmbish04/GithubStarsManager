@@ -244,7 +244,7 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
   });
 
   it('stops after the configured consecutive no-progress rounds while preserving the insufficient-evidence outcome', async () => {
-    // 代码候选为空时，无进展停止语义保持不变（有代码预算时会先自动升级读代码）。
+    // When code candidates are empty, no-progress stop semantics are preserved (if code budget is available, it auto-escalates to reading code first).
     configureTreeAndFiles({
       'README.md': README,
       'docs/configuration.md': '# Environment\n\nUse APP_PORT for local configuration.',
@@ -291,8 +291,8 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
     });
     const workflowRef = '/.github/workflows/build-release.yml - 1-7';
     mocks.generateChatText
-      .mockResolvedValueOnce('我先看发布流程和文档里对 release 资产的说明，确认带 offline 和不带 offline 的区别。')
-      .mockResolvedValueOnce('我先在发布说明和构建配置里查 offline 资产是怎么定义的。')
+      .mockResolvedValueOnce('I will check the release process and documentation on release assets to understand the difference between offline and non-offline builds.')
+      .mockResolvedValueOnce('I will look up how offline assets are defined in the release notes and build configuration.')
       .mockResolvedValueOnce(gate({
         sufficient: true,
         requirements: [requirement('directly answer the user question', 'verified', [workflowRef])],
@@ -859,7 +859,7 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
 
     const result = await runRepositoryChatTurn({ ...turnInput('How is proxy switching implemented?'), onToolEvent: (event) => events.push(event as RepositoryChatToolEvent) });
 
-    // 文档停滞一轮后自动解锁代码取证，第二轮读到代码并完成回答。
+    // Automatically unlocks code retrieval after one round of documentation stall; reads code in round 2 and completes the answer.
     expect(events.some((event) => event.toolName === 'escalate_to_code')).toBe(true);
     expect(readPaths()).toEqual(['README.md', 'src/engine.ts']);
     expect(result.content).toContain(codeRef);
@@ -874,9 +874,9 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
 
     const result = await runRepositoryChatTurn(turnInput());
 
-    // 引用 3-4 落在证据窗口 3-5 内：视为有效引用并保留实际引用的行号。
+    // Citation 3-4 falls inside evidence window 3-5: treated as valid citation and preserves the actually cited line range.
     expect(result.content).toContain('`/README.md - 3-4`');
-    expect(result.content).not.toContain('已验证来源');
+    expect(result.content).not.toContain('Verified sources');
   });
 
   it('reads documentation first even when the question intent is code', async () => {
@@ -900,7 +900,7 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
 
     const result = await runRepositoryChatTurn({ ...turnInput('How is proxy switching implemented?'), onToolEvent: (event) => events.push(event as RepositoryChatToolEvent) });
 
-    // 即使意图是 code，首轮大纲仍先读 README/docs；第 2 轮才解锁代码读取。
+    // Even when intent is code, the first-round outline reads README/docs first; round 2 unlocks code reading.
     expect(readPaths()[0]).toBe('README.md');
     expect(readPaths()).toContain('src/engine.ts');
     expect(events.some((event) => event.toolName === 'escalate_to_code')).toBe(true);
@@ -916,8 +916,8 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
 
     const result = await runRepositoryChatTurn(turnInput());
 
-    // 根目录文件的裸引用（无反引号、无目录段）同样要规范化为精确引用，
-    // 否则正确回答会被 digest 替换。
+    // Bare references to root files (no backticks, no directory segments) must also be normalized to exact references,
+    // otherwise correct answers would be replaced by the digest.
     expect(result.content).toContain('`/README.md - 3-4`');
     expect(result.content).not.toContain('Verified sources');
     expect(result.content).not.toContain('insufficient');
@@ -936,7 +936,7 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
 
     const result = await runRepositoryChatTurn({ ...turnInput(), onToolEvent: (event) => events.push(event as RepositoryChatToolEvent) });
 
-    // 第 1 轮的 code 目标被拒绝（文档优先），README 章节照常读取，无代码解锁。
+    // Code target in round 1 is rejected (documentation priority); README sections read normally without code unlock.
     expect(readPaths()).toEqual(['README.md']);
     expect(events.some((event) => event.toolName === 'escalate_to_code')).toBe(false);
     expect(result.content).toContain(overviewRef);
@@ -951,8 +951,8 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
 
     const result = await runRepositoryChatTurn(turnInput());
 
-    // `/ /README.md — 3-4``` `（斜杠+空格、全角破折号、多余闭合反引号）规范化为
-    // 精确路径 + 保留实际引用行号。
+    // `/ /README.md — 3-4``` ` (slash+space, em dash, extra closing backticks) normalizes to
+    // exact path while preserving the actually cited line numbers.
     expect(result.content).toContain('`/README.md - 3-4`');
     expect(result.content).not.toContain('/ /README.md');
     expect(result.content).not.toContain('``');
@@ -985,7 +985,7 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
     expect(result.content).toContain('A documented example project for repository research');
     expect(result.content).toContain('`/README.md - 3-4`');
     expect(result.content).not.toContain('[^E1]');
-    expect(result.content).not.toContain('已验证来源');
+    expect(result.content).not.toContain('Verified sources');
     expect(chunks.length).toBeGreaterThan(0);
   });
 
@@ -1007,7 +1007,7 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
 
     const result = await runRepositoryChatTurn(turnInput());
 
-    // 剪枝降级：有引用的小节保留，未引用段落显式移入“未证实”区块而不是丢弃。
+    // Pruning fallback: cited sections are retained, while uncited paragraphs are explicitly moved to "unverified" section instead of discarded.
     expect(result.content).toContain('A documented example for repository research.');
     expect(result.content).toContain(overviewRef);
     expect(result.content).toContain('Uncited prose without any reference.');
@@ -1028,7 +1028,7 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
 
     const result = await runRepositoryChatTurn({ ...turnInput('Where is the missing feature documented?'), taskDepth: 'quick' });
 
-    // quick 档 maxNoProgressRounds=1：第 1 轮无进展即停止（默认档会继续到第 2 轮，共 5 次调用）。
+    // Quick depth maxNoProgressRounds=1: stops after 1 round with no progress (default depth continues to round 2, totaling 5 calls).
     expect(mocks.generateChatText).toHaveBeenCalledTimes(3);
     expect(result.content).toContain('insufficient');
   });
@@ -1040,7 +1040,7 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
     });
     mocks.generateChatText
       .mockResolvedValueOnce(understanding({ expected_answer: ['missing feature documentation'], target: 'missing feature' }));
-    // 按 plan → gate 交替注册 5 轮；unlimited 档 maxNoProgressRounds=4，应执行满 4 轮（默认档 2 轮即停）。
+    // Registers 5 rounds alternating plan -> gate; unlimited depth maxNoProgressRounds=4, should execute all 4 rounds (default depth stops at 2 rounds).
     for (let round = 0; round < 5; round += 1) {
       mocks.generateChatText.mockResolvedValueOnce(plan(target('README.md', ['Not a real heading'], 'recheck missing feature documentation')));
       mocks.generateChatText.mockResolvedValueOnce(gate({
@@ -1060,7 +1060,7 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
 describe('runRepositoryChatTurn meta sources (releases / issues)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // 清掉排队的 once 响应（前面用例可能注册多于消耗），避免溢出到本组。
+    // Clear queued once responses (previous cases might have registered more than consumed) to avoid spilling over.
     mocks.generateChatText.mockReset();
     mocks.generateChatTextStream.mockReset();
     mocks.generateWithTools.mockReset();
@@ -1108,7 +1108,7 @@ describe('runRepositoryChatTurn meta sources (releases / issues)', () => {
 
     const result = await runRepositoryChatTurn({ ...turnInput('这个仓库最近更新了什么？'), onToolEvent: (event) => events.push(event as RepositoryChatToolEvent) });
 
-    // 第 1 轮只读文档；文档停滞 + meta 意图触发安全网，第 2 轮读取 Release。
+    // Round 1 reads documentation only; documentation stall + meta intent triggers the safety net, reading Releases in round 2.
     expect(readPaths()[0]).toBe('README.md');
     expect(mocks.getRepositoryReleases).toHaveBeenCalledTimes(1);
     expect(events.some((event) => event.toolName === 'escalate_to_meta')).toBe(true);
@@ -1218,7 +1218,7 @@ describe('runRepositoryChatTurn meta sources (releases / issues)', () => {
 
     const result = await runRepositoryChatTurn({ ...turnInput('这个仓库最近更新了什么？'), onToolEvent: (event) => events.push(event as RepositoryChatToolEvent) });
 
-    // README 优先是硬规则：第 1 轮的 meta 目标被拒绝，回退到文档读取。
+    // README priority is a strict rule: round 1 meta target is rejected, falling back to reading documentation.
     expect(mocks.getRepositoryReleases).not.toHaveBeenCalled();
     expect(events.some((event) => event.toolName === 'escalate_to_meta')).toBe(false);
     expect(readPaths()).toEqual(['README.md']);

@@ -328,8 +328,8 @@ export const ReleaseSourceSettingsModal: React.FC<ReleaseSourceSettingsModalProp
                 aria-pressed={checked}
                 className={`h-auto flex w-full items-start justify-between gap-4 rounded-lg border p-4 text-left transition-colors ${
                   checked
-                    // hover 必须显式声明：默认 variant 自带 hover:bg-primary/90，
-                    // 深色实心底会压过内部 text-foreground 造成 WCAG 对比度不达标
+                    // Hover must be explicitly declared: the default variant includes hover:bg-primary/90,
+                    // where a dark solid background would override internal text-foreground and fail WCAG contrast requirements.
                     ? 'border-primary/30 bg-primary/10 hover:bg-primary/15 dark:hover:bg-primary/20'
                     : 'border-border bg-card hover:bg-muted dark:border-border dark:bg-muted/20 dark:hover:bg-card/[0.05]'
                 }`}

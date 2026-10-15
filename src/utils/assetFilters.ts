@@ -2,15 +2,17 @@ import type { AssetFilter } from '../types';
 import { normalizeRepoKey } from './releaseSources';
 
 /**
- * 关键词条目的去重键：trim 后小写（关键词匹配本身大小写不敏感，
- * "Mac" 与 "mac" 视为同一条，保留首个的书写形式）。
+ * Deduplication key for keyword entries: trimmed and lowercased (keyword matching
+ * itself is case-insensitive, so "Mac" and "mac" are treated as identical,
+ * keeping the casing of the first occurrence).
  */
 const keywordKey = (value: string): string => value.trim().toLowerCase();
 
 /**
- * 净化字符串数组：过滤非字符串元素、trim、剔除空/纯空白项、按 key 去重（保留首个）。
- * 空字符串关键词必须剔除——`includes("")` 恒为 true，`keywords: [""]` 会变相
- * 匹配所有 Release，击穿"畸形全空 filter 不意外匹配"的防御。
+ * Sanitizes an array of strings: filters out non-strings, trims items, removes empty/whitespace-only items,
+ * and deduplicates by key (preserving the first occurrence).
+ * Empty string keywords must be removed — `includes("")` is always true, so `keywords: [""]`
+ * would inadvertently match all releases, breaching the guard against malformed/empty filters matching everything.
  */
 const sanitizeStringArray = (value: unknown, key: (item: string) => string): string[] | undefined => {
   if (!Array.isArray(value)) return undefined;
@@ -30,15 +32,16 @@ const sanitizeStringArray = (value: unknown, key: (item: string) => string): str
 };
 
 /**
- * 规范化外部（本地持久化 / 后端同步 / 备份导入）传入的资产过滤器：
- * - 丢弃缺少必填字段（非空 id、name、keywords 数组）的畸形条目，保证下游
- *   ReleaseTimeline 的关键词匹配读取 keywords 不会抛错；
- * - keywords / excludeKeywords / includeRepos / alwaysExcludeRepos 统一净化：
- *   过滤非字符串元素、trim、剔除空/纯空白项、去重（仓库按 normalizeRepoKey
- *   不区分大小写去重，关键词按 trim 后小写去重，均保留首个的展示文本）；
- * - 按 AssetFilter 的已知字段重建条目，顺带丢弃未知键——包括 #405 曾短暂
- *   引入、已被 includeRepos 取代的反向语义字段 `excludeRepos`，避免废弃
- *   数据随设置同步无限往返，也防止旧字段被重新解释为 `alwaysExcludeRepos` 语义。
+ * Normalizes asset filters received from external sources (local persistence, backend sync, backup import):
+ * - Drops malformed entries missing required fields (non-empty id, name, keywords array) to ensure downstream
+ *   keyword matching in ReleaseTimeline does not throw when reading keywords.
+ * - Uniformly sanitizes keywords / excludeKeywords / includeRepos / alwaysExcludeRepos:
+ *   filters out non-strings, trims items, drops empty/whitespace-only values, and deduplicates
+ *   (repositories deduplicated case-insensitively via normalizeRepoKey; keywords deduplicated trimmed lowercase;
+ *   preserving the display text of the first entry).
+ * - Reconstructs entries using only known AssetFilter fields, discarding unknown keys — including the legacy
+ *   inverted-semantics field `excludeRepos` introduced briefly in #405 and replaced by includeRepos, avoiding
+ *   endless round-trips during sync and preventing obsolete fields from being misinterpreted as `alwaysExcludeRepos`.
  */
 export const normalizeAssetFilters = (filters: unknown): AssetFilter[] => {
   if (!Array.isArray(filters)) return [];
@@ -78,25 +81,25 @@ export const normalizeAssetFilters = (filters: unknown): AssetFilter[] => {
 };
 
 /**
- * 归一化「参与关键词匹配的下载链接名」（调用方已小写化）。
+ * Normalizes download link names used in keyword matching (already lowercased by caller).
  *
- * GitHub 为**每个** Release 自动生成 `Source code (<tag>.zip)` /
- * `Source code (<tag>.tar.gz)` 伪资产，它们无条件存在、不含任何区分信息。
- * 若原样参与包含关键词的子串匹配，`zip` / `tar.gz` 这类常见的归档后缀词会命中
- * 全部 Release——过滤器等于失效（表现为「macOS」过滤器里冒出零资产的 Release：
- * MinerU 的 `mineru-4.0.0-py3-none-any.whl`、cline/openclaw 的纯源码归档 Release）。
+ * GitHub automatically generates `Source code (<tag>.zip)` and
+ * `Source code (<tag>.tar.gz)` pseudo-assets for *every* release, unconditionally and with no distinguishing info.
+ * If matched as-is against include keywords, common archive extension keywords like `zip` / `tar.gz`
+ * would match every release — effectively breaking filters (e.g., zero-asset releases showing up in macOS filters:
+ * MinerU's `mineru-4.0.0-py3-none-any.whl`, cline/openclaw's source-only archive releases).
  *
- * 因此匹配时剥掉自动生成的归档后缀（名称形如 `source code (<tag>.zip)`，归档后缀
- * 在右括号之前）：`source code (<tag>)` 仍可被 `source` 命中，
- * `preset-source` 依赖的既有行为不变；而 `zip` / `tar.gz` 只再命中真实上传资产
- * 与 Release 正文提取的下载链接。
+ * Therefore, when matching, strip the auto-generated archive extension (names formatted as `source code (<tag>.zip)`,
+ * with the archive extension preceding the closing parenthesis): `source code (<tag>)` can still be matched by `source`,
+ * preserving existing behavior that `preset-source` relies on; while `zip` / `tar.gz` only match real uploaded assets
+ * and download links extracted from the release body.
  */
 export const normalizeMatchedLinkName = (lowerName: string, isSourceCode: boolean): string =>
   isSourceCode ? lowerName.replace(/\.(?:zip|tar\.gz)(?=\)$)/, '') : lowerName;
 
 /**
- * 单个链接名是否命中关键词规则（调用方小写化；排除关键词优先，命中即出局）。
- * 包含关键词为空时不构成正向限制，只做排除判断。
+ * Whether a single link name matches keyword rules (caller lowercases input; exclude keywords take precedence).
+ * When include keywords are empty, it acts without positive constraints and evaluates exclusion only.
  */
 const linkHitsKeywordRules = (
   lowerName: string,
@@ -106,7 +109,7 @@ const linkHitsKeywordRules = (
   !excludeKeywords.some(keyword => lowerName.includes(keyword.toLowerCase())) &&
   (keywords.length === 0 || keywords.some(keyword => lowerName.includes(keyword.toLowerCase())));
 
-/** 「仓库规则」求值结果：排除优先于包含（排除列表命中的仓库永不被本过滤器命中）。 */
+/** Repository rule evaluation outcome: exclude takes precedence over include (excluded repos are never matched). */
 type RepoRuleOutcome = 'excluded' | 'included' | 'none';
 
 const resolveRepoRule = (
@@ -123,43 +126,42 @@ const resolveRepoRule = (
 };
 
 export interface AssetFilterEvaluation {
-  /** 该 Release 是否出现在 Release 列表中 */
+  /** Whether the release appears in the release list */
   matchesRelease: boolean;
-  /** 卡片默认展示的下载链接索引（下标与传入的 lowerMatchedLinkNames 一一对应） */
+  /** Download link indices shown by default on the card (indices map 1:1 to lowerMatchedLinkNames) */
   matchedLinkIndexes: Set<number>;
 }
 
 /**
- * 单个过滤器对单个 Release 的完整求值：Release 级命中 + 该过滤器贡献的资产索引。
- * 多过滤器之间 Release 级取 OR、资产索引取并集（由调用方合并）。
+ * Evaluates a single filter against a single release: release-level match + asset indices contributed by this filter.
+ * Across multiple filters, release matches are OR-combined and asset indices are unioned (merged by caller).
  *
- * 两层判定共用**同一份**规则实现，因此不存在「Release 出现了却没有任何资产可展示」
- * 或「两层关键词范围不一致」的漂移空间；这与最初拆成两个导出函数、靠注释约定同步的
- * 写法不同（审计发现：那种写法会让两侧规则各自演化）。
+ * Both tiers share the exact same rule implementation, preventing drift where "a release matches but has no assets to show"
+ * or "keyword scopes diverge between tiers" (an audit showed splitting into two exported functions caused rules to drift).
  *
- * Release 级（matchesRelease）：
- * 1. 仓库命中「始终排除」→ 不命中（排除优先，且早于 includeRepos 与关键词判断）；
- * 2. 仓库命中「始终包含」→ 命中（仅绕过本过滤器的关键词判断，绕不过本过滤器的排除）；
- * 3. 有资产规则时：包含关键词非空则匹配范围为全部下载链接名（含源码归档伪资产与
- *    Release 正文提取链接，`preset-source` 依赖此现状）——源码归档伪资产经
- *    normalizeMatchedLinkName 剥掉自动生成的归档后缀后再匹配，避免 `zip` / `tar.gz`
- *    命中每个 Release 上的伪资产而使过滤器失效；包含关键词为空则只匹配
- *    release.assets 的真实上传资产名——否则真实资产全被排除的 Release 仍可能被
- *    未排除的伪资产/正文链接命中，排除关键词无法隐藏该 Release；
- * 4. 无资产规则时：includeRepos 非空 → 不命中（白名单之外没有正向条件）；
- *    仅 alwaysExcludeRepos 非空 → 命中（其余仓库匹配）；两者皆空 → 不命中。
+ * Release-level (matchesRelease):
+ * 1. Repo hits "alwaysExcludeRepos" -> no match (exclusion takes precedence, evaluated before includeRepos and keywords).
+ * 2. Repo hits "includeRepos" -> match (bypasses keyword checks for this filter, but not exclusion).
+ * 3. With asset rules: if include keywords are non-empty, matching scope covers all download link names (including
+ *    source archive pseudo-assets and release-body extracted links, relied upon by `preset-source`) — source archive
+ *    pseudo-assets have their auto-generated extensions stripped via normalizeMatchedLinkName before matching to prevent
+ *    `zip` / `tar.gz` from matching every release's pseudo-assets and breaking filters; if include keywords are empty,
+ *    match only against real uploaded asset names in release.assets — otherwise releases whose real assets are all excluded
+ *    might still match unexcluded pseudo-assets or body links, preventing exclusion keywords from hiding the release.
+ * 4. Without asset rules: non-empty includeRepos -> no match (no positive condition outside whitelist);
+ *    only alwaysExcludeRepos non-empty -> match (other repos match); both empty -> no match.
  *
- * 资产级（matchedLinkIndexes）：
- * 1. 只有**命中本 Release 的过滤器**才贡献资产：未命中的过滤器（含没有任何规则的
- *    畸形/空过滤器）返回空集，否则它会变相"解锁"所有 Release 的完整资产清单；
- * 2. 仓库命中「始终包含」→ 全部索引（该仓库的 Release 按设计展示全部资产）；
- * 3. 有关键词规则 → 命中包含关键词且不含排除关键词的链接；包含关键词为空时不构成
- *    正向限制，只按排除关键词剔除（负向过滤器不做正向裁剪）；
- * 4. 无资产规则但命中（仅排除列表的负向仓库过滤器）→ 不做资产级限制，返回全部索引。
+ * Asset-level (matchedLinkIndexes):
+ * 1. Only filters matching this release contribute assets: non-matching filters (including malformed/empty filters
+ *    with no rules) return an empty set; otherwise they would inadvertently unlock the full asset list of all releases.
+ * 2. Repo hits "includeRepos" -> all indices (releases from this repo display all assets by design).
+ * 3. With keyword rules -> links matching include keywords and not matching exclude keywords; if include keywords
+ *    are empty, no positive filtering applies and only exclude keywords prune assets.
+ * 4. Matches without asset rules (negative repo filter with only exclusion list) -> no asset restriction, returns all indices.
  *
- * lowerRepoKey / lowerMatchedLinkNames / lowerRealAssetNames 由调用方小写归一化，
- * 且 lowerMatchedLinkNames 需先经 normalizeMatchedLinkName 归一化；
- * 过滤器自身字段为原始值（仓库与关键词匹配均不区分大小写）。
+ * lowerRepoKey / lowerMatchedLinkNames / lowerRealAssetNames are lowercased by caller,
+ * and lowerMatchedLinkNames must be normalized via normalizeMatchedLinkName first;
+ * filter fields retain original values (repo and keyword matches are case-insensitive).
  */
 export const evaluateAssetFilter = (
   filter: Pick<AssetFilter, 'keywords'> & Partial<AssetFilter>,
@@ -179,13 +181,13 @@ export const evaluateAssetFilter = (
     return { matchesRelease: true, matchedLinkIndexes: allIndexes() };
   }
 
-  // 防御未经过 normalizeAssetFilters 的数据：空字符串关键词经 includes("") 恒为
-  // true，会让包含词击穿匹配、排除词隐藏全部 Release，这里先剔除。
+  // Guard against unnormalized filters: empty string keywords make includes("") always true,
+  // causing includes to match everything and excludes to hide all releases. Filter them out here.
   const keywords = (filter.keywords ?? []).filter(keyword => keyword.trim().length > 0);
   const excludeKeywords = (filter.excludeKeywords ?? []).filter(keyword => keyword.trim().length > 0);
 
   if (keywords.length === 0 && excludeKeywords.length === 0) {
-    // 纯仓库规则：白名单命中已在上方返回，这里只剩「仅排除列表」的负向过滤器
+    // Pure repository rule: whitelist match already returned above, leaving only negative filters with exclusion lists
     const matchesRelease = (filter.includeRepos ?? []).length === 0
       && (filter.alwaysExcludeRepos ?? []).length > 0;
     return { matchesRelease, matchedLinkIndexes: matchesRelease ? allIndexes() : noIndexes() };

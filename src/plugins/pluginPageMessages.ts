@@ -6,7 +6,7 @@ export interface PluginPageRequest {
   token: string;
   method: string;
   args: Record<string, unknown>;
-  /** 页面自己的来源。宿主窗口来源不固定，页面发往宿主只能用 '*'，靠它核对。 */
+  /** The page's own origin. Because the host window origin is not fixed, the page must post to '*' and verifies against this. */
   origin: string;
 }
 
@@ -17,9 +17,9 @@ export function validatePluginPageMessage(
   pageId: string,
   token: string,
 ): PluginPageRequest | null {
-  // 只接受页面自己的 plugin-page 来源。allow-scripts 不阻止页面把 iframe 导航走，
-  // 导航后 WindowProxy 不变、来源仍是不透明的 null，按 null 校验会把 token 和
-  // 仓库上下文交给替换后的文档。精确来源要求 iframe 具备 allow-same-origin。
+  // Accept only the page's own plugin-page origin. allow-scripts does not prevent the page from navigating the iframe away;
+  // after navigation, WindowProxy remains identical and the origin is still an opaque null. Validating against null would leak
+  // tokens and repository context to the navigated document. Strict origin checking requires allow-same-origin on the iframe.
   if (!frameWindow || event.source !== frameWindow ||
     event.origin !== `plugin-page://${pluginId}`) return null;
   const data: unknown = event.data;

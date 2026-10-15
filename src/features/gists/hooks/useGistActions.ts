@@ -255,9 +255,9 @@ export const useGistActions = () => {
     }
   }, [state, t, toast, confirm]);
 
-  // 注意：本方法有意遮蔽经由 ...state 展开的同名 store action（签名不同：
-  // 接收 Gist 对象并内置确认/报错）。需要原始 store action 的调用方应自行
-  // 从 useAppStore 订阅（GistView 的 onDeleted 即如此）。
+  // Note: This method intentionally shadows the store action of the same name spread via ...state
+  // (different signature: accepts a Gist object and bundles confirmation and error handling).
+  // Callers needing the raw store action should subscribe directly from useAppStore (as GistView.onDeleted does).
   const deleteGist = useCallback(async (gist: Gist, onDeleted?: (gistId: string) => void) => {
     if (!state.githubToken || gist.owner?.login !== state.user?.login) return;
     const confirmed = await confirm(
@@ -288,11 +288,11 @@ export const useGistActions = () => {
     }
   }, [state, t, toast, confirm]);
 
-  // 大文件按需拉取（原 GistDetailModal.HighlightedCode effect 的服务调用部分）。
-  // 无 token 时抛出的错误文案与原 setRawError 直写逐字一致，由 View catch 落 rawError。
-  // Abort/retry/局部缓存归 View：signal 由调用方传入。
-  // 依赖只含 token：语言切换不得换引用（否则 View 的拉取 effect 会随 language 变化
-  // 重新发起网络请求），无 token 文案在抛错时经 getState() 读取当前语言。
+  // On-demand fetch for large files (formerly the service call in GistDetailModal.HighlightedCode effect).
+  // The error message thrown without a token matches the original setRawError string and is caught by View to set rawError.
+  // Abort/retry/local caching belongs to View: signal is passed in by the caller.
+  // Dependencies only contain token: language changes must not recreate reference (otherwise View's fetch effect
+  // would re-trigger network requests on language changes); missing token text reads current language via getState() when throwing.
   const fetchGistFileRaw = useCallback(async (rawUrl: string, signal?: AbortSignal): Promise<string> => {
     if (!state.githubToken) {
       const currentLanguage = useAppStore.getState().language;

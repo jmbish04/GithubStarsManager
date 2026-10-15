@@ -9,9 +9,9 @@ import { PluginPageViewer } from './PluginPageViewer';
 import type { Repository } from '../types';
 
 /**
- * 弹窗动作下发的仓库上下文。字段对齐主进程 `sanitizeRepository` 的白名单，
- * 另加卡片生成需要的两段文本摘要；不包含分析错误、索引时间戳、头像地址等
- * 宿主内部字段。
+ * Repository context dispatched by modal actions. Fields align with main process `sanitizeRepository` allowlist,
+ * plus two text summaries required for card generation; excludes host-internal fields like
+ * analysis errors, index timestamps, and avatar URLs.
  */
 function repositoryContext(repository: Repository): Record<string, unknown> {
   return {
@@ -51,9 +51,9 @@ interface PluginPageModalProps {
 }
 
 /**
- * V1.4 弹窗动作（opensPage）的宿主容器：把插件页面装进弹窗，并随
- * plugin-page:init 一次性下发所点击仓库的元数据与 README 正文。上下文由
- * 宿主主动提供，不经过能力桥；页面访问宿主能力仍只能走受权限约束的桥方法。
+ * Host container for V1.4 modal actions (opensPage): wraps plugin page inside a modal dialog, and dispatches
+ * the clicked repository's metadata and README body at once via plugin-page:init. Context is actively provided
+ * by the host without going through the capability bridge; page access to host capabilities remains restricted to permission-gated bridge methods.
  */
 export const PluginPageModal: React.FC<PluginPageModalProps> = ({
   pluginId, pluginName, pageId, pageTitle, repository, onClose, t,

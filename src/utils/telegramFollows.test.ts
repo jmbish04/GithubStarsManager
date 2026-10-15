@@ -6,7 +6,7 @@ import {
 } from './telegramFollows';
 
 describe('normalizeTelegramChannelInput', () => {
-  it('接受 t.me 频道链接（含公开预览 /s/、消息 id、查询参数）', () => {
+  it('accepts t.me channel links (including public preview /s/, message IDs, and query params)', () => {
     expect(normalizeTelegramChannelInput('https://t.me/geekhub23')).toBe('geekhub23');
     expect(normalizeTelegramChannelInput('https://t.me/s/geekhub23')).toBe('geekhub23');
     expect(normalizeTelegramChannelInput('https://t.me/geekhub23/589')).toBe('geekhub23');
@@ -14,13 +14,13 @@ describe('normalizeTelegramChannelInput', () => {
     expect(normalizeTelegramChannelInput('http://www.t.me/geekhub23')).toBe('geekhub23');
   });
 
-  it('接受 @频道名与裸频道名', () => {
+  it('accepts @channel and bare channel names', () => {
     expect(normalizeTelegramChannelInput('@geekhub23')).toBe('geekhub23');
     expect(normalizeTelegramChannelInput('geekhub23')).toBe('geekhub23');
     expect(normalizeTelegramChannelInput('  geekhub23  ')).toBe('geekhub23');
   });
 
-  it('拒绝无效输入', () => {
+  it('rejects invalid input', () => {
     expect(normalizeTelegramChannelInput('')).toBeNull();
     expect(normalizeTelegramChannelInput('   ')).toBeNull();
     expect(normalizeTelegramChannelInput('ab')).toBeNull();
@@ -31,14 +31,14 @@ describe('normalizeTelegramChannelInput', () => {
 });
 
 describe('normalizeTelegramFollows', () => {
-  it('默认关注 geekhub23（用户可删除/追加）', () => {
+  it('defaults to following geekhub23 (users can remove/add)', () => {
     expect(DEFAULT_TELEGRAM_FOLLOWS).toEqual([
       { channel: 'geekhub23', addedAt: expect.any(String) },
     ]);
     expect(normalizeTelegramFollows(undefined)).toEqual(DEFAULT_TELEGRAM_FOLLOWS);
   });
 
-  it('大小写不敏感去重并保留最早添加的记录', () => {
+  it('deduplicates case-insensitively and preserves the earliest added record', () => {
     const result = normalizeTelegramFollows([
       { channel: 'GeekHub23', addedAt: '2026-09-13T02:00:00.000Z' },
       { channel: 'geekhub23', addedAt: '2026-09-13T01:00:00.000Z' },
@@ -47,7 +47,7 @@ describe('normalizeTelegramFollows', () => {
     expect(result).toEqual([{ channel: 'geekhub23', addedAt: '2026-09-13T01:00:00.000Z' }]);
   });
 
-  it('剔除非法项；addedAt 缺失或非法时回退纪元时间', () => {
+  it('discards invalid entries and falls back to unix epoch when addedAt is missing or invalid', () => {
     const result = normalizeTelegramFollows([
       { channel: 'goodname', addedAt: 'not-a-date' },
       { channel: 'bad name!', addedAt: '2026-09-13T00:00:00.000Z' },

@@ -44,7 +44,7 @@ export class UpdateService {
         };
       }
 
-      // 获取最新版本（假设XML中版本按时间排序，最后一个是最新的）
+      // Get latest version (assuming versions in XML are chronologically sorted, last is newest)
       const latestVersion = versions[versions.length - 1];
       const hasUpdate = this.compareVersions(currentVersion, latestVersion.number) < 0;
 
@@ -54,7 +54,7 @@ export class UpdateService {
         latestVersion: hasUpdate ? latestVersion : undefined
       };
     } catch (error) {
-      logger.error('update', '检查更新失败', error);
+      logger.error('update', 'Failed to check for updates', error);
       throw error;
     }
   }
@@ -63,10 +63,10 @@ export class UpdateService {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
 
-    // 检查解析错误
+    // Check for parse errors
     const parseError = xmlDoc.querySelector('parsererror');
     if (parseError) {
-      throw new Error('XML解析失败');
+      throw new Error('Failed to parse XML');
     }
 
     const versions: VersionInfo[] = [];
@@ -78,7 +78,7 @@ export class UpdateService {
       const downloadUrl = versionNode.querySelector('downloadUrl')?.textContent?.trim();
 
       if (!number || !releaseDate || !downloadUrl) {
-        return; // 跳过不完整的版本信息
+        return; // Skip incomplete version entries
       }
 
       const changelog: string[] = [];

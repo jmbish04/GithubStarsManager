@@ -1,55 +1,55 @@
 /**
- * Telegram 频道持久化层（独立 IndexedDB，仿 xTweetStorage）。
+ * Telegram channel persistence layer (dedicated IndexedDB, modeled after xTweetStorage).
  *
- * 发现页 discoveryRepos 是会话级数据不持久化，但频道消息与仓库详情的获取
- * 成本高（每次抓取要走代抓通道翻 t.me 公开预览页并批量补全仓库详情），
- * 所以落在这里跨会话复用，refreshChannel 只做增量同步。
+ * Discovery page discoveryRepos are session-level data and not persisted, but fetching channel messages
+ * and repository details is expensive (each fetch proxies t.me public preview pages and batch-enriches repo details),
+ * so they are stored here for cross-session reuse, while refreshChannel only performs incremental synchronization.
  */
 
 import type { GitHubRepoDetailRead } from './githubApi';
 
-/** 频道消息（正文缓存供"查看消息原文"离线渲染） */
+/** Channel message (body cached for "view original message" offline rendering) */
 export interface TelegramStoredMessage {
-  /** 复合键 `<channel>/<messageId>`（跨频道唯一） */
+  /** Composite key `<channel>/<messageId>` (globally unique across channels) */
   messageId: string;
-  /** 频道名（不含 @） */
+  /** Channel name (without @) */
   channel: string;
-  /** 频道显示名（来自页面 owner_name，抓取时快照） */
+  /** Channel display name (snapshot from page owner_name during scrape) */
   displayName: string;
-  /** 消息正文（t.me 公开预览输出的 HTML 片段） */
+  /** Message body (HTML snippet output by t.me public preview) */
   content: string;
-  /** 消息链接（https://t.me/<channel>/<id>） */
+  /** Message URL (https://t.me/<channel>/<id>) */
   htmlUrl: string;
   createdAt: string;
-  /** 消息中提取到的仓库 full_name（小写键，对应 repos store） */
+  /** Repository full_name extracted from the message (lowercased key, corresponding to repos store) */
   repoFullNames: string[];
 }
 
 /**
- * 消息涉及的 GitHub 仓库（按 full_name 小写去重，一仓库一条）。
- * detail 为 null 且 lastFetchedAt 非空表示仓库不可用（删除/私有），到期重试。
+ * GitHub repositories referenced in messages (deduplicated by lowercased full_name, one entry per repo).
+ * A null detail with non-empty lastFetchedAt indicates the repository is unavailable (deleted/private); retry upon expiry.
  */
 export interface TelegramStoredRepo {
   fullName: string;
   detail: GitHubRepoDetailRead | null;
   lastFetchedAt: string;
-  /** 来源消息 = 发布时间最新的消息 */
+  /** Source message = message with the latest publication timestamp */
   sourceMessageId: string;
   messageCreatedAt: string;
 }
 
-/** 单频道的分页游标：cursor 为下一页 ?before= 值（null = 尚未翻过页） */
+/** Pagination cursor for a single channel: cursor is the next page ?before= value (null = has not paginated yet) */
 export interface TelegramChannelPageState {
   cursor: string | null;
-  /** 已翻到频道历史尽头（rel=prev 消失） */
+  /** Reached the end of channel history (rel=prev absent) */
   exhausted: boolean;
 }
 
 export interface TelegramSyncMeta {
   lastSyncedAt: string | null;
-  /** 生成水位时的关注列表签名（规范化频道名排序拼接）；列表变化则水位失效 */
+  /** Follows list signature when watermark was generated (normalized channel names sorted and concatenated); invalidates on list changes */
   followsSignature: string;
-  /** 每个频道的翻页游标（跨会话保留，"加载更多"接着上次的位置继续拉） */
+  /** Pagination cursor for each channel (preserved across sessions; "load more" continues from last position) */
   pages: Record<string, TelegramChannelPageState>;
 }
 
@@ -105,7 +105,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   return Promise.race([promise, timeoutPromise]);
 };
 
-/** 写事务：execute 同步发起所有写请求，事务 complete 即成功。 */
+/** Write transaction: execute synchronously dispatches all write requests; completion of the transaction indicates success. */
 const runWriteTx = async (
   storeName: string,
   timeoutMs: number,
@@ -120,7 +120,7 @@ const runWriteTx = async (
         try {
           tx.abort();
         } catch {
-          // 事务可能已自行结束
+          // Transaction may have already finished on its own
         }
         reject(new Error('telegramStorage timeout'));
       }, timeoutMs);
@@ -146,7 +146,7 @@ const runWriteTx = async (
   }
 };
 
-/** 读事务：单个请求取值（记录不存在时 resolve undefined）。 */
+/** Read transaction: retrieves a single record (resolves undefined if record does not exist). */
 const runGetTx = async <T>(
   storeName: string,
   timeoutMs: number,
@@ -174,7 +174,7 @@ const runGetTx = async <T>(
   }
 };
 
-/** 游标遍历：visit 逐条消费（键值对），遍历完成即结束。 */
+/** Cursor traversal: visit consumes each key-value pair; finishes when traversal completes. */
 const runCursorTx = async (
   storeName: string,
   timeoutMs: number,
@@ -189,7 +189,7 @@ const runCursorTx = async (
         try {
           tx.abort();
         } catch {
-          // 事务可能已自行结束
+          // Transaction may have already finished on its own
         }
         reject(new Error('telegramStorage timeout'));
       }, timeoutMs);
@@ -223,7 +223,7 @@ const runCursorTx = async (
 };
 
 export const telegramStorage = {
-  /** 批量 upsert 消息（键为 `<channel>/<id>` 复合键）。写失败不抛出（不影响同步流程）。 */
+  /** Batch upsert messages (keyed by `<channel>/<id>` composite key). Does not throw on write failure (does not block sync flow). */
   async saveMessages(messages: TelegramStoredMessage[]): Promise<void> {
     if (messages.length === 0) return;
     try {
@@ -236,8 +236,8 @@ export const telegramStorage = {
   },
 
   /**
-   * 读取失败向上抛出（不返回半量快照）：调用方会把它当作权威内存状态，
-   * 缺失的键会让已知消息被当作新消息重建，进而用空详情覆盖已落盘数据。
+   * Throws read failures upward (does not return partial snapshots): callers treat this as authoritative in-memory state;
+   * missing keys would cause known messages to be recreated as new messages, overwriting persisted data with empty details.
    */
   async getAllMessages(): Promise<Map<string, TelegramStoredMessage>> {
     const result = new Map<string, TelegramStoredMessage>();
@@ -249,7 +249,7 @@ export const telegramStorage = {
     return result;
   },
 
-  /** 批量 upsert 仓库（键为 full_name 小写）。写失败不抛出（不影响同步流程）。 */
+  /** Batch upsert repositories (keyed by lowercased full_name). Does not throw on write failure (does not block sync flow). */
   async saveRepos(repos: TelegramStoredRepo[]): Promise<void> {
     if (repos.length === 0) return;
     try {
@@ -261,7 +261,7 @@ export const telegramStorage = {
     }
   },
 
-  /** 读取失败向上抛出（同 getAllMessages：不返回半量快照）。 */
+  /** Throws read failures upward (same as getAllMessages: does not return partial snapshots). */
   async getAllRepos(): Promise<Map<string, TelegramStoredRepo>> {
     const result = new Map<string, TelegramStoredRepo>();
     if (!canUseIndexedDB()) return result;
@@ -273,9 +273,9 @@ export const telegramStorage = {
   },
 
   async getSyncMeta(): Promise<TelegramSyncMeta> {
-    // 无 IndexedDB 环境（如 SSR/测试）视作记录不存在，返回全新默认值；
-    // 真实读取失败则向上抛出，避免调用方把缺失游标误判为"尚未翻页"而
-    // 重抓最新页并用新游标覆盖已推进的位置。
+    // Non-IndexedDB environment (e.g. SSR/test) is treated as non-existent record, returning fresh default value;
+    // actual read failures throw upward to prevent callers from misinterpreting a missing cursor as "has not paginated yet",
+    // which would refetch the latest page and overwrite advanced positions with a new cursor.
     if (!canUseIndexedDB()) return createDefaultMeta();
     const meta = await withTimeout(runGetTx<TelegramSyncMeta>(META_STORE, 5000, 'sync'), 6000);
     if (meta === undefined) return createDefaultMeta();
@@ -293,9 +293,10 @@ export const telegramStorage = {
   },
 
   /**
-   * 同步轮次的原子落盘：messages + repos + meta（水位/游标）在同一个跨
-   * store 读写事务中写入，任一失败整体回滚并抛出——调用方据此不推进内存
-   * 游标，下轮同步会重新拉取该批消息，避免游标已推进但数据未落盘的缺口。
+   * Atomic persistence for sync batches: messages + repos + meta (watermark/cursor) are written in a single
+   * cross-store readwrite transaction. If any write fails, the entire transaction rolls back and throws—callers
+   * will not advance the in-memory cursor, and the next sync will re-fetch this batch of messages, preventing gaps
+   * where cursors advance without data persistence.
    */
   async saveSyncBatch(payload: {
     messages: TelegramStoredMessage[];
@@ -311,7 +312,7 @@ export const telegramStorage = {
           try {
             tx.abort();
           } catch {
-            // 事务可能已自行结束
+            // Transaction may have already finished on its own
           }
           reject(new Error('telegramStorage timeout'));
         }, 15_000);
@@ -342,9 +343,9 @@ export const telegramStorage = {
   },
 
   /**
-   * 清空全部频道数据（设置页"删除发现页缓存/删除全部数据"调用）。
-   * 错误向上抛出（调用方据此决定是否提示成功）；先清 meta：即使后续
-   * store 清理失败，水位与游标已移除，下次同步退化为全量重扫可自愈。
+   * Clear all channel data (called by "delete discovery cache/delete all data" in settings).
+   * Throws errors upward (callers determine whether to notify success); clears meta first so that even if subsequent
+   * store cleanups fail, the watermark and cursors are removed, allowing the next sync to self-heal via full rescan.
    */
   async clearAll(): Promise<void> {
     if (!canUseIndexedDB()) return;

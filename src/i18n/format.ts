@@ -2,7 +2,7 @@ import { de, enUS, es, fr, ja, ko, ptBR, ru, zhCN, zhTW } from 'date-fns/locale'
 import type { Locale } from 'date-fns';
 import { languageDefinition, type AppLanguage } from './languages';
 
-/** date-fns locale 映射：语言切换时日期相对时间/格式跟随 UI 语言。 */
+/** date-fns locale mapping: relative date time/formatting follows the UI language on language switch. */
 export function getDateFnsLocale(language: AppLanguage): Locale {
   switch (language) {
     case 'zh':
@@ -28,14 +28,14 @@ export function getDateFnsLocale(language: AppLanguage): Locale {
   }
 }
 
-/** Intl 用的 BCP 47 tag。 */
+/** BCP 47 tag for Intl formatting. */
 export const getIntlLocale = (language: AppLanguage): string => languageDefinition(language).intlLocale;
 
-/** 按当前语言格式化数字（替代无 locale 的裸 toLocaleString）。 */
+/** Formats a number using the current language (replaces bare toLocaleString without locale). */
 export const formatNumber = (value: number, language: AppLanguage): string =>
   value.toLocaleString(getIntlLocale(language));
 
-/** 按当前语言格式化日期（替代无 locale 的裸 toLocaleDateString）。 */
+/** Formats a date using the current language (replaces bare toLocaleDateString without locale). */
 export const formatDate = (
   date: Date | number,
   language: AppLanguage,

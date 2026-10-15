@@ -77,14 +77,14 @@ function getSortValue(repo: Repository, sortBy: SearchFilters['sortBy']): number
       return Number.isFinite(stars) ? stars : 0;
     }
     case 'updated':
-      // “按更新排序”按最近代码变更（push）排序，用 GitHub 的 pushed_at。
+      // "Sort by updated" sorts by recent code changes (pushes), using GitHub's pushed_at.
       return toUpdatedSortValue(repo);
     case 'name':
       return repo.name.toLocaleLowerCase();
     case 'starred':
       return toSortableTimestamp(repo.starred_at);
     case 'created':
-      // “按创建时间排序”用于成熟度视角：越新创建的仓库排在越前（desc）。
+      // "Sort by created" is used for maturity perspective: newly created repos appear first (desc).
       return toSortableTimestamp(repo.created_at);
     default:
       return toUpdatedSortValue(repo);
@@ -160,7 +160,7 @@ export function applyRepoFilters<T extends Repository>(
 
   const licenses = searchFilters.licenses ?? [];
   if (licenses.length > 0) {
-    // 归一化后比对：SPDX id 精确匹配，无 license（含 NOASSERTION/Other/null）落入 NO_LICENSE_SENTINEL
+    // Compare after normalization: exact SPDX ID match; no license (including NOASSERTION/Other/null) falls into NO_LICENSE_SENTINEL
     filtered = filtered.filter((repo) =>
       licenses.includes(normalizeLicense(repo.license))
     );
@@ -210,8 +210,8 @@ export function applyRepoFilters<T extends Repository>(
     filtered = filtered.filter((repo) => repo.stargazers_count <= searchFilters.maxStars!);
   }
 
-  // Repository Health 客观事实筛选。三态：undefined = 不筛选，true/false = 要求成立/不成立。
-  // 判定逻辑集中在 src/utils/repositoryHealth.ts，避免与 Health 面板的口径分裂。
+  // Repository Health objective filtering. Tri-state: undefined = no filter, true/false = required / not required.
+  // Evaluation logic is centralized in src/utils/repositoryHealth.ts to avoid divergence with the Health panel.
   if (searchFilters.healthArchived !== undefined) {
     filtered = filtered.filter(
       (repo) => isArchivedRepository(repo) === searchFilters.healthArchived,

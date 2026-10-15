@@ -11,7 +11,7 @@ import { areRepositoryRecordsEqual, replaceRepositoryInList } from '../helpers/r
 import { shouldPreserveExisting } from '../helpers/accountWorkspace';
 import { findIdentityMatch, isValidGitHubRepositoryId } from '../../utils/repositoryIdentity';
 
-/** 合成一个不与现有记录冲突的本地 id（timestamp + random，避免并发竞态）。 */
+/** Synthesize a local id that does not collide with existing records (timestamp + random, avoiding concurrency races). */
 const generateFallbackRepositoryId = (existingRepositories: Repository[]): number => {
   const timestamp = Date.now();
   const random = Math.floor(Math.random() * 10000);
@@ -85,7 +85,7 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
 
         const applyPatches = (list: Repository[]): { repositories: Repository[]; changed: boolean } => {
           let changed = false;
-          // 用 Map 索引避免多次 findIndex
+          // Index by Map to avoid repeated findIndex lookups
           const indexById = new Map(list.map((r, i) => [r.id, i]));
           const next = list.slice();
           for (const [id, patch] of patchMap) {
@@ -121,29 +121,29 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
         };
       }),
       addRepository: (repo) => set((state) => {
-        // 身份判定统一走 findIdentityMatch（id 优先，合成 id 的名称兜底其次）——
-        // 与星标同步 mergeStarredRepositories 共用同一份规则，避免两处口径漂移。
+        // Identity matching uniformly delegates to findIdentityMatch (id first, synthesized id name fallback second)—
+        // sharing the exact same rules with star sync mergeStarredRepositories to prevent discrepancy drift.
         const existing = findIdentityMatch(repo, state.repositories);
         let updatedRepositories;
 
         if (existing) {
-          // 同一 GitHub 身份：更新现有仓库（沿用其 ID，保留 AI 分析与自定义字段）。
-          // 入参是完整 GitHub 数据，full_name 等源字段随之刷新（改名即在此生效）。
+          // Same GitHub identity: update existing repository (reuse its ID, preserve AI analysis and custom fields).
+          // Input contains full GitHub data, refreshing source fields such as full_name (renames take effect here).
           const existingRepoIndex = state.repositories.indexOf(existing);
           updatedRepositories = [...state.repositories];
           updatedRepositories[existingRepoIndex] = {
             ...repo,
             id: existing.id,
-            // 保留自定义编辑的内容
+            // Preserve custom-edited fields
             custom_description: existing.custom_description,
             custom_tags: existing.custom_tags,
             custom_category: existing.custom_category,
             category_locked: existing.category_locked,
             last_edited: existing.last_edited,
             subscribed_to_releases: existing.subscribed_to_releases,
-            // 保留已完成的 AI 分析：入参来自 GitHub 详情 / 发现页数据，
-            // 不带这些字段，直接展开会把已有 AI 摘要与标签清空。
-            // 用 `?? existing.x` 而非无条件回填：入参若显式带了新值则采用新值。
+            // Preserve completed AI analysis: input comes from GitHub details / discovery page data
+            // which lacks these fields; blindly spreading would clear existing AI summary and tags.
+            // Use '?? existing.x' instead of unconditional backfill so explicitly provided new values are kept.
             ai_summary: repo.ai_summary ?? existing.ai_summary,
             ai_tags: repo.ai_tags ?? existing.ai_tags,
             ai_platforms: repo.ai_platforms ?? existing.ai_platforms,
@@ -152,13 +152,13 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
             analysis_error: repo.analysis_error ?? existing.analysis_error,
           };
         } else {
-          // 新增为独立记录：本地没有该仓库，或同名但属于**另一个** GitHub 仓库。
-          // 此时绝不能沿用 existing.id —— 否则新仓库会被写到旧仓库的 ID 下：
-          // 用户对新仓库做完 AI 分析后，下次同步按 GitHub ID 匹配不到本地记录
-          // （id 不同，且名称兜底只认领合成 id 记录），分析结果会再次丢失；
-          // 若旧仓库仍在星标里，新仓库的分析还会被错误归属到旧仓库。
-          // 优先沿用入参的 GitHub 真实 id；仅当 id 不可用时，才退回合成 id
-          // （timestamp + random，确保唯一性，避免并发竞态）。
+          // Add as standalone record: repo does not exist locally, or shares the name of a *different* GitHub repository.
+          // At this point we must NEVER reuse existing.id—otherwise the new repository would be stored under the old repo's ID:
+          // After the user runs AI analysis on the new repo, the next sync matching by GitHub ID won't find the local record
+          // (different IDs, and name fallback only claims synthesized id records), losing analysis results again;
+          // if the old repo is still starred, analysis of the new repo would be erroneously attributed to the old one.
+          // Prefer the input's genuine GitHub id; only fall back to a synthesized id when id is unavailable
+          // (timestamp + random, ensuring uniqueness and avoiding concurrency races).
           updatedRepositories = isValidGitHubRepositoryId(repo.id)
             ? [...state.repositories, { ...repo, id: repo.id }]
             : [...state.repositories, { ...repo, id: generateFallbackRepositoryId(state.repositories) }];
@@ -186,7 +186,7 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
       pushCategoriesToLists: async (api, categoryIds) => {
         const state = get();
         const t = i18n.getFixedT(state.language, 'app');
-        // 重入保护：已有回写进行中时直接返回，避免并发创建重复 list 并互相覆盖成员
+        // Reentrancy guard: return immediately if a push is already running to avoid concurrent duplicate lists and overwriting members
         if (state.listsPush.isRunning) return;
         if (!state.githubToken) {
           set({ listsPush: { isRunning: false, total: 0, done: 0, currentLabel: null, message: null, error: t('repositorySlice.not-connected-to-github-yet') } });
@@ -215,29 +215,29 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
           const allCategories = allCategoriesForPush
             .filter(cat => !categoryIds || categoryIds.includes(cat.id));
 
-          // 仅推送选中分类时，选中集合为空（含未知/已隐藏 id）则直接报错，不发起请求
+          // When only pushing selected categories: error immediately with no requests if the selected set is empty (including unknown/hidden IDs)
           if (categoryIds && allCategories.length === 0) {
             set({ listsPush: { isRunning: false, total: 0, done: 0, currentLabel: null, message: null, error: t('repositorySlice.no-categories-selected') } });
             return;
           }
 
-          // 1. 获取当前全部 list（含成员）
+          // 1. Fetch all current lists (including members)
           const currentLists = await api.getUserLists(user!.login);
 
-          // 2. 构建"托管 list"映射计划：每个本地分类 → list id。
-          //    使用分类的稳定身份（规范名 + 持久化 id 映射），而不是翻译后的 cat.name：
-          //    否则在中文/英文间来回推送会创建并行 list（如 "Web应用" 与 "Web Apps"）。
-          //    - 优先复用已持久化的 categoryListIdMap[cat.id]（跨语言稳定）
-          //    - 否则按规范名及其本地化变体在既有 list 中查找（迁移历史 list，避免重复创建）
-          //    - 仍找不到才新建，并用规范名命名，随后记录到映射
-          //    计划构建为纯本地计算，便于在写入前整体校验 GitHub Lists 硬限制。
+          // 2. Build "managed lists" mapping plan: each local category -> list id.
+          //    Use stable category identities (canonical name + persisted id mapping) rather than translated cat.name:
+          //    otherwise alternating pushes between Chinese and English would create duplicate parallel lists (e.g. Chinese and English versions of "Web Apps").
+          //    - Prefer reusing already persisted categoryListIdMap[cat.id] (stable across languages)
+          //    - Otherwise find existing lists by canonical name and its localized variants (migrates legacy lists, avoids duplicates)
+          //    - Only create a new list named with the canonical name when still not found, then record to mapping
+          //    Plan construction is a pure local calculation, facilitating atomic pre-validation of GitHub Lists hard limits before writing.
           const plan = buildListsPushPlan(allCategories, currentLists, categoryListIdMap, defaultCategoryOverrides);
 
-          // 仅推送部分分类时，未选分类可能与选中分类解析到同一个既有 list
-          //（同名分类经名称变体命中同一 list，或历史映射重叠）。这类 list 同时
-          // 承载未选分类的成员关系，第 9 步清理过期成员时不能把它们整体视为
-          // "托管"清空，否则会误删未选分类的仓库成员。按完整分类集解析出未选
-          // 分类占用的既有 list，在第 9 步原样保留。
+          // When pushing only a subset of categories, unselected categories might resolve to the same existing list as selected categories
+          // (categories with the same name matching via name variants, or overlapping historical mappings). Such lists simultaneously
+          // host memberships for unselected categories, so step 9 cannot blindly treat them as empty "managed" lists when cleaning stale members,
+          // which would erroneously remove unselected category repo members. Resolve existing lists occupied by unselected categories
+          // against the full category set and preserve them in step 9.
           const unselectedListIds = categoryIds
             ? new Set(
                 buildListsPushPlan(
@@ -251,9 +251,9 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
               )
             : new Set<string>();
 
-          // 3. 预校验硬限制（list 总数上限 32、list 名称上限 32 字符）：
-          //    任一触发即整体中止、零写入，并在错误中列出明细，引导用户到
-          //    分类管理中隐藏/删除/重命名后重试（隐藏的分类不参与回写）。
+          // 3. Pre-validate hard limits (max 32 lists, max 32 characters per list name):
+          //    Triggering either aborts the entire push with zero writes and details errors to guide the user
+          //    to hide/delete/rename in category management before retrying (hidden categories do not participate in push).
           const planIssue = validateListsPushPlan(plan, currentLists.length);
           if (planIssue) {
             const parts: string[] = [];
@@ -274,7 +274,7 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
             return;
           }
 
-          // 4. 执行计划（改名 best-effort：失败保留映射，下轮推送自然重试）
+          // 4. Execute plan (rename is best-effort: keep mapping on failure, naturally retrying on next push)
           const listIdByCategoryId = new Map<string, string>();
           const managedListIds = new Set<string>();
           const nextCategoryListIdMap = { ...categoryListIdMap };
@@ -307,7 +307,7 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
           if (renameFailures.length > 0) {
             logger.warn('githubLists', 'Some lists failed to rename, will retry next push', { failures: renameFailures });
           }
-          // 5. 每仓库当前的 list 成员（小写 full_name → list id 集合）
+          // 5. Current list members per repository (lowercase full_name -> set of list IDs)
           const repoCurrentListIds = new Map<string, Set<string>>();
           const lowerToOriginal = new Map<string, string>();
           for (const list of currentLists) {
@@ -319,12 +319,12 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
             }
           }
 
-          // 6. 每仓库命中的托管 list（effective 标签匹配）
+          // 6. Target managed lists hit per repository (effective tag matching)
           const repoTargetListIds = new Map<string, Set<string>>();
           for (const repo of repositories) {
             const ownerLogin = repo.owner?.login;
             const original = repo.full_name || (ownerLogin && repo.name ? `${ownerLogin}/${repo.name}` : '');
-            // 跳过缺少有效 owner/name（含空 full_name）的仓库，避免生成无法解析的 key
+            // Skip repos missing valid owner/name (including empty full_name) to avoid generating unparseable keys
             if (!original.includes('/')) continue;
             const key = original.toLowerCase();
             lowerToOriginal.set(key, original);
@@ -340,7 +340,7 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
             }
           }
 
-          // 7. 需要更新的仓库：命中托管 list 的，或当前已在托管 list 中的（用于清理过期成员）
+          // 7. Repositories requiring updates: those hitting managed lists, or currently in managed lists (for cleaning stale members)
           const reposToUpdate = new Map<string, Set<string>>();
           for (const [key, targetIds] of repoTargetListIds) {
             reposToUpdate.set(key, targetIds);
@@ -357,7 +357,7 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
             return;
           }
 
-          // 8. 解析仓库 node id
+          // 8. Resolve repository node IDs
           const ownerNamePairs = [...reposToUpdate.keys()].map(key => {
             const original = lowerToOriginal.get(key) || key;
             const idx = original.indexOf('/');
@@ -365,7 +365,7 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
           });
           const nodeIdMap = await api.resolveRepositoryNodeIds(ownerNamePairs);
 
-          // 9. 覆盖写入（保留非托管 list 成员），逐仓库更新进度
+          // 9. Overwrite writes (preserving unmanaged list memberships), updating progress per repository
           let updatedCount = 0;
           let done = 0;
           const total = reposToUpdate.size;
@@ -375,7 +375,7 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
             const itemId = nodeIdMap.get(key);
             if (!itemId) continue;
             const currentIds = repoCurrentListIds.get(key) || new Set<string>();
-            // 与未选分类共享的 list 即使同时被选中分类托管，其成员关系也按"未选"保留
+            // Lists shared with unselected categories are preserved as "unselected", even if simultaneously managed by selected categories
             const preservedIds = [...currentIds].filter(
               id => !managedListIds.has(id) || unselectedListIds.has(id)
             );
@@ -432,8 +432,8 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
 
       // Similar repositories view actions
       /**
-       * 进入"查找相似仓库"视图：保存当前相似结果、锚点仓库，并快照进入前的
-       * searchResults/searchFilters 用于重置恢复（链式查找时保留首次快照）。
+       * Enters "find similar repositories" view: stores current similar results, anchor repository, and snapshots pre-entry
+       * searchResults/searchFilters for restoration on reset (preserving first snapshot during chained searches).
        */
       enterSimilarView: (repos, anchor) => set((state) => ({
         similarView: {
@@ -441,25 +441,25 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
           anchorRepoFullName: anchor.full_name,
           anchorRepoName: anchor.name,
           similarResults: repos,
-          // 链式查找时保留首次进入的快照，避免覆盖重置目标
+          // Preserve snapshot from first entry during chained lookups to avoid overwriting reset target
           originalSearchResults: state.similarView?.originalSearchResults ?? state.searchResults,
           originalSearchFilters: state.similarView?.originalSearchFilters ?? state.searchFilters,
         },
-        // 进入相似视图时清空搜索条件，避免与搜索结果混淆（相似视图是列表的"替代"视图）
+        // Clear search filters upon entering similar view to avoid confusion with search results (similar view replaces list view)
         searchFilters: { ...initialSearchFilters },
       })),
       /**
-       * 重置相似视图：恢复进入前的搜索结果与条件（回到"查找相似之前"的状态）。
+       * Resets similar view: restores pre-entry search results and filters (returning to state before finding similar).
        */
       resetSimilarView: () => set((state) => ({
-        // 重置恢复进入前的搜索结果与条件（回到"查找相似之前"的状态）
+        // Restores pre-entry search results and filters (returning to state before finding similar)
         searchResults: state.similarView?.originalSearchResults ?? state.repositories,
         searchFilters: state.similarView?.originalSearchFilters ?? { ...initialSearchFilters },
         similarView: null,
       })),
       /**
-       * 退出相似视图（不恢复进入前的搜索状态）：用于用户发起新搜索或切换分类时，
-       * 避免把旧快照覆盖到新的搜索/分类结果上。
+       * Exits similar view (without restoring pre-entry search state): used when user initiates a new search or switches category,
+       * avoiding overwriting new search/category results with stale snapshot.
        */
       exitSimilarView: () => set({ similarView: null }),
 
@@ -467,13 +467,13 @@ export const createRepositorySlice: AppStoreSlice<Pick<import('../types').AppAct
       setSearchFilters: (filters) => set((state) => {
         const newFilters = { ...state.searchFilters, ...filters };
 
-        // 处理互斥筛选器：isAnalyzed 和 analysisFailed 不能同时设置
+        // Handle mutually exclusive filters: isAnalyzed and analysisFailed cannot be set simultaneously
         if (filters.isAnalyzed !== undefined && filters.isAnalyzed !== null) {
-          // 如果设置了 isAnalyzed，清除 analysisFailed
+          // If isAnalyzed is set, clear analysisFailed
           newFilters.analysisFailed = undefined;
         }
         if (filters.analysisFailed !== undefined && filters.analysisFailed !== null) {
-          // 如果设置了 analysisFailed，清除 isAnalyzed
+          // If analysisFailed is set, clear isAnalyzed
           newFilters.isAnalyzed = undefined;
         }
 

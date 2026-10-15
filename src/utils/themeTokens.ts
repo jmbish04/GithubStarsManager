@@ -1,9 +1,11 @@
 /**
- * Theme Token（开发守则 §14）。
+ * Theme tokens (Dev Guidelines §14).
  *
- * 用户偏好以 CSS 变量与 `data-*` 属性落到 `<html>` 上，组件不依赖任何 DOM selector。
- * 主题预设是通过 `[data-theme='id']` 的样式表生效的，所以这里用**内联**变量覆盖它，
- * 优先级确定；用户把某项恢复默认时把内联属性删掉，预设的值自动重新生效。
+ * User preferences are applied to `<html>` via CSS variables and `data-*` attributes;
+ * components do not depend on any DOM selector.
+ * Theme presets are applied via `[data-theme='id']` stylesheets, so inline variables
+ * are used here to override them with deterministic priority. When the user resets an option
+ * to its default, removing the inline property allows the preset's value to take effect again.
  */
 import type { ThemeAnimation, ThemeRadius, ThemeTokens } from '../types/themeTokens';
 
@@ -16,7 +18,7 @@ export const DEFAULT_THEME_TOKENS: ThemeTokens = {
   animation: 'normal',
 };
 
-/** 可选的强调色（与主题预设的色相拉开，深浅两种模式都能看清）。 */
+/** Available accent colors (distinct from theme preset hues to ensure readability in both light and dark modes). */
 export const ACCENT_PRESETS = [
   '#2563eb', '#7c3aed', '#db2777', '#dc2626',
   '#ea580c', '#ca8a04', '#16a34a', '#0891b2',
@@ -35,7 +37,7 @@ export const ACCENT_PRESET_NAME_KEYS: Record<(typeof ACCENT_PRESETS)[number], st
 
 export const FONT_SCALE_OPTIONS = [0.9, 1, 1.1, 1.25] as const;
 
-/** 与 Tailwind 的 `--radius` 派生链一致：只覆盖根变量，--ui-radius-* 会跟着变。 */
+/** Aligned with Tailwind's `--radius` derivation chain: overriding only the root variable automatically propagates to `--ui-radius-*`. */
 const RADIUS_VALUES: Record<Exclude<ThemeRadius, 'default'>, string> = {
   none: '0rem',
   small: '0.25rem',
@@ -48,7 +50,7 @@ const HSL_TRIPLET_RE = /^(-?\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
-/** 把偏好收敛到合法范围；任何脏值（旧快照、手改的 localStorage）都回落到默认。 */
+/** Normalizes preferences to a valid range; invalid values (legacy snapshots, manually edited localStorage) fall back to defaults. */
 export const normalizeThemeTokens = (value: unknown): ThemeTokens => {
   if (!value || typeof value !== 'object') return { ...DEFAULT_THEME_TOKENS };
   const record = value as Record<string, unknown>;
@@ -68,14 +70,14 @@ export const normalizeThemeTokens = (value: unknown): ThemeTokens => {
 
   return {
     accentColor,
-    // 允许一点余量，但挡住 0.5/3 这种会被误设的极端值
+    // Allow a small margin, but reject extreme values like 0.5 or 3 that may be misconfigured
     fontScale: clamp(rawScale, 0.75, 1.5),
     radius,
     animation,
   };
 };
 
-/** `#rrggbb` → `H S% L%`，与 index.css 里 HSL 三元组的写法一致。 */
+/** `#rrggbb` → `H S% L%`, matching the HSL triplet format in index.css. */
 export const hexToHslTriplet = (hex: string): string | null => {
   const match = HEX_RE.exec(hex.trim());
   if (!match) return null;
@@ -148,7 +150,7 @@ const contrastRatio = (left: [number, number, number], right: [number, number, n
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 };
 
-/** 亮底配深字、暗底配浅字：按相对亮度挑一个能读的前景色。 */
+/** Dark text on light backgrounds, light text on dark backgrounds: chooses a readable foreground color based on relative luminance. */
 export const pickPrimaryForeground = (hex: string): string => {
   const accent = parseHex(hex);
   if (!accent) return '0 0% 100%';
@@ -189,15 +191,15 @@ export const pickAccentEmphasis = (
 };
 
 interface TokenStyle {
-  /** 需要写入或删除的内联 CSS 变量；null 表示恢复默认（删掉内联值）。 */
+  /** Inline CSS variables to write or remove; null indicates restoring the default (removing the inline value). */
   variables: Record<string, string | null>;
   fontScale: number | null;
   animation: ThemeAnimation;
 }
 
 /**
- * 把偏好翻译成"要写到根节点上的东西"。默认值一律用 null，交给调用方删除内联属性，
- * 这样主题预设的值能重新生效。
+ * Translates preferences into values to apply to the root node. Defaults are always set to null,
+ * allowing the caller to remove inline properties so that theme preset values can take effect again.
  */
 export const themeTokenStyle = (tokens: ThemeTokens, surfaceTriplet = '0 0% 100%'): TokenStyle => {
   const normalized = normalizeThemeTokens(tokens);
@@ -222,7 +224,7 @@ export const themeTokenStyle = (tokens: ThemeTokens, surfaceTriplet = '0 0% 100%
   };
 };
 
-/** 把 token 应用到根节点；恢复默认 = 删除内联属性，让预设与基础样式表接管。 */
+/** Applies tokens to the root node; restoring defaults removes inline properties so presets and base stylesheets take over. */
 export const applyThemeTokens = (tokens: ThemeTokens, root: HTMLElement = document.documentElement): void => {
   const computedSurface = typeof getComputedStyle === 'function'
     ? getComputedStyle(root).getPropertyValue('--background').trim()

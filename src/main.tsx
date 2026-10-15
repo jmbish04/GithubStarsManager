@@ -53,8 +53,8 @@ const bootstrap = async (): Promise<void> => {
     // non-default theme applies on first paint after hydration.
     ensureThemeStyleTag();
 
-    // 首帧前装载初始语言包与回退语言包，避免界面闪现 i18n key。
-    // 持久化语言在水合完成后由 App 的 language 副作用切换。
+    // Load initial and fallback language packs before the first paint to prevent flashing raw i18n keys.
+    // The persisted language is switched by App's language effect after hydration completes.
     const initialLanguage = useAppStore.getState().language;
     await Promise.all([
       ensureLanguageLoaded(initialLanguage),

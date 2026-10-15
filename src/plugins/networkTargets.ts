@@ -1,7 +1,9 @@
 /**
- * V1.5 页面网络能力的渲染端闸门：主进程（electron/plugins/pluginPageBridge.js）
- * 在授权时校验同一份 host/path 白名单；这里在真正发起 fetch 前复核一次，
- * 两侧一致性由 `pluginPageBridge parity` 测试（src/plugins/networkTargets.test.ts）保证。
+ * Renderer-side gate for V1.5 plugin page network capabilities: the main process
+ * (electron/plugins/pluginPageBridge.js) validates against the same host/path allowlist
+ * during authorization; here we verify once more before actually issuing the fetch call.
+ * Consistency between both sides is guaranteed by the `pluginPageBridge parity` test
+ * (src/plugins/networkTargets.test.ts).
  */
 
 export interface PluginNetworkRequestArgs {
@@ -12,7 +14,7 @@ export interface PluginNetworkRequestArgs {
 
 export const NETWORK_ALLOWED_HOSTS: readonly string[] = ['api.github.com'];
 
-/** 与主进程 NETWORK_ALLOWED_REPO_PATHS 相同的只读指标端点模板。 */
+/** Read-only metric endpoint templates, matching NETWORK_ALLOWED_REPO_PATHS in the main process. */
 export const NETWORK_ALLOWED_REPO_PATHS: readonly string[] = [
   '/repos/{owner}/{repo}',
   '/repos/{owner}/{repo}/stats/commit_activity',
@@ -29,14 +31,14 @@ export const NETWORK_ALLOWED_REPO_PATHS: readonly string[] = [
   '/repos/{owner}/{repo}/security-advisories',
 ];
 
-/** 与主进程 NETWORK_ALLOWED_USER_PATHS 相同的所有者资料端点。 */
+/** Owner profile endpoint, matching NETWORK_ALLOWED_USER_PATHS in the main process. */
 export const NETWORK_ALLOWED_USER_PATHS: readonly string[] = ['/users/{login}'];
 
 const GITHUB_OWNER_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 const GITHUB_REPO_RE = /^[A-Za-z0-9._-]{1,100}$/;
 const NETWORK_QUERY_KEYS = new Set(['per_page', 'page', 'state']);
 
-/** 校验入参来自插件页面，不可信：签名收 unknown，内部自行收窄。 */
+/** Validates input from plugin pages (untrusted): accepts unknown signature and narrows internally. */
 export function isAllowedNetworkTarget(input: unknown): boolean {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
   const args = input as Record<string, unknown>;
@@ -46,10 +48,10 @@ export function isAllowedNetworkTarget(input: unknown): boolean {
   if (!path.startsWith('/') || /[?#\\\s]/.test(path) || !/^[\x21-\x7e]+$/.test(path)) return false;
   if (path.includes('//') || path.endsWith('/')) return false;
   const segments = path.split('/').filter(Boolean);
-  // '.' / '..' 段会被 URL 规范化解析掉，造成路径越界，直接拒绝。
+  // '.' and '..' segments would be resolved by URL normalization causing directory traversal; reject directly.
   if (segments.some((segment) => segment === '.' || segment === '..')) return false;
   if (segments[0] === 'users') {
-    // 所有者资料：/users/{login}。
+    // Owner profile: /users/{login}.
     return segments.length === 2 && GITHUB_OWNER_RE.test(segments[1]);
   }
   if (segments.length < 3 || segments[0] !== 'repos') return false;
@@ -60,7 +62,7 @@ export function isAllowedNetworkTarget(input: unknown): boolean {
     return templateTail.length === tail.length && templateTail.every((part, index) => part === tail[index]);
   });
   if (!templateMatches) return false;
-  // 与主进程一致：query 仅允许 per_page / page（1–100 的整数）与 pulls 的 state。
+  // Consistent with the main process: query only permits per_page / page (integers 1-100) and pulls state.
   if (args.query === undefined) return true;
   if (!args.query || typeof args.query !== 'object' || Array.isArray(args.query)) return false;
   const query = args.query as Record<string, unknown>;
@@ -71,7 +73,7 @@ export function isAllowedNetworkTarget(input: unknown): boolean {
   return true;
 }
 
-/** 组装最终请求 URL；只在 isAllowedNetworkTarget 通过后调用。 */
+/** Assembles the final request URL; call only after isAllowedNetworkTarget passes. */
 export function buildNetworkRequestUrl(args: PluginNetworkRequestArgs): string {
   const url = new URL(`https://${args.host}${args.path}`);
   for (const [key, value] of Object.entries(args.query ?? {})) {

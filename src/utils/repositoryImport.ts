@@ -1,10 +1,11 @@
 /**
- * Batch Repository Intake —— 提取与归一化。
+ * Batch Repository Intake — Extraction and normalization.
  *
- * 纯函数、无 IO：把粘贴进来的**普通文本 / Markdown / JSON** 归一化为 `owner/repo` 候选，
- * 去重后按首次出现顺序返回。联网校验（仓库是否存在、是否私有、是否改名）属于下一阶段。
+ * Pure function, zero I/O: normalizes pasted plain text / Markdown / JSON into `owner/repo` candidates,
+ * deduplicating them and returning them in order of first appearance. Network validation (repo existence,
+ * private status, renames) belongs to the subsequent phase.
  *
- * 归一化覆盖的 GitHub URL 形态（子路径一律丢弃，只留所属仓库）：
+ * GitHub URL forms covered by normalization (subpaths are discarded, preserving only the parent repo):
  * ```
  * https://github.com/owner/repo            github.com/owner/repo
  * https://www.github.com/owner/repo/       https://github.com/owner/repo.git
@@ -12,14 +13,14 @@
  * https://github.com/owner/repo/issues/12  /pull/34  /tree/main/src  /blob/main/a.ts
  * https://github.com/owner/repo/actions|wiki|discussions|commit|compare|stargazers|…
  * ```
- * 以及正文里的裸 `owner/repo`。
+ * as well as bare `owner/repo` slugs in prose.
  *
- * 刻意不做的事：
- * - 不联网、不猜仓库的真实大小写（GitHub 大小写不敏感，真实大小写由 Resolve 阶段覆盖）。
- * - 不把 `github.com/orgs/…`、`github.com/topics/…`、`github.com/settings/…` 等站点功能路径
- *   当成仓库，而是显式标记 `invalid` 并给出原因，让用户看得见而不是被静默丢弃。
- * - 不对裸 `owner/repo` 假装有把握：散文里 `A/B` 与仓库 slug 天然同形，
- *   因此一律标记 `confidence: 'low'`，由预览阶段交给用户确认。
+ * Intentional non-goals:
+ * - No network requests; do not guess actual repository casing (GitHub is case-insensitive; true casing is resolved during the Resolve phase).
+ * - Do not treat site feature paths like `github.com/orgs/…`, `github.com/topics/…`, `github.com/settings/…`
+ *   as repositories; mark them explicitly as `invalid` with reasons so users can see them rather than silently discarding them.
+ * - Do not pretend certainty for bare `owner/repo`: `A/B` in prose is naturally isomorphic with repo slugs,
+ *   so these are uniformly marked with `confidence: 'low'`, delegating confirmation to the user during preview.
  */
 import type { Repository } from '../types';
 import type {
@@ -36,14 +37,14 @@ const DEFAULT_MAX_INPUT_LENGTH = 512 * 1024;
 const DEFAULT_MAX_VALUES = 20_000;
 const DEFAULT_MAX_DEPTH = 32;
 
-/** GitHub 用户名：字母数字与连字符，且不能以连字符开头，最长 39 字符。 */
+/** GitHub username: alphanumeric and hyphens, cannot start with hyphen, max 39 characters. */
 const OWNER_PATTERN = /^(?=.{1,39}$)[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
-/** GitHub 仓库名：字母数字、`-`、`_`、`.`，最长 100 字符。 */
+/** GitHub repository name: alphanumeric, '-', '_', '.', max 100 characters. */
 const REPO_PATTERN = /^[A-Za-z0-9._-]{1,100}$/;
 
 /**
- * `github.com/<第一段>` 属于站点功能入口而非用户名的保留字。
- * 这些路径下的第二段（`orgs/foo`、`topics/react`）不是仓库，裸写法里同样要拒绝。
+ * Reserved words for `github.com/<segment1>` representing site feature entries rather than usernames.
+ * Second-level segments under these paths (`orgs/foo`, `topics/react`) are not repositories, and must also be rejected in bare slug notation.
  */
 const RESERVED_ROOTS = new Set([
   'about', 'account', 'apps', 'blog', 'business', 'careers', 'codespaces', 'collections',
@@ -55,8 +56,8 @@ const RESERVED_ROOTS = new Set([
 ]);
 
 /**
- * 裸 `owner/repo` 的误报抑制之一：常见的**代码目录名**。
- * 本仓库自己的文档里就充满 `src/utils`、`docs/plans` 这类片段，不排除会大量误报。
+ * False-positive suppression for bare `owner/repo` #1: common code directory names.
+ * This repo's own documentation is filled with fragments like `src/utils` and `docs/plans`, which would otherwise trigger heavy false positives.
  */
 const CODE_LIKE_DIRECTORIES = new Set([
   'src', 'app', 'lib', 'libs', 'test', 'tests', 'docs', 'doc', 'dist', 'build', 'out',
@@ -68,7 +69,7 @@ const CODE_LIKE_DIRECTORIES = new Set([
   'versions', 'bin', 'cmd', 'internal', 'pkg', 'vendor', 'third_party',
 ]);
 
-/** 裸 `owner/repo` 的误报抑制之二：常见文件扩展名（`src/utils.ts`、`docs/guide.md`）。 */
+/** False-positive suppression for bare `owner/repo` #2: common file extensions (`src/utils.ts`, `docs/guide.md`). */
 const FILE_EXTENSIONS = new Set([
   'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'json', 'jsonc', 'md', 'mdx', 'txt', 'yml', 'yaml',
   'toml', 'ini', 'cfg', 'conf', 'lock', 'css', 'scss', 'less', 'html', 'htm', 'xml', 'svg',
@@ -78,11 +79,11 @@ const FILE_EXTENSIONS = new Set([
 ]);
 
 /**
- * 裸 `owner/repo` 的误报抑制之三：常见英文/技术词组。
+ * False-positive suppression for bare `owner/repo` #3: common English and technical terms.
  *
- * 这是一个**必然不完整**的启发式——`and/or`、`24/7`、`TCP/IP` 与仓库 slug 同形，
- * 无法靠词表穷尽。因此裸写法一律降级为 `confidence: 'low'`，
- * 最终由预览阶段的用户确认（这正是「Review」环节存在的理由）。
+ * This is an inherently incomplete heuristic — `and/or`, `24/7`, `TCP/IP` share the same format as repo slugs
+ * and cannot be completely enumerated by word lists. Bare slugs are therefore uniformly downgraded to `confidence: 'low'`,
+ * leaving final confirmation to the user in the preview step (the exact rationale for the Review phase).
  */
 const BARE_SLUG_STOPWORDS = new Set([
   'and', 'or', 'either', 'neither', 'both', 'not', 'with', 'without', 'per', 'vs', 'versus',
@@ -96,26 +97,26 @@ const BARE_SLUG_STOPWORDS = new Set([
   'day', 'week', 'month', 'year', 'cost', 'benefit', 'pros', 'cons', 'win', 'loss',
 ]);
 
-/** 先匹配完整 URL，再用 `URL.hostname` 精确判定是否为 GitHub。 */
+/** Matches absolute URLs first, then uses `URL.hostname` to accurately check if it is GitHub. */
 const ABSOLUTE_URL_PATTERN = /https?:\/\/[^\s<>()[\]{}"'`,;:|*~]+/gi;
 
-/** 无 scheme 的 `github.com/owner/repo`；不允许从更长域名或路径中间开始匹配。 */
+/** Schemeless `github.com/owner/repo`; does not match in the middle of longer domains or paths. */
 const SCHEMELESS_GITHUB_URL_PATTERN =
   /(?<![A-Za-z0-9./-])(?:www\.)?github\.com\/([^\s<>()[\]{}"'`,;:|*~]*)/gi;
 
 /**
- * 匹配正文里的裸 `owner/repo`。
- * 前后用否定环视排除「更长路径的一部分」：`a/b/c` 里 `a/b` 与 `b/c` 都不会命中。
+ * Matches bare `owner/repo` slugs in prose.
+ * Negative lookaround before and after excludes segments that are part of longer paths: in `a/b/c`, neither `a/b` nor `b/c` matches.
  */
 const BARE_SLUG_PATTERN =
   /(?<![A-Za-z0-9._/-])(?:(_{1,2})([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100})\1|([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100}))(?![A-Za-z0-9_/-])/g;
 
-/** URL 尾部常见的标点/包裹字符（`owner/repo.`、`owner/repo,`）。括号与引号已被捕获组排除。 */
+/** Common trailing punctuation or wrapping characters on URLs (`owner/repo.`, `owner/repo,`). Parens and quotes are excluded by capture groups. */
 function trimUrlTail(value: string): string {
   return value.replace(/[.,;:!?]+$/, '');
 }
 
-/** 取扩展名（小写）；没有扩展名返回空串。`.git` 视为后缀而非扩展名，单独处理。 */
+/** Extracts file extension (lowercase); returns empty string if no extension. `.git` is treated as a suffix rather than an extension and handled separately. */
 function extensionOf(segment: string): string {
   const index = segment.lastIndexOf('.');
   if (index <= 0 || index === segment.length - 1) return '';
@@ -123,43 +124,43 @@ function extensionOf(segment: string): string {
 }
 
 /**
- * 校验并归一化 `owner/repo`。
+ * Validates and normalizes `owner/repo`.
  *
- * @param owner 用户名段。
- * @param repo 仓库名段（可带 `.git` 后缀，会被去掉）。
- * @returns 归一化后的 `owner/repo`（保留原大小写），或 null 表示不合法。
+ * @param owner Username segment.
+ * @param repo Repository name segment (optional `.git` suffix will be stripped).
+ * @returns Normalized `owner/repo` (preserving original casing), or null if invalid.
  */
 export function normalizeRepositoryFullName(owner: string, repo: string): string | null {
   const cleanRepo = repo.toLowerCase().endsWith('.git') ? repo.slice(0, -4) : repo;
   if (!OWNER_PATTERN.test(owner)) return null;
   if (!REPO_PATTERN.test(cleanRepo)) return null;
-  // 纯点号（`.`、`..`）不是合法仓库名
+  // Pure dots ('.', '..') are not valid repository names
   if (/^\.+$/.test(cleanRepo)) return null;
   return `${owner}/${cleanRepo}`;
 }
 
 /**
- * 从 GitHub URL 的路径部分解析所属仓库（release / issue / PR / tree / blob 等子路径一律丢弃）。
+ * Resolves repository from the path portion of a GitHub URL (subpaths such as release / issue / PR / tree / blob are discarded).
  *
- * @param url `github.com/` 之后的完整片段，可带 query / fragment / 尾部标点。
- * @returns 归一化结果，或失败原因。
+ * @param url Full segment following `github.com/`, optionally with query / fragment / trailing punctuation.
+ * @returns Normalized result, or failure reason.
  */
 export function resolveRepositoryFromGitHubUrl(
   url: string,
 ): { repositoryFullName: string } | { reason: ImportFailureReason } {
   const withoutQuery = url.split(/[?#]/)[0];
 
-  // 尾部标点通常是句子标点（`…/repo.`），但也可能属于路径本身（`owner/..` 会被整段吃掉）。
-  // 因此先按「去尾部标点」解析；只有当段数因此不足两段时，才用未去标点的原串重试。
+  // Trailing punctuation is usually sentence punctuation (`…/repo.`), but could also belong to path itself (`owner/..`).
+  // Try parsing without trailing punctuation first; retry with original string only if segment count drops below two.
   for (const candidate of [trimUrlTail(withoutQuery), withoutQuery]) {
     const segments = candidate.split('/').filter(Boolean);
     if (segments.length === 0) continue;
 
-    // 第一段是站点保留字 → 功能页，不是仓库
+    // First segment is a site reserved keyword -> feature page, not a repo
     if (RESERVED_ROOTS.has(segments[0].toLowerCase())) {
       return { reason: 'not-a-repository-url' };
     }
-    // `github.com/<owner>` 是用户/组织主页，没有仓库名；换用未去标点的原串再试一次
+    // `github.com/<owner>` is a user/org profile page with no repo name; retry with untrimmed string
     if (segments.length < 2) continue;
 
     const fullName = normalizeRepositoryFullName(segments[0], segments[1]);
@@ -170,13 +171,13 @@ export function resolveRepositoryFromGitHubUrl(
 }
 
 /**
- * 判断裸 `owner/repo` 是否值得作为候选。
- * 命中任一抑制规则即拒绝——宁可漏报，也不要往预览里塞噪声。
+ * Determines whether a bare `owner/repo` is plausible as a candidate.
+ * Rejects on any matching suppression rule — better to miss than to clutter the preview with noise.
  */
 export function isPlausibleBareSlug(owner: string, repo: string): boolean {
   if (!OWNER_PATTERN.test(owner) || !REPO_PATTERN.test(repo)) return false;
   if (/^\.+$/.test(repo)) return false;
-  // 单字符段在散文里几乎必然是 `I/O`、`N/A` 这类噪声，不是仓库
+  // Single-character segments in prose are almost always noise like I/O or N/A, not repos
   if (owner.length < 2 || repo.length < 2) return false;
 
   const ownerLower = owner.toLowerCase();
@@ -190,7 +191,7 @@ export function isPlausibleBareSlug(owner: string, repo: string): boolean {
   return true;
 }
 
-/** 移除与开头 Markdown 下划线数量相同的闭合定界符。 */
+/** Removes closing Markdown underscore delimiters matching opening count. */
 function trimMarkdownUnderscoreDelimiter(text: string, matchStart: number, path: string): string {
   let delimiterLength = 0;
   for (let index = matchStart - 1; index >= 0 && text[index] === '_'; index -= 1) {
@@ -202,14 +203,14 @@ function trimMarkdownUnderscoreDelimiter(text: string, matchStart: number, path:
     : path;
 }
 
-/** 把完整 URL 和无 scheme GitHub URL 替换为等长空白，避免路径段被重复扫描。 */
+/** Replaces complete URLs and schemeless GitHub URLs with equal-length whitespace to prevent duplicate path scanning. */
 function maskUrls(text: string): string {
   return text
     .replace(ABSOLUTE_URL_PATTERN, (match) => ' '.repeat(match.length))
     .replace(SCHEMELESS_GITHUB_URL_PATTERN, (match) => ' '.repeat(match.length));
 }
 
-/** 递归收集 JSON 里的字符串值（只取值，不取键名）。返回收集是否被上限截断。 */
+/** Recursively collects string values from JSON (values only, ignoring object keys). Returns whether collection was truncated by limits. */
 function collectJsonStrings(
   value: unknown,
   out: string[],
@@ -235,7 +236,7 @@ function collectJsonStrings(
   return result;
 }
 
-/** 去重键：合法的按仓库名（大小写不敏感），非法的按原始片段，避免同一片段重复报错。 */
+/** Deduplication key: valid candidates use repository name (case-insensitive); invalid ones use raw fragment to avoid duplicate error reports. */
 function dedupeKey(candidate: ImportedRepositoryCandidate): string {
   return candidate.repositoryFullName
     ? candidate.repositoryFullName.toLowerCase()
@@ -243,10 +244,10 @@ function dedupeKey(candidate: ImportedRepositoryCandidate): string {
 }
 
 /**
- * 从粘贴内容提取仓库候选。
+ * Extracts repository candidates from pasted content.
  *
- * @param raw 原始输入（文本 / Markdown / JSON 字符串）。
- * @param options 提取选项；`source: 'json'` 时先解析 JSON 再递归扫描字符串值。
+ * @param raw Raw input (text / Markdown / JSON string).
+ * @param options Extraction options; parses JSON first when `source: 'json'` before recursively scanning string values.
  */
 export function extractRepositoryCandidates(
   raw: string,
@@ -272,7 +273,7 @@ export function extractRepositoryCandidates(
   }
 
   const inputErrors: RepositoryImportExtractionResult['inputErrors'] = [];
-  // 第一版只实现 text / json；clipboard 与 file 复用同一套提取逻辑。
+  // Initial version implements text / json; clipboard and file share the same extraction logic.
   let strings: string[];
   if (source === 'json') {
     let parsed: unknown;
@@ -310,7 +311,7 @@ export function extractRepositoryCandidates(
   const candidates: ImportedRepositoryCandidate[] = [];
   const seen = new Map<string, ImportedRepositoryCandidate>();
 
-  /** 记录候选；同一键重复出现时追加 `duplicate`，并保持首次出现的顺序。 */
+  /** Records candidate; appends `duplicate` when the same key reappears, preserving order of first appearance. */
   const push = (
     repositoryFullName: string,
     originalValue: string,
@@ -345,9 +346,9 @@ export function extractRepositoryCandidates(
   };
 
   for (const text of strings) {
-    // 两类匹配要按**输入位置**合并排序后再去重：先扫完所有 URL 再扫裸写法会让
-    // `owner/repo` 这类靠前的片段被排到后面，预览列表的顺序将不再反映用户粘贴的顺序。
-    // 屏蔽操作等长替换，因此两边拿到的 index 可以直接比较。
+    // Merge-sort the two match types by input position before deduplicating: scanning all URLs before bare slugs
+    // would push earlier `owner/repo` fragments to the back, losing the user's pasted ordering.
+    // Masking uses equal-length replacement, so index positions can be compared directly.
     const found: Array<{
       index: number;
       repositoryFullName: string;
@@ -399,7 +400,7 @@ export function extractRepositoryCandidates(
       });
     }
 
-    // URL 已经被消费过，屏蔽掉它们的路径段再找裸写法，避免 `releases/tag` 之类被误当成 slug。
+    // URLs have already been consumed; mask their path segments before matching bare slugs to avoid misinterpreting releases/tag etc.
     for (const match of maskUrls(text).matchAll(BARE_SLUG_PATTERN)) {
       const owner = match[2] ?? match[4];
       const repo = match[3] ?? match[5];
@@ -440,8 +441,8 @@ export function extractRepositoryCandidates(
 }
 
 /**
- * 便捷入口：从已同步的仓库推导本地小写 `owner/repo` 集合，供 `alreadyStarred` 标记复用。
- * 保持纯函数语义——提取阶段不读 store。预览阶段可再叠加 My Apps 关联等本地数据。
+ * Convenience helper: derives lowercase `owner/repo` set from synced repositories for `alreadyStarred` flagging.
+ * Preserves pure function semantics — does not read store during extraction. The preview phase can overlay My Apps associations etc.
  */
 export function toLocalRepositoryNameSet(
   repositories: readonly Pick<Repository, 'full_name'>[] | undefined,

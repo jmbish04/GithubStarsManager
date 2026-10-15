@@ -5,7 +5,7 @@ import {
   resolveDeviceArchitecture,
 } from './deviceTarget';
 
-/** 覆盖 navigator 上的只读属性（userAgentData / platform）。 */
+/** Stubs read-only properties on navigator (userAgentData / platform). */
 function stubNavigator(values: {
   platform?: string;
   userAgent?: string;
@@ -82,7 +82,7 @@ describe('detectDevicePlatformSync', () => {
   });
 
   it('does not map iOS onto macOS', () => {
-    // iOS 上没有 dmg/pkg，映射成 macOS 会推荐错误的安装包
+    // iOS has no dmg/pkg; mapping to macOS would recommend incorrect packages
     stubNavigator({
       userAgentData: { platform: 'iOS' },
       platform: 'iPhone',
@@ -105,7 +105,7 @@ describe('detectDevicePlatformSync', () => {
   });
 
   it('does not map ChromeOS onto Linux', () => {
-    // ChromeOS 的 navigator.platform 是 "Linux x86_64"，只靠它会误判成 Linux
+    // ChromeOS reports navigator.platform as "Linux x86_64"; relying on that alone misidentifies it as Linux
     stubNavigator({
       userAgentData: { platform: 'Chrome OS' },
       platform: 'Linux x86_64',
@@ -113,7 +113,7 @@ describe('detectDevicePlatformSync', () => {
     });
     expect(detectDevicePlatformSync()).toBeNull();
 
-    // 即使 userAgentData 不可用，UA 里的 CrOS 也要拦住
+    // Even when userAgentData is unavailable, CrOS in UA must be intercepted
     stubNavigator({
       userAgentData: undefined,
       platform: 'Linux x86_64',
@@ -123,7 +123,7 @@ describe('detectDevicePlatformSync', () => {
   });
 
   it('treats Darwin as macOS rather than Windows', () => {
-    // `darwin` 里含有 `win`：判定顺序若把 Windows 放在前面，Safari 会被当成 Windows
+    // `darwin` contains `win`: if evaluation order places Windows first, Safari would be misclassified as Windows
     stubNavigator({ userAgentData: undefined, platform: 'Darwin', userAgent: 'Mozilla/5.0 (Darwin)' });
     expect(detectDevicePlatformSync()).toBe('macos');
   });

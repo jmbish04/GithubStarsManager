@@ -1,8 +1,8 @@
 import { Repository } from '../types';
 
 /**
- * 搜索功能测试工具
- * 用于验证实时搜索和AI搜索的功能
+ * Search functionality test utilities
+ * Used to verify real-time search and AI search features
  */
 
 type CountedSearchQuery = {
@@ -28,7 +28,7 @@ type SearchTestCase =
       queries: AiSearchQuery[];
     };
 
-// 模拟仓库数据用于测试
+// Mock repository data for testing
 export const mockRepositories: Repository[] = [
   {
     id: 1,
@@ -143,7 +143,7 @@ export const mockRepositories: Repository[] = [
 ];
 
 /**
- * 测试实时搜索功能
+ * Test real-time search functionality
  */
 export function testRealTimeSearch(repositories: Repository[], query: string): Repository[] {
   if (!query.trim()) return repositories;
@@ -156,7 +156,7 @@ export function testRealTimeSearch(repositories: Repository[], query: string): R
 }
 
 /**
- * 测试基础文本搜索功能
+ * Test basic text search functionality
  */
 export function testBasicTextSearch(repositories: Repository[], query: string): Repository[] {
   if (!query.trim()) return repositories;
@@ -182,92 +182,92 @@ export function testBasicTextSearch(repositories: Repository[], query: string): 
 }
 
 /**
- * 测试搜索场景
+ * Test search scenarios
  */
 export const searchTestCases: SearchTestCase[] = [
   {
-    name: '实时搜索 - 仓库名匹配',
+    name: 'Real-time search - repository name matching',
     type: 'realtime',
     queries: [
-      { query: 'react', expectedCount: 1, description: '应该找到react仓库' },
-      { query: 'vue', expectedCount: 1, description: '应该找到vue仓库' },
-      { query: 'vs', expectedCount: 1, description: '应该找到vscode仓库' },
-      { query: 'obsidian', expectedCount: 1, description: '应该找到obsidian相关仓库' }
+      { query: 'react', expectedCount: 1, description: 'Should find react repository' },
+      { query: 'vue', expectedCount: 1, description: 'Should find vue repository' },
+      { query: 'vs', expectedCount: 1, description: 'Should find vscode repository' },
+      { query: 'obsidian', expectedCount: 1, description: 'Should find obsidian-related repository' }
     ]
   },
   {
-    name: '基础文本搜索 - 多字段匹配',
+    name: 'Basic text search - multi-field matching',
     type: 'basic',
     queries: [
-      { query: 'javascript', expectedCount: 2, description: '应该找到JavaScript相关仓库' },
-      { query: '前端框架', expectedCount: 2, description: '应该找到前端框架相关仓库' },
-      { query: 'machine learning', expectedCount: 1, description: '应该找到机器学习相关仓库' },
-      { query: '笔记', expectedCount: 1, description: '应该找到笔记相关仓库' },
-      { query: 'editor', expectedCount: 1, description: '应该找到编辑器相关仓库' }
+      { query: 'javascript', expectedCount: 2, description: 'Should find JavaScript-related repositories' },
+      { query: '前端框架', expectedCount: 2, description: 'Should find frontend framework-related repositories' },
+      { query: 'machine learning', expectedCount: 1, description: 'Should find machine learning-related repository' },
+      { query: '笔记', expectedCount: 1, description: 'Should find note-related repository' },
+      { query: 'editor', expectedCount: 1, description: 'Should find editor-related repository' }
     ]
   },
   {
-    name: 'AI搜索测试场景',
+    name: 'AI search test scenarios',
     type: 'ai',
     queries: [
-      { query: '查找所有前端框架', description: '应该匹配React和Vue' },
-      { query: 'find note-taking apps', description: '应该匹配Obsidian插件' },
-      { query: '代码编辑器', description: '应该匹配VSCode' },
-      { query: 'AI工具', description: '应该匹配TensorFlow' },
-      { query: 'web development tools', description: '应该匹配前端相关工具' }
+      { query: '查找所有前端框架', description: 'Should match React and Vue' },
+      { query: 'find note-taking apps', description: 'Should match Obsidian plugin' },
+      { query: '代码编辑器', description: 'Should match VSCode' },
+      { query: 'AI工具', description: 'Should match TensorFlow' },
+      { query: 'web development tools', description: 'Should match frontend-related tools' }
     ]
   }
 ];
 
 /**
- * 运行搜索测试
+ * Run search tests
  */
 export function runSearchTests(): void {
-  console.log('🔍 开始搜索功能测试...\n');
+  console.log('🔍 Starting search feature tests...\n');
   
   searchTestCases.forEach(testCase => {
-    console.log(`📋 测试类型: ${testCase.name}`);
+    console.log(`📋 Test type: ${testCase.name}`);
     
     if (testCase.type === 'realtime') {
       testCase.queries.forEach(({ query, expectedCount, description }) => {
         const results = testRealTimeSearch(mockRepositories, query);
         const passed = results.length === expectedCount;
-        console.log(`  ${passed ? '✅' : '❌'} "${query}" - ${description} (期望: ${expectedCount}, 实际: ${results.length})`);
+        console.log(`  ${passed ? '✅' : '❌'} "${query}" - ${description} (expected: ${expectedCount}, actual: ${results.length})`);
         if (!passed) {
-          console.log(`    找到的仓库: ${results.map(r => r.name).join(', ')}`);
+          console.log(`    Found repositories: ${results.map(r => r.name).join(', ')}`);
         }
       });
     } else if (testCase.type === 'basic') {
       testCase.queries.forEach(({ query, expectedCount, description }) => {
         const results = testBasicTextSearch(mockRepositories, query);
         const passed = results.length === expectedCount;
-        console.log(`  ${passed ? '✅' : '❌'} "${query}" - ${description} (期望: ${expectedCount}, 实际: ${results.length})`);
+        console.log(`  ${passed ? '✅' : '❌'} "${query}" - ${description} (expected: ${expectedCount}, actual: ${results.length})`);
         if (!passed) {
-          console.log(`    找到的仓库: ${results.map(r => r.name).join(', ')}`);
+          console.log(`    Found repositories: ${results.map(r => r.name).join(', ')}`);
         }
       });
     } else if (testCase.type === 'ai') {
       testCase.queries.forEach(({ query, description }) => {
-        console.log(`  🤖 "${query}" - ${description} (需要AI服务支持)`);
+        console.log(`  🤖 "${query}" - ${description} (requires AI service support)`);
       });
     }
     
     console.log('');
   });
   
-  console.log('🎉 搜索功能测试完成！');
+  console.log('🎉 Search feature tests completed!');
 }
 
 /**
- * 性能测试
+ * Performance test
  */
 export function performanceTest(repositories: Repository[], iterations: number = 1000): void {
-  console.log(`⚡ 开始性能测试 (${iterations} 次迭代)...\n`);
+  console.log(`⚡ Starting performance test (${iterations} iterations)...\n`);
   
   const testQueries = ['react', 'javascript', '前端', 'machine learning'];
   
   testQueries.forEach(query => {
-    // 实时搜索性能测试
+    // Real-time search performance test
     const realtimeStart = performance.now();
     for (let i = 0; i < iterations; i++) {
       testRealTimeSearch(repositories, query);
@@ -275,7 +275,7 @@ export function performanceTest(repositories: Repository[], iterations: number =
     const realtimeEnd = performance.now();
     const realtimeAvg = (realtimeEnd - realtimeStart) / iterations;
     
-    // 基础搜索性能测试
+    // Basic search performance test
     const basicStart = performance.now();
     for (let i = 0; i < iterations; i++) {
       testBasicTextSearch(repositories, query);
@@ -283,28 +283,28 @@ export function performanceTest(repositories: Repository[], iterations: number =
     const basicEnd = performance.now();
     const basicAvg = (basicEnd - basicStart) / iterations;
     
-    console.log(`查询 "${query}":`);
-    console.log(`  实时搜索平均耗时: ${realtimeAvg.toFixed(3)}ms`);
-    console.log(`  基础搜索平均耗时: ${basicAvg.toFixed(3)}ms`);
-    console.log(`  性能比率: ${(basicAvg / realtimeAvg).toFixed(2)}x\n`);
+    console.log(`Query "${query}":`);
+    console.log(`  Real-time search average time: ${realtimeAvg.toFixed(3)}ms`);
+    console.log(`  Basic search average time: ${basicAvg.toFixed(3)}ms`);
+    console.log(`  Performance ratio: ${(basicAvg / realtimeAvg).toFixed(2)}x\n`);
   });
 }
 
 /**
- * 中文输入法测试场景
+ * Chinese input method test scenarios
  */
 export const imeTestCases = [
   {
-    description: '中文拼音输入测试',
+    description: 'Chinese Pinyin input test',
     scenarios: [
-      { input: 'qian', expected: '前', description: '拼音输入过程中不应触发搜索' },
-      { input: 'qianduan', expected: '前端', description: '完整拼音输入' },
-      { input: 'biji', expected: '笔记', description: '笔记应用搜索' }
+      { input: 'qian', expected: '前', description: 'Search should not trigger during Pinyin composition' },
+      { input: 'qianduan', expected: '前端', description: 'Complete Pinyin input' },
+      { input: 'biji', expected: '笔记', description: 'Note application search' }
     ]
   }
 ];
 
-// 导出给开发者使用的测试函数
+// Export test functions for developer use
 export default {
   mockRepositories,
   testRealTimeSearch,

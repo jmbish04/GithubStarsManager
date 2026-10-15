@@ -241,7 +241,7 @@ describe('PluginPageViewer init context (V1.4 modal actions)', () => {
       type: 'plugin-page:init', pluginId: 'com.example.page', pageId: 'dashboard', token: 'session-token',
       context: { repository: { id: 7, full_name: 'a/b' }, readme: null, language: 'zh', accountTag: 'anon' },
     }, 'plugin-page://com.example.page');
-    // 普通桥方法仍然走 IPC 能力桥，不受上下文影响。
+    // Standard bridge methods still go through IPC capability bridge and are unaffected by context.
     await act(async () => {
       window.dispatchEvent(new MessageEvent('message', {
         data: { type: 'plugin-page:request', pluginId: 'com.example.page', pageId: 'dashboard',
@@ -292,7 +292,7 @@ describe('PluginPageViewer init context (V1.4 modal actions)', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'session-token' });
     getPage.mockResolvedValue({ success: true, url: 'plugin-page://com.example.page/dashboard/index.html' });
     requestPageCapability.mockResolvedValue({ success: true, value: null });
-    // 渲染端 hook 通过被 mock 的 useAppStore selector 读取 token，必须挂在模块级 storeState 上。
+    // Renderer-side hook reads token via mocked useAppStore selector and must be attached to module-level storeState.
     storeState.githubToken = 'gh-token-sample';
     getState.mockReturnValue({ language: 'zh', githubToken: 'gh-token-sample' });
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ total: 42 }), { status: 200 }));

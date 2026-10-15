@@ -18,15 +18,15 @@ export const sortCategoriesByOrder = (
     const orderA = orderMap.get(a.id);
     const orderB = orderMap.get(b.id);
 
-    // 如果两个都有顺序，按顺序排序
+    // If both have an order, sort by order
     if (orderA !== undefined && orderB !== undefined) {
       return orderA - orderB;
     }
-    // 如果只有a有顺序，a排在前面
+    // If only a has an order, a comes first
     if (orderA !== undefined) return -1;
-    // 如果只有b有顺序，b排在前面
+    // If only b has an order, b comes first
     if (orderB !== undefined) return 1;
-    // 都没有顺序，保持原顺序
+    // If neither has an order, keep original order
     return 0;
   });
 };
@@ -81,7 +81,7 @@ export const translateCategoryName = (zhName: string): string => {
 export const getCategoryNameVariants = (originalName: string, overrideName?: string): string[] => {
   const variants = new Set<string>([originalName]);
 
-  // 内置分类：加入全部语言的显示名（GitHub List 名称随语言切换自动改名）
+  // Built-in categories: include display names in all languages (GitHub List names automatically rename on language switch)
   const builtinVariants = builtinCategoryNameVariants(originalName, overrideName);
   for (const variant of builtinVariants) {
     variants.add(variant);
