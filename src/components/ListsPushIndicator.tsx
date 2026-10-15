@@ -9,9 +9,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useDialog } from '../hooks/useDialog';
 
 /**
- * 全局 GitHub Lists 回写进度指示器。
- * 进程运行于 store 级 action，切换页面不中断；此处提供跨页面可见的
- * 进度浮层，并在完成/失败时给出 toast 反馈。
+ * Global GitHub Lists push progress indicator.
+ * The process runs as a store-level action and persists across page navigation;
+ * this provides a cross-page floating progress overlay and toasts on completion or failure.
  */
 export const ListsPushIndicator: React.FC = () => {
   const { listsPush, resetListsPush } = useAppStore(useShallow((state) => ({
@@ -23,9 +23,9 @@ export const ListsPushIndicator: React.FC = () => {
   const t = useT('app');
 
   const prevRunningRef = useRef(listsPush.isRunning);
-  // 按对象引用比较：每次 store 写入都会生成新的 listsPush 对象，即使错误文案相同也能再次提示
+  // Compare by object reference: each store write produces a new listsPush object, re-triggering notifications even if the error text is identical
   const prevListsPushRef = useRef(listsPush);
-  // 结束后延迟重置的定时器放在 ref 中，避免后续 store 写入触发 effect 重跑时被提前清除
+  // Keep delayed reset timer in a ref so subsequent store writes re-running the effect do not cancel it prematurely
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => () => clearTimeout(resetTimerRef.current), []);
@@ -35,7 +35,7 @@ export const ListsPushIndicator: React.FC = () => {
     const prevListsPush = prevListsPushRef.current;
     prevRunningRef.current = listsPush.isRunning;
     prevListsPushRef.current = listsPush;
-    // 任何新的推送状态都会取代上一轮待执行的 reset，避免其清空新一轮运行状态或新错误
+    // Any new push state replaces the previous pending reset, preventing it from clearing the new run state or error
     if (listsPush !== prevListsPush) clearTimeout(resetTimerRef.current);
 
     if (wasRunning && !listsPush.isRunning) {
@@ -48,8 +48,8 @@ export const ListsPushIndicator: React.FC = () => {
       return;
     }
 
-    // 未运行时新出现的错误（如启动前的 token/仓库/选择校验失败）没有运行→结束的转换，需单独 toast。
-    // 不调用 reset：错误由 StarSyncPanel 内联展示，保留在 store 中。
+    // Errors occurring when not running (e.g. pre-flight token/repo/selection validation failure) have no running->finished transition and need an immediate toast.
+    // Do not call reset: errors are displayed inline by StarSyncPanel and retained in the store.
     if (!wasRunning && !listsPush.isRunning && listsPush.error && listsPush !== prevListsPush) {
       toast(listsPush.error, 'error');
     }

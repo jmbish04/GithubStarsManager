@@ -7,8 +7,8 @@ interface UseSearchShortcutsProps {
 }
 
 /**
- * 搜索快捷键Hook
- * 提供键盘快捷键支持，提升搜索体验
+ * Search shortcuts hook.
+ * Provides keyboard shortcut support to enhance the search experience.
  */
 export const useSearchShortcuts = ({
   onFocusSearch,
@@ -21,32 +21,32 @@ export const useSearchShortcuts = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isListening.current) return;
 
-      // 检查是否在输入框中
+      // Check if focus is inside an input element
       const isInInput = event.target instanceof HTMLInputElement || 
                        event.target instanceof HTMLTextAreaElement ||
                        (event.target as HTMLElement)?.contentEditable === 'true';
 
-      // Ctrl/Cmd + K: 聚焦搜索框
+      // Ctrl/Cmd + K: Focus search box
       if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
         event.preventDefault();
         onFocusSearch();
         return;
       }
 
-      // Escape: 清除搜索（仅在搜索框中时）
+      // Escape: Clear search (only when inside search box)
       if (event.key === 'Escape' && isInInput) {
         onClearSearch();
         return;
       }
 
-      // Ctrl/Cmd + Shift + F: 切换过滤器
+      // Ctrl/Cmd + Shift + F: Toggle filters
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'F') {
         event.preventDefault();
         onToggleFilters();
         return;
       }
 
-      // / 键: 快速聚焦搜索框（仅在非输入状态下）
+      // Slash key: Quick-focus search box (only when outside input)
       if (event.key === '/' && !isInInput) {
         event.preventDefault();
         onFocusSearch();
@@ -61,7 +61,7 @@ export const useSearchShortcuts = ({
     };
   }, [onFocusSearch, onClearSearch, onToggleFilters]);
 
-  // 提供暂停/恢复监听的方法
+  // Methods to pause/resume listening
   const pauseListening = () => {
     isListening.current = false;
   };
@@ -77,37 +77,37 @@ export const useSearchShortcuts = ({
 };
 
 /**
- * 搜索快捷键提示组件数据
+ * Search shortcut hint data.
  */
 export const searchShortcuts = [
   {
     id: 'focus-search',
     key: 'Ctrl/Cmd + K',
-    description: '聚焦搜索框',
+    description: 'Focus search box',
     descriptionEn: 'Focus search box'
   },
   {
     id: 'clear-search',
     key: 'Escape',
-    description: '清除搜索',
+    description: 'Clear search',
     descriptionEn: 'Clear search'
   },
   {
     id: 'toggle-filters',
     key: 'Ctrl/Cmd + Shift + F',
-    description: '切换过滤器',
+    description: 'Toggle filters',
     descriptionEn: 'Toggle filters'
   },
   {
     id: 'quick-search',
     key: '/',
-    description: '快速搜索',
+    description: 'Quick search',
     descriptionEn: 'Quick search'
   },
   {
     id: 'ai-search',
     key: 'Enter',
-    description: 'AI搜索',
+    description: 'AI search',
     descriptionEn: 'AI search'
   }
 ];

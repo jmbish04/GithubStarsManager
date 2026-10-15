@@ -79,8 +79,8 @@ export const useRepositoryChat = ({
 
   const loadedEvidenceKeyRef = useRef('');
   useEffect(() => {
-    // 流式回答会让 messages 每 ~60ms 变化一次，但证据集合只在回合完成时变化；
-    // 用 key 去重，避免流式期间反复查询 IndexedDB。
+    // Streaming responses cause messages to change every ~60ms, but evidence collections only change when a turn completes;
+    // deduplicate using a key to avoid repeatedly querying IndexedDB during streaming.
     const evidenceKey = messages.map((message) => message.evidenceIds.join('|')).join(',');
     if (evidenceKey === loadedEvidenceKeyRef.current) return;
     loadedEvidenceKeyRef.current = evidenceKey;
@@ -200,8 +200,8 @@ export const useRepositoryChat = ({
     const nextMessages = [...baseMessages, userMessage, assistantMessage];
     onMessagesChange(nextMessages);
 
-    // 流式渲染：增量回调以 ~60ms 节流刷新最后一条助手消息，最终结果仍以经过
-    // 引用校验的 result.content 为准。声明在外层以便中止时保留半截回答。
+    // Streaming render: incremental callback throttles updates of the latest assistant message at ~60ms intervals;
+    // the final result still adheres to citation-validated result.content. Declared in outer scope to preserve partial answer upon abort.
     let streamedContent = '';
     try {
       await Promise.all([
@@ -244,16 +244,16 @@ export const useRepositoryChat = ({
           onAnswerChunk: (fullText) => {
             streamedContent = fullText;
             if (fullText.length === 0) {
-              // 流式降级：立即清空已流出的无效内容。
+              // Streaming degradation: immediately clear invalid content that has already streamed out.
               flushStreamedContent('');
               return;
             }
             scheduleStreamedFlush();
           },
         });
-        // 拿到最终结果后立即取消挂起的节流刷新：否则最后一个分片若在
-        // saveEvidence/saveMessage 等持久化 await 之前不足 60ms 到达，挂起
-        // 定时器会把已完成的回答覆盖回流式状态（status: streaming 且无证据）。
+        // Cancel pending throttled flush immediately upon receiving final result: otherwise if the last chunk arrives
+        // less than 60ms before persistence awaits like saveEvidence/saveMessage, the pending
+        // timer would overwrite the completed answer back to streaming state (status: streaming and no evidence).
         if (streamFlushTimer) {
           globalThis.clearTimeout(streamFlushTimer);
           streamFlushTimer = null;
@@ -327,7 +327,7 @@ export const useRepositoryChat = ({
 
   const retry = useCallback(() => resendLastPair(true), [resendLastPair]);
 
-  /** 以同一问题、当前深度重跑最后一轮（ChatGPT 式“重新生成”）。 */
+  /** Re-runs the last turn with the same question and current depth (ChatGPT-style "Regenerate"). */
   const regenerate = useCallback(() => resendLastPair(false), [resendLastPair]);
 
   return {
