@@ -1,9 +1,9 @@
 import type { SVGProps } from 'react';
 
 /**
- * simple-icons 自 v13 起应微软商标要求移除了 Windows 品牌图标，
- * 这里内联其旧版字形（path 数据为 CC0-1.0），保证 Windows 与其它平台
- * 使用同一套 Simple Icons 品牌图标。
+ * simple-icons removed the Windows brand icon starting from v13 per Microsoft trademark guidelines.
+ * Here we inline its legacy glyph (path data is CC0-1.0) to ensure Windows uses the same
+ * Simple Icons brand icon set alongside other platforms.
  */
 export function SiWindows(props: SVGProps<SVGSVGElement>) {
   return (

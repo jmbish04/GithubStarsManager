@@ -3,10 +3,10 @@ import * as React from 'react';
 const SCROLL_STOP_DELAY_MS = 700;
 
 /**
- * 驱动 `scrollbar-on-scroll` 工具类的滚动状态：滚动期间（及停止后一小段
- * 缓冲窗内）返回 true 让 thumb 显形，静止后自动回落，供 `.scrolling` 切换。
- * active 变为 false（如弹窗关闭）时清掉挂起的定时器并复位，避免迟到的
- * 状态更新落在已关闭的视图上。
+ * Drives the scrolling state for the `scrollbar-on-scroll` utility class: returns true during scrolling
+ * (and for a brief buffer window after stopping) to reveal the scrollbar thumb, then resets once stationary
+ * to toggle `.scrolling`. When active becomes false (e.g. dialog closes), clears pending timers and resets
+ * to prevent late state updates on closed views.
  */
 export const useScrollbarFlash = (active: boolean): {
   isScrolling: boolean;

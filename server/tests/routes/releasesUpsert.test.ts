@@ -18,7 +18,7 @@ const createTestApp = () => {
 };
 
 /**
- * Mock DB 只记录 prepare 收到的 SQL 与每次 run 的参数，便于断言合并 UPSERT 的行为。
+ * Mock DB that only records prepared SQL and arguments on each run, facilitating assertions on merge UPSERT behavior.
  */
 function captureStatements() {
   const statements: { sql: string; params: unknown[][] }[] = [];
@@ -64,10 +64,10 @@ describe('PUT /api/releases merge upsert', () => {
       .expect(200);
 
     const sql = statements[0].sql;
-    // 未显式携带 is_read 时，冲突分支应保留 releases.is_read
+    // When is_read is not explicitly provided, the conflict branch must preserve releases.is_read
     expect(sql).toContain('is_read = releases.is_read');
     expect(sql).not.toContain('is_read = excluded.is_read');
-    // 新插入时 is_read 传入 0（默认未读）
+    // For new inserts, pass 0 for is_read (unread by default)
     expect(statements[0].params[8]).toBe(0);
   });
 
@@ -91,10 +91,10 @@ describe('PUT /api/releases merge upsert', () => {
       .expect(200);
 
     const sql = statements[0].sql;
-    // 数据列应更新
+    // Data columns should update
     expect(sql).toContain('assets = excluded.assets');
     expect(sql).toContain('name = excluded.name');
-    // is_read 保留
+    // is_read should be preserved
     expect(sql).toContain('is_read = releases.is_read');
   });
 

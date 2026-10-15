@@ -142,7 +142,7 @@ test('network requests authorize per host and only through the page bridge shape
   await assert.rejects(router.handle(['network:api.github.com'], {
     capability: 'network', operation: 'fetch', args: { host: 'api.github.com' },
   }), { code: 'PLUGIN_CAPABILITY_UNKNOWN' });
-  // 授权型返回：实际请求由渲染端用用户自己的 Token 执行。
+  // Authorization-only return: the actual request is executed by the renderer using the user's own token.
   assert.equal(await router.handle(['network:api.github.com'], {
     capability: 'network', operation: 'request', args: { host: 'api.github.com', path: '/repos/o/r' },
   }), null);

@@ -165,9 +165,11 @@ export function useBatchStarImport() {
   }, [resetTranslations]);
 
   /**
-   * 在原文与译文之间切换。切回原文（回退）只翻转展示开关，译文缓存保留，
-   * 再次切换立即可见；首次翻译时只请求与界面语言不同且尚未翻译过的描述，
-   * 同语言或译文为空的描述保持原文。
+   * Toggles between original text and translations. Switching back to the original
+   * only toggles the display flag while retaining cached translations for immediate display
+   * on next toggle. The initial translation only requests descriptions that differ from
+   * the UI language and have not been translated yet, keeping descriptions in the same language
+   * or with empty translations in their original form.
    */
   const toggleTranslations = useCallback(async () => {
     if (busyRef.current) return;

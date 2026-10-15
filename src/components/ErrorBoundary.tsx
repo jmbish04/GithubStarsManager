@@ -95,7 +95,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 {strings.description}
               </p>
               
-              {/* 错误信息显示 */}
+              {/* Error info display */}
               {error && (
                 <div className="mb-4 p-3 bg-muted dark:bg-muted/40 rounded text-left">
                   <div className="flex justify-between items-center mb-2">
@@ -116,7 +116,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </div>
               )}
 
-              {/* 详细信息折叠面板 */}
+              {/* Details collapsible panel */}
               <div className="mb-4">
                 <Button
                   onClick={this.handleToggleDetails}
@@ -148,7 +148,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 )}
               </div>
 
-              {/* 操作按钮 */}
+              {/* Action buttons */}
               <div className="space-y-2">
                 <Button
                   onClick={this.handleReload}
@@ -165,7 +165,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </Button>
               </div>
 
-              {/* 浏览器提示 */}
+              {/* Browser notice */}
               <div className="mt-4 text-xs text-muted-foreground dark:text-muted-foreground">
                 <p>{strings.browserHint}</p>
                 <p>Chrome 80+ / Firefox 75+ / Safari 13+ / Edge 80+</p>

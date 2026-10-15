@@ -7,7 +7,7 @@ const getDbMock = vi.fn();
 vi.mock('../../src/db/connection.js', () => ({
   getDb: () => getDbMock(),
 }));
-// sync 路由顶部引入 config/crypto，但 import 分支不实际使用它们，mock 为空即可。
+// The sync route imports config/crypto at top level, but the import branch does not actually use them; mocking with empty values is sufficient.
 vi.mock('../../src/config.js', () => ({ config: { encryptionKey: 'test-key' } }));
 vi.mock('../../src/services/crypto.js', () => ({ encrypt: (v: string) => v, decrypt: (v: string) => v }));
 
@@ -21,7 +21,7 @@ const createTestApp = () => {
 };
 
 /**
- * Mock DB：只记录 prepare 收到的 SQL 与每次 run 的参数，便于断言导入合并 UPSERT 的 is_read 语义。
+ * Mock DB: only records prepared SQL and arguments on each run, facilitating assertions on import merge UPSERT is_read semantics.
  */
 function captureStatements() {
   const statements: { sql: string; params: unknown[][] }[] = [];
@@ -38,8 +38,8 @@ function captureStatements() {
       };
       return stmt;
     },
-    // 路由中 `db.transaction(() => {...})` 返回 importAll，随后调用 `importAll()`；
-    // 因此这里返回 fn 本身（与 releasesUpsert.test.ts 的惯例一致）。
+    // In the route, `db.transaction(() => {...})` returns importAll, which is then invoked as `importAll()`;
+    // hence return fn itself here (consistent with releasesUpsert.test.ts conventions).
     transaction: (fn: () => number) => fn,
     exec,
   };
@@ -47,7 +47,7 @@ function captureStatements() {
   return { statements, db };
 }
 
-// 两段式语句中，保留分支用 releases.is_read，覆盖分支用 excluded.is_read
+// In two-statement setup, preservation branch uses releases.is_read and overwrite branch uses excluded.is_read
 const releasePreserveIndex = (statements: { sql: string }[]) =>
   statements.findIndex((s) =>
     s.sql.includes('INSERT INTO releases') && s.sql.includes('is_read = releases.is_read')
@@ -81,13 +81,13 @@ describe('POST /api/sync/import release upsert is_read semantics', () => {
     const idx = releasePreserveIndex(statements);
     expect(idx).toBeGreaterThan(-1);
     const releaseStmt = statements[idx];
-    // 保留分支：冲突时 is_read = releases.is_read（保留库中已读状态）
+    // Preservation branch: on conflict is_read = releases.is_read (retaining read status from DB)
     expect(releaseStmt.sql).toContain('is_read = releases.is_read');
     expect(releaseStmt.sql).not.toContain('is_read = CASE WHEN');
-    // is_read 位于 (id, tag_name, name, body, html_url, published_at, prerelease, draft, is_read, ...) 第 9 位
-    // 非显式时落 0（与 releases 表 DEFAULT 0 语义一致），避免新导入行落 NULL 导致 unread 过滤漏行
+    // is_read is at index 8 of (id, tag_name, name, body, html_url, published_at, prerelease, draft, is_read, ...)
+    // Defaults to 0 when not explicit (matching releases table DEFAULT 0 semantics) to avoid new imports writing NULL and being skipped by unread filters
     expect(releaseStmt.params[8]).toBe(0);
-    // 覆盖分支语句不应被命中
+    // Overwrite statement should not be executed
     expect(releaseOverwriteIndex(statements)).toBe(-1);
   });
 
@@ -103,10 +103,10 @@ describe('POST /api/sync/import release upsert is_read semantics', () => {
 
     const idx = releaseOverwriteIndex(statements);
     expect(idx).toBeGreaterThan(-1);
-    // 覆盖分支：冲突时 is_read = excluded.is_read（用快照中的已读状态覆盖）
+    // Overwrite branch: on conflict is_read = excluded.is_read (overwriting with snapshot read status)
     expect(statements[idx].sql).toContain('is_read = excluded.is_read');
     expect(statements[idx].params[8]).toBe(1);
-    // 保留分支语句不应被命中
+    // Preservation statement should not be executed
     expect(releasePreserveIndex(statements)).toBe(-1);
   });
 
@@ -140,7 +140,7 @@ describe('POST /api/sync/import release upsert is_read semantics', () => {
 
     const idx = releasePreserveIndex(statements);
     expect(idx).toBeGreaterThan(-1);
-    // repo_id / full_name / name 位于 is_read(8)、assets(9) 之后
+    // repo_id / full_name / name are positioned after is_read(8) and assets(9)
     expect(statements[idx].params[10]).toBe(20);
     expect(statements[idx].params[11]).toBe('owner/other');
     expect(statements[idx].params[12]).toBe('other');
@@ -176,7 +176,7 @@ describe('POST /api/sync/import release upsert is_read semantics', () => {
     expect(idx).toBeGreaterThan(-1);
     expect(statements[idx].sql).toContain('zipball_url = excluded.zipball_url');
     expect(statements[idx].sql).toContain('tarball_url = excluded.tarball_url');
-    // zipball/tarball 位于 repo_name(12) 之后
+    // zipball/tarball are positioned after repo_name(12)
     expect(statements[idx].params[13]).toBe('https://example.com/zip');
     expect(statements[idx].params[14]).toBe('https://example.com/tar');
   });
@@ -199,7 +199,7 @@ describe('POST /api/sync/import release upsert is_read semantics', () => {
     expect(idx).toBeGreaterThan(-1);
     expect(statements[idx].sql).toContain('zipball_url = excluded.zipball_url');
     expect(statements[idx].sql).toContain('tarball_url = excluded.tarball_url');
-    // is_read: false → 覆盖分支绑定 0
+    // is_read: false → overwrite branch binds 0
     expect(statements[idx].params[8]).toBe(0);
     expect(statements[idx].params[13]).toBe('https://example.com/z2');
     expect(statements[idx].params[14]).toBe('https://example.com/t2');

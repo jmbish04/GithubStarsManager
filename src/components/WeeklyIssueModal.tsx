@@ -15,8 +15,8 @@ interface WeeklyIssueModalProps {
 }
 
 /**
- * 周刊投稿 issue 的"查看原贴"弹窗：GitHub 渲染样式展示正文。
- * 正文加载（缓存优先 + 实时兜底）收敛在 useWeeklyIssueBody hook。
+ * Modal to view the original weekly submission issue, rendered in GitHub style.
+ * Body loading (cache-first + real-time fallback) is encapsulated in the useWeeklyIssueBody hook.
  */
 export const WeeklyIssueModal: React.FC<WeeklyIssueModalProps> = ({ isOpen, onClose, issue }) => {
   const language = useAppStore(state => state.language);

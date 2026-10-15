@@ -14,8 +14,8 @@ interface XTweetModalProps {
 }
 
 /**
- * X 推文的"查看原贴"弹窗：展示抓取到的推文正文（RSS 输出的 HTML 片段，
- * 渲染走 rehype-sanitize），页脚附作者、时间与原推链接。
+ * Modal to view the original X tweet: displays the fetched tweet body (HTML snippet
+ * output by RSS, sanitized via rehype-sanitize), with author, timestamp, and original link in the footer.
  */
 export const XTweetModal: React.FC<XTweetModalProps> = ({ isOpen, onClose, tweet }) => {
   const language = useAppStore(state => state.language);

@@ -27,7 +27,7 @@ function getProxyConfig(): ProxyConfig | null {
 
 const router = Router();
 
-// 透传上游与限流相关的响应头，供前端（含直连模式）统一识别 Retry-After 与剩余配额。
+// Forward upstream rate-limiting response headers so the frontend (including direct mode) uniformly detects Retry-After and remaining quotas.
 const UPSTREAM_RATE_LIMIT_HEADERS = new Set([
   'retry-after',
   'retry-after-ms',
@@ -72,13 +72,13 @@ function buildApiUrl(baseUrl: string, pathWithVersion: string): string {
     const base = new URL(baseUrlWithSlash);
     const basePath = base.pathname.replace(/\/$/, '');
 
-    // 检测 baseUrl 是否已经以任何版本号结尾（v1, v2, v3, v1beta, v1alpha 等）
-    // 这样可以兼容火山引擎（/v3）、OpenAI（/v1）、Gemini（/v1beta）等不同版本号
+    // Check if baseUrl already ends with any version number (v1, v2, v3, v1beta, v1alpha, etc.)
+    // to support different API version formats (Volcengine /v3, OpenAI /v1, Gemini /v1beta, etc.)
     const anyVersionPattern = /\/v\d+(?:beta|alpha)?$/;
     const hasVersionInBase = anyVersionPattern.test(basePath);
 
     if (hasVersionInBase) {
-      // baseUrl 已包含版本号，只补全端点路径（去掉版本号部分）
+      // baseUrl already contains a version; only append the endpoint path (stripping the version segment)
       const endpointPath = pathWithVersion.includes('/')
         ? pathWithVersion.split('/').slice(1).join('/')
         : pathWithVersion;
@@ -290,7 +290,7 @@ router.post('/api/proxy/ai', async (req, res) => {
     };
 
     if (apiType === 'openai' || apiType === 'openai-responses' || apiType === 'openai-compatible' || apiType === 'deepseek' || apiType === 'mimo') {
-      // openai-compatible 类型直接使用 baseUrl 作为完整地址
+      // openai-compatible types use baseUrl directly as the complete address
       targetUrl = apiType === 'openai-compatible'
         ? baseUrl.replace(/\/$/, '')
         : buildApiUrl(baseUrl, apiType === 'openai-responses' ? 'v1/responses' : 'v1/chat/completions');
@@ -325,8 +325,8 @@ router.post('/api/proxy/ai', async (req, res) => {
 
     const timeout = apiType === 'openai-responses' || !!reasoningEffort ? 600000 : 60000;
 
-    // 宽松档（放行回环/私有网段）只用于「用户已保存的 AI 配置」(configId)。
-    // 内联 config 路径（任意客户端均可携带目标地址）保持严格档，避免 SSRF 放宽被滥用。
+    // Relaxed tier (allowing loopback/private subnets) is only used for user-saved AI configs (configId).
+    // The inline config path (where any client can supply a target URL) remains strict to prevent SSRF bypass abuse.
     const allowPrivate = Boolean(configId);
 
     const proxyConfig = getProxyConfig();
@@ -365,8 +365,8 @@ router.post('/api/proxy/webdav', async (req, res) => {
       timeoutMs?: number;
     };
 
-    // path 必须是同源相对路径：否则 `https://dav.example.com` + `@evil.com/x`
-    // 会拼出 userinfo 形式的跨主机 URL。
+    // path must be a same-origin relative path: otherwise `https://dav.example.com` + `@evil.com/x`
+    // would craft a cross-host URL in userinfo form.
     if (typeof path !== 'string' || !path.startsWith('/')) {
       res.status(400).json({ error: 'path must be an absolute path', code: 'WEBDAV_PATH_INVALID' });
       return;
@@ -385,12 +385,12 @@ router.post('/api/proxy/webdav', async (req, res) => {
       username = webdavConfig.username as string;
       baseUrl = webdavConfig.url as string;
     } else if (inlineUrl && inlineUsername !== undefined && inlinePassword !== undefined) {
-      // 配置尚未同步到后端（例如"测试连接"发生在保存之前）时，使用请求携带的凭据
+      // When the config has not yet synced to the backend (e.g. "Test Connection" before saving), use the credentials supplied with the request
       baseUrl = inlineUrl;
       username = inlineUsername;
       password = inlinePassword;
     } else if (!configId) {
-      // 既没有已保存配置也没有内联凭据：属于请求参数缺失，而非"配置不存在"
+      // Neither saved config nor inline credentials provided: represents missing request parameters, not "config not found"
       res.status(400).json({ error: 'configId required', code: 'CONFIG_ID_REQUIRED' });
       return;
     } else {
@@ -417,8 +417,8 @@ router.post('/api/proxy/webdav', async (req, res) => {
     }
 
     const proxyConfig = getProxyConfig();
-    // 大文件上传的客户端超时可达 300s，服务端必须不早于客户端超时，
-    // 否则代理会先于客户端 abort，上传被服务端单方面掐断。
+    // Client timeouts for large file uploads can reach 300s; the server must not time out earlier than the client,
+    // otherwise the proxy will abort before the client and unilaterally terminate the upload.
     const effectiveTimeout = typeof timeoutMs === 'number' && Number.isFinite(timeoutMs)
       ? Math.min(Math.max(Math.trunc(timeoutMs), 1000), 300000)
       : 60000;
@@ -429,16 +429,16 @@ router.post('/api/proxy/webdav', async (req, res) => {
       body: requestBody,
       timeout: effectiveTimeout,
       proxyConfig,
-      // 用户自有配置来源的 WebDAV 地址：放行回环/私有网段（局域网 NAS 等）
+      // User-configured WebDAV address: allow loopback/private subnets (LAN NAS, etc.)
       allowPrivate: true,
-      // PROPFIND 返回 XML、错误返回 HTML：必须原样透传，
-      // 否则 res.json() 会二次编码，listFiles() 拿到的 XML 无法解析。
+      // PROPFIND returns XML, errors return HTML: must be passed through raw,
+      // otherwise res.json() will double-encode and break XML parsing in listFiles().
       preserveRawResponse: true,
     });
 
     relayRateLimitHeaders(res, result.headers);
 
-    // 204/304 不允许带 body；HEAD 的响应体本身为空
+    // 204/304 must not include a body; HEAD response body is empty by definition
     const bodyless = result.status === 204 || result.status === 304 || method === 'HEAD';
     const contentType = result.headers['content-type'];
     if (contentType && !bodyless) {

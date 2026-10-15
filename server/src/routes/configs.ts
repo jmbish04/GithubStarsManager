@@ -42,8 +42,8 @@ function maskApiKey(key: string | null | undefined): string {
 }
 
 /**
- * 为加密配置表注册 bulk sync / single update / delete 路由
- * 消除 AI configs 和 embedding configs 之间的重复代码
+ * Register bulk sync / single update / delete routes for encrypted config tables.
+ * Eliminates duplicate code between AI configs and embedding configs.
  */
 function registerEncryptedConfigRoutes(opts: {
   router: ReturnType<typeof Router>;
@@ -668,7 +668,7 @@ registerEncryptedConfigRoutes({
     id, name: c.name, apiType: c.apiType, baseUrl: c.baseUrl,
     apiKey: maskedKey, model: c.model, dimensions: c.dimensions ?? 1536, isActive: !!c.isActive,
   }),
-  requiresSecret: false, // Ollama 等本地模型不需要 API Key
+  requiresSecret: false, // Local models such as Ollama do not require an API Key
 });
 
 // ── Vector Search Config ──

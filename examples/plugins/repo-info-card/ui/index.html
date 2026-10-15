@@ -16,46 +16,46 @@
         </header>
 
         <section class="group">
-          <p id="label-style" class="group-label" data-i18n="style">风格</p>
+          <p id="label-style" class="group-label" data-i18n="style">Style</p>
           <div id="opt-style" class="card-grid style-grid" role="radiogroup" aria-labelledby="label-style"></div>
         </section>
 
         <section class="group">
-          <p id="label-canvas" class="group-label" data-i18n="canvas">画幅</p>
+          <p id="label-canvas" class="group-label" data-i18n="canvas">Canvas</p>
           <div id="opt-canvas" class="card-grid canvas-grid" role="radiogroup" aria-labelledby="label-canvas"></div>
           <div id="custom-canvas" class="custom-canvas" hidden>
             <label class="custom-field">
-              <span data-i18n="width">宽</span>
+              <span data-i18n="width">Width</span>
               <input id="custom-w" type="number" inputmode="numeric" min="400" max="3000" step="1" data-i18n-aria-label="width">
             </label>
             <span class="custom-x" aria-hidden="true">×</span>
             <label class="custom-field">
-              <span data-i18n="height">高</span>
+              <span data-i18n="height">Height</span>
               <input id="custom-h" type="number" inputmode="numeric" min="400" max="3000" step="1" data-i18n-aria-label="height">
             </label>
-            <p class="custom-hint muted" data-i18n="customHint">长宽范围 400 – 3000 px</p>
+            <p class="custom-hint muted" data-i18n="customHint">Width/height range: 400 – 3000 px</p>
           </div>
         </section>
 
         <section class="group">
-          <p id="label-language" class="group-label" data-i18n="cardLanguage">卡片语言</p>
+          <p id="label-language" class="group-label" data-i18n="cardLanguage">Card language</p>
           <div id="opt-language" class="card-grid lang-grid" role="radiogroup" aria-labelledby="label-language"></div>
         </section>
 
         <section class="group">
-          <p id="label-notes" class="group-label" data-i18n="notes">附加说明</p>
-          <textarea id="opt-notes" rows="3" maxlength="600" aria-labelledby="label-notes" data-i18n-placeholder="notesPlaceholder" placeholder="选填：对信息卡的附加要求，例如「重点介绍插件系统」「标题更收敛」。重新生成后生效。"></textarea>
+          <p id="label-notes" class="group-label" data-i18n="notes">Additional notes</p>
+          <textarea id="opt-notes" rows="3" maxlength="600" aria-labelledby="label-notes" data-i18n-placeholder="notesPlaceholder" placeholder="Optional: extra requirements for the info card, e.g. "Focus on the plugin system" or "Keep the title more concise." Takes effect after regenerating."></textarea>
         </section>
 
-        <button id="generate" type="button" class="btn-primary">生成信息卡</button>
+        <button id="generate" type="button" class="btn-primary">Generate info card</button>
 
         <p id="status" role="status" class="muted"></p>
 
         <section id="picker" hidden>
-          <p class="muted" data-i18n="pickerHint">此页面也可以从「设置 → 插件 → 打开页面」进入：搜索并选择一个已加载的仓库。</p>
+          <p class="muted" data-i18n="pickerHint">You can also open this page from "Settings → Plugins → Open page": search for and select a loaded repository.</p>
           <div class="search-row">
             <input id="picker-query" type="search" maxlength="200" placeholder="search repositories…">
-            <button id="picker-search" type="button" class="btn">搜索</button>
+            <button id="picker-search" type="button" class="btn">Search</button>
           </div>
           <ul id="picker-results"></ul>
         </section>
@@ -63,20 +63,20 @@
 
       <section class="preview-pane" aria-label="preview">
         <div id="preview-empty" class="preview-empty">
-          <p data-i18n="previewEmpty">在左侧完成配置并生成后，画布会出现在这里。</p>
+          <p data-i18n="previewEmpty">After you configure options on the left and generate, the canvas appears here.</p>
         </div>
         <div id="preview-wrap" hidden>
           <div class="preview-bar">
             <div class="preview-tabs" role="tablist" data-i18n-aria-label="previewTabs">
-              <button id="tab-preview" type="button" class="preview-tab" role="tab" aria-selected="true" aria-controls="preview-scroll" data-i18n="tabPreview">预览</button>
-              <button id="tab-code" type="button" class="preview-tab" role="tab" aria-selected="false" aria-controls="code-editor-wrap" data-i18n="tabCode">代码</button>
+              <button id="tab-preview" type="button" class="preview-tab" role="tab" aria-selected="true" aria-controls="preview-scroll" data-i18n="tabPreview">Preview</button>
+              <button id="tab-code" type="button" class="preview-tab" role="tab" aria-selected="false" aria-controls="code-editor-wrap" data-i18n="tabCode">Code</button>
             </div>
             <span class="muted mono" id="preview-meta"></span>
             <div class="zoom" role="group" data-i18n-aria-label="zoomGroup">
               <button id="zoom-out" type="button" class="zoom-btn" data-i18n-title="zoomOut" data-i18n-aria-label="zoomOut">−</button>
               <button id="zoom-level" type="button" class="zoom-btn mono" data-i18n-title="zoomFit">100%</button>
               <button id="zoom-in" type="button" class="zoom-btn" data-i18n-title="zoomIn" data-i18n-aria-label="zoomIn">+</button>
-              <button id="zoom-fit" type="button" class="zoom-btn" data-i18n="zoomFit">适应</button>
+              <button id="zoom-fit" type="button" class="zoom-btn" data-i18n="zoomFit">Fit</button>
               <button id="zoom-actual" type="button" class="zoom-btn" data-i18n="zoomActual">1:1</button>
             </div>
           </div>
@@ -88,9 +88,9 @@
             <textarea id="code-editor" role="tabpanel" aria-label="card code" spellcheck="false"></textarea>
           </div>
           <div class="actions">
-            <button id="copy-code" type="button" class="btn" disabled data-i18n="copyCode">复制 HTML 代码</button>
-            <button id="copy-image" type="button" class="btn" disabled data-i18n="copyImage">复制截图</button>
-            <button id="save-image" type="button" class="btn" disabled data-i18n="saveImage">保存截图</button>
+            <button id="copy-code" type="button" class="btn" disabled data-i18n="copyCode">Copy HTML code</button>
+            <button id="copy-image" type="button" class="btn" disabled data-i18n="copyImage">Copy screenshot</button>
+            <button id="save-image" type="button" class="btn" disabled data-i18n="saveImage">Save screenshot</button>
           </div>
         </div>
       </section>

@@ -7,8 +7,9 @@ import type { WeeklyStoredIssue } from '../../../services/weeklyIssuesStorage';
 import { useAppStore } from '../../../store/useAppStore';
 
 /**
- * "查看原贴"弹窗的正文加载：优先本地同步缓存，缺失时实时拉取兜底。
- * 业务服务调用收敛在 feature hook 层，视图组件不得直接依赖 services。
+ * Body content loader for the "View Original Post" modal: prefers local synchronized cache,
+ * falling back to real-time fetch when absent. Business service calls are encapsulated in the
+ * feature hook layer; view components must not directly depend on services.
  */
 export const useWeeklyIssueBody = (issueNumber: number, enabled: boolean) => {
   const githubToken = useAppStore(state => state.githubToken);
@@ -25,7 +26,7 @@ export const useWeeklyIssueBody = (issueNumber: number, enabled: boolean) => {
     setError(null);
     setLoading(true);
     const load = async () => {
-      // 缓存命中无需 token（logout 不清周刊缓存）；仅在缓存未命中且有 token 时才建 API 回源
+      // Cache hits do not require a token (logging out does not clear the weekly cache); only instantiate the API to fetch from upstream when there is a cache miss and a token exists
       try {
         const api = githubToken ? createGitHubApiService(githubToken) : null;
         const result = await fetchWeeklyIssueBody(api, issueNumber);

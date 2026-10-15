@@ -188,8 +188,8 @@ export const ThemeSettingsCard: React.FC<ThemeSettingsCardProps> = ({ t }) => {
           </div>
         </div>
 
-        {/* Theme token（开发守则 §14）：强调色 / 圆角 / 字号 / 动效，全部落到 <html>
-            的 CSS 变量与 data 属性上，恢复默认即删掉内联值让预设重新生效。 */}
+        {/* Theme tokens (Dev Guide §14): accent color / border radius / font size / motion, all applied to <html>
+            CSS variables and data attributes; restoring defaults removes inline values so presets take effect again. */}
         <Accordion type="single" collapsible className="border-t border-border">
           <AccordionItem value="fine-tune" className="border-0">
             <AccordionTrigger>{t('themeSettingsCard.fine-tune-appearance')}</AccordionTrigger>

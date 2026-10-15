@@ -10,15 +10,15 @@ import { Button } from '../ui/button';
 interface PluginRegistrySectionProps {
   t: TranslateFn;
   onOpenMarketplace: () => void;
-  /** 变化时重新读取本地状态：市场弹窗里管理源后，卡片上的统计要跟上。 */
+  /** Re-reads local state on change: when sources are modified in the marketplace dialog, card counts update accordingly. */
   reloadSignal?: number;
 }
 
 /**
- * 社区插件注册表入口卡片。
+ * Community plugin registry entry card.
  *
- * 这里只做入口与概览（源数量、可用插件数量），不直接列出具体插件：
- * 插件的浏览、安装与源的维护都在插件市场弹窗（PluginMarketplaceDialog）里完成。
+ * Provides an entry point and overview (source count, available plugin count) without listing specific plugins:
+ * browsing, installing, and source management are handled in the marketplace dialog (PluginMarketplaceDialog).
  */
 export const PluginRegistrySection: React.FC<PluginRegistrySectionProps> = ({ t, onOpenMarketplace, reloadSignal = 0 }) => {
   const [state, setState] = useState<MarketplaceState | null>(null);
@@ -32,7 +32,7 @@ export const PluginRegistrySection: React.FC<PluginRegistrySectionProps> = ({ t,
   useEffect(() => {
     if (!available) return;
     let disposed = false;
-    // 纯本地读取（源列表 + 上次遍历的目录缓存），不会发起网络请求。
+    // Local read only (source list + last-traversed catalog cache); does not make network requests.
     pluginMarketplaceService.getState().then((result) => {
       if (!disposed) setState(result);
     }).catch(() => undefined);
@@ -45,8 +45,8 @@ export const PluginRegistrySection: React.FC<PluginRegistrySectionProps> = ({ t,
 
   const sourceCount = state?.sources.length ?? 0;
   const pluginCount = state?.entries.reduce((total, entry) => total + entry.plugins.length, 0) ?? 0;
-  // 与市场列表一致的跨源去重规则（同一插件 id 只认先遇到的源），
-  // 否则统计里的"可更新"可能是市场里根本不会展示的后续源条目。
+  // Cross-source deduplication matching the marketplace list (for duplicate plugin IDs, only the first encountered source is used);
+  // otherwise "updates available" counts could count later source entries that the marketplace never displays.
   const firstEntryById = new Map<string, { version: string }>();
   for (const entry of state?.entries ?? []) {
     for (const plugin of entry.plugins) {

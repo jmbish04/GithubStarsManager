@@ -4,8 +4,8 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
-// 示例插件「仓库信息卡」的提示词与生成反馈回归测试。页面脚本不是模块，
-// 这里在最小 DOM 桩上执行整份脚本，再取用它暴露的内部函数。
+// Regression tests for the prompt generation and busy feedback of the "Repo Info Card" example plugin.
+// The page script is not a module; we run it inside a minimal DOM stub sandbox and inspect exposed internals.
 const PLUGIN_SCRIPT = path.resolve(__dirname, '../../examples/plugins/repo-info-card/ui/index.js');
 const CANVASES = [
   { id: '1x1', w: 1200, h: 1200 },
@@ -15,10 +15,10 @@ const CANVASES = [
 ];
 
 /**
- * 构造测试沙箱所需的轻量级虚拟 DOM 元素桩对象。
+ * Constructs a lightweight mock DOM element for the test sandbox.
  *
- * @param {string} id 元素 ID
- * @returns {Record<string, any>} 具有基础 DOM 操作接口的虚拟节点
+ * @param {string} id Element ID
+ * @returns {Record<string, any>} Mock node with basic DOM manipulation methods
  */
 function makeElement(id) {
   const classes = new Set();
@@ -67,9 +67,9 @@ function makeElement(id) {
 }
 
 /**
- * 在隔离的 vm 沙箱环境中加载并执行仓库信息卡 UI 脚本，并暴露内部对象。
+ * Loads and executes the repo info card UI script in an isolated VM sandbox, exposing internal objects.
  *
- * @returns {{ plugin: Record<string, any>, byId: (id: string) => Record<string, any> }} 沙箱中运行的插件上下文与元素检索器
+ * @returns {{ plugin: Record<string, any>, byId: (id: string) => Record<string, any> }} Plugin context running in sandbox and element getter
  */
 function loadPlugin() {
   const elements = new Map();
@@ -104,7 +104,7 @@ function loadPlugin() {
     setTimeout,
     clearTimeout,
   };
-  // 追加的这行把脚本作用域里的常量与函数挂到沙箱全局，供断言取用。
+  // Expose script-scoped constants and functions on the global sandbox for test assertions.
   const expose = '\n;let __mockRequest = null; const __origReq = request; request = (method, args) => __mockRequest ? __mockRequest(method, args) : __origReq(method, args); globalThis.__plugin = { state, STR, CARD_LANGUAGES, STRUCTURES, layoutForCanvas, buildSystemPrompt, buildUserPrompt, setBusy, setStatus, handleInit, canvasMatchesSnapshot, sanitizeFragment, generate, setRequestMock: (fn) => { __mockRequest = fn; }, AI_SYSTEM_LIMIT, AI_USER_LIMIT };\n';
   vm.runInNewContext(
     fs.readFileSync(PLUGIN_SCRIPT, 'utf8') + expose,
@@ -115,9 +115,9 @@ function loadPlugin() {
 }
 
 /**
- * 生成单元测试使用的标准样例仓库元数据。
+ * Generates standard sample repository metadata for unit testing.
  *
- * @returns {Record<string, any>} 包含基本属性的仓库数据桩
+ * @returns {Record<string, any>} Repository data stub containing basic attributes
  */
 function repository() {
   return {
@@ -155,7 +155,7 @@ test('repo info card: every language fits the system-prompt bridge limit with lo
       assert.ok(language.labels[field].length > 0, `${language.code}.${field} must not be empty`);
     }
     for (const canvas of CANVASES) {
-      // 'auto'（跟随界面）在页面里就是取宿主界面语言 state.language。
+      // 'auto' (follow UI) resolves to the host UI language state.language.
       plugin.state.language = language.code;
       const system = plugin.buildSystemPrompt(canvas, 'auto');
       const where = `${language.code}/${canvas.id}`;
@@ -164,7 +164,7 @@ test('repo info card: every language fits the system-prompt bridge limit with lo
       assert.ok(!system.includes('{K_'), `${where}: left an unlocalized {K_*} placeholder`);
       assert.ok(system.includes(`Language: ${language.englishName}`),
         `${where}: missing the language directive for ${language.englishName}`);
-      // 只断言该版式模板实际用到的标签，且必须换成对应语言的文案。
+      // Assert only on labels actually used in the layout template, localized to the target language.
       const template = plugin.STRUCTURES[plugin.layoutForCanvas(canvas.id, canvas.w, canvas.h)];
       for (const [placeholder, field] of Object.entries(LABEL_PLACEHOLDERS)) {
         if (!template.includes(`{${placeholder}}`)) continue;
@@ -240,12 +240,12 @@ test('repo info card: async init while busy does not overwrite the generating st
   plugin.handleInit({ repository: repository(), readme: null, language: 'zh' });
   assert.equal(status.textContent, plugin.STR.zh.loadedWithoutReadme);
 
-  // 用户点击生成，进入 busy 状态（首次生成，无已有卡片）
+  // User clicks generate, entering busy state (first generation, no existing card)
   plugin.setBusy(true);
   plugin.setStatus(plugin.STR.zh.generating);
   assert.equal(status.textContent, plugin.STR.zh.generating);
 
-  // 宿主异步补发带 README 的 init
+  // Host asynchronously sends followup init with README
   plugin.handleInit({ repository: repository(), readme: '# Project README', language: 'zh' });
   assert.equal(plugin.state.readme, '# Project README');
   assert.equal(status.textContent, plugin.STR.zh.generating,
@@ -253,7 +253,7 @@ test('repo info card: async init while busy does not overwrite the generating st
 
   plugin.setBusy(false);
 
-  // 重新生成场景（已有卡片状态）：正在 busy 生成时收到 README 更新也不冲掉 generating 提示
+  // Regeneration scenario (existing card state): receiving README while busy does not overwrite generating status
   plugin.state.fragment = '<div id="card">existing card</div>';
   plugin.state.fragmentCanvas = { id: '1x1', w: 1200, h: 1200 };
   plugin.state.usedReadme = false;
@@ -267,7 +267,7 @@ test('repo info card: async init while busy does not overwrite the generating st
 
   plugin.setBusy(false);
 
-  // 非 busy 状态下已有卡片收到新 README 时，应正常提示 readmeReady
+  // When not busy and existing card receives updated README, display readmeReady status
   plugin.handleInit({ repository: repository(), readme: '# Updated README', language: 'zh' });
   assert.equal(status.textContent, plugin.STR.zh.readmeReady,
     'status line should prompt readmeReady when not busy');
@@ -296,10 +296,10 @@ test('repo info card: busy state disables export buttons and restores them on fi
   assert.equal(copyImage.disabled, false);
   assert.equal(saveImage.disabled, false);
 
-  // 自定义画幅尺寸不匹配时，恢复忙碌状态后截图按钮仍应保持禁用
+  // When custom dimensions do not match, screenshot buttons must remain disabled after busy state clears
   plugin.state.canvasId = 'custom';
   plugin.state.fragmentCanvas = { id: 'custom', w: 800, h: 1000 };
-  plugin.state.customWidth = 900; // 尺寸已改动
+  plugin.state.customWidth = 900; // Dimension changed
   plugin.state.customHeight = 1000;
 
   plugin.setBusy(true);
@@ -308,7 +308,7 @@ test('repo info card: busy state disables export buttons and restores them on fi
   assert.equal(copyImage.disabled, true, 'screenshot button must stay disabled when custom width differs');
   assert.equal(saveImage.disabled, true, 'save image button must stay disabled when custom width differs');
 
-  // 自定义画幅尺寸调回一致时，截图按钮恢复可用
+  // When custom dimensions match again, screenshot buttons become enabled
   plugin.state.customWidth = 800;
   plugin.setBusy(true);
   plugin.setBusy(false);
@@ -326,11 +326,11 @@ test('repo info card: sanitization failure preserves existing fragment and snaps
   plugin.state.fragmentLanguage = 'zh';
   plugin.state.usedReadme = true;
 
-  // 用户试图按新的画幅和语言重新生成
+  // User attempts to regenerate with new canvas and language
   plugin.state.canvasId = '5x2';
   plugin.state.languageOption = 'ja';
 
-  // 模拟 AI 请求返回非法响应（缺少 id="card" 根元素）
+  // Mock AI returning invalid response (missing id="card" root element)
   plugin.setRequestMock(async (method) => {
     if (method === 'ai.generate') {
       return '<div>invalid response without card root</div>';
@@ -340,17 +340,17 @@ test('repo info card: sanitization failure preserves existing fragment and snaps
 
   await plugin.generate();
 
-  // 状态行提示缺少 card 根元素错误，且忙碌状态已安全解除
+  // Status line shows missing card root error, and busy state is safely released
   assert.ok(status.textContent.includes(plugin.STR.zh.noCard));
   assert.equal(plugin.state.busy, false);
 
-  // 原有卡片状态与快照保持原样，未被失败的新请求污染
+  // Previous card state and snapshot remain untouched, not corrupted by failed request
   assert.equal(plugin.state.fragment, '<div id="card">original</div>');
   assert.equal(plugin.state.fragmentCanvas, initialCanvas);
   assert.equal(plugin.state.fragmentLanguage, 'zh');
   assert.equal(plugin.state.usedReadme, true);
 
-  // 直接调用 sanitizeFragment 也依然正确抛错
+  // Direct invocation of sanitizeFragment also throws expected error
   assert.throws(() => {
     plugin.sanitizeFragment('<div>no card root</div>', { id: '5x2', w: 1500, h: 600 });
   }, /card/i);

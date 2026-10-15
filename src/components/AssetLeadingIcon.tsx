@@ -3,11 +3,11 @@ import { detectAssetPlatform } from '../utils/releaseAssets';
 import { getPlatformDisplayName, getPlatformIcon } from './platformMeta';
 
 /**
- * 资产行左侧图标：按文件名/扩展名（含 MIME 兜底）推断平台 → 方形品牌徽章；
- * 推断不出时回退到通用下载图标（不猜）。
- * 下载状态图标（进行中/已完成/源码）由调用方优先渲染。
- * Release 页（ReleaseCard）与仓库 Release 边栏（RepositoryReleaseSheet）共用，
- * 保证两处资产的平台图标一致。
+ * Leading icon for asset rows: infers platform from filename/extension (with MIME fallback) -> square brand badge;
+ * falls back to a generic download icon when indeterminate (no guessing).
+ * Download status icons (in progress / completed / source code) are rendered preferentially by callers.
+ * Shared between Release page (ReleaseCard) and repository Release sidebar (RepositoryReleaseSheet)
+ * to ensure consistent platform icons across both surfaces.
  */
 const AssetLeadingIcon = ({ name, contentType }: { name: string; contentType?: string }) => {
   const platform = detectAssetPlatform(name, contentType);

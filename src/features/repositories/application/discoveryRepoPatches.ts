@@ -14,8 +14,8 @@ export interface DiscoveryAnalysisFailureInput {
   analysisError: string | undefined;
 }
 
-// 发现页单卡分析的 patch 形状：与 repositoryPatches.applyAnalysisSuccess 不是同一形状
-// ——这里不含 custom_category/category_locked，输入输出均 DiscoveryRepo（保留 rank/channel/platform）。
+// Patch shape for single-card analysis on Discovery page: differs from repositoryPatches.applyAnalysisSuccess
+// — does not include custom_category/category_locked; both input and output are DiscoveryRepo (preserving rank/channel/platform).
 export const applyDiscoveryAnalysisSuccess = (
   repo: DiscoveryRepo,
   input: DiscoveryAnalysisSuccessInput,

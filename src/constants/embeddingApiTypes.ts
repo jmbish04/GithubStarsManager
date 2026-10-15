@@ -1,10 +1,11 @@
 import type { EmbeddingApiType } from '../types';
 
 /**
- * Embedding 模型来源（设置页「模型来源」按钮组）。放在 constants 层的原因与
- * aiCapabilities.ts 一致：设置页视图组件与 i18n 字典键覆盖测试共用同一份
- * 来源，新增来源却漏配展示文案时测试立刻失败，避免界面露出 raw key。
- * （ADR 0001：视图组件不直接依赖 services。）
+ * Embedding model sources (the "Model source" button group on the settings page). Placed in the
+ * constants layer for the same reason as aiCapabilities.ts: the settings view component and the
+ * i18n dictionary key coverage test share the same source of truth, so missing display text for a
+ * newly added source fails tests immediately, preventing raw keys from appearing in the UI.
+ * (ADR 0001: View components do not directly depend on services.)
  */
 export const EMBEDDING_API_TYPES: readonly EmbeddingApiType[] = [
   'openai',
@@ -15,7 +16,7 @@ export const EMBEDDING_API_TYPES: readonly EmbeddingApiType[] = [
   'ollama',
 ];
 
-/** 各来源的默认向量维度，切换来源时预填，必须与 Vectorize 索引维度一致。 */
+/** Default vector dimensions for each source, prefilled when switching sources; must match the Vectorize index dimensions. */
 export const DEFAULT_EMBEDDING_DIMENSIONS: Record<EmbeddingApiType, number> = {
   openai: 1536,
   'openai-compatible': 1536,
@@ -26,8 +27,8 @@ export const DEFAULT_EMBEDDING_DIMENSIONS: Record<EmbeddingApiType, number> = {
 };
 
 /**
- * 展示文案的字典键（app 命名空间）：后缀与 EmbeddingApiType 取值一一对应，
- * 例如 'siliconflow' → 'vectorSearchSettings.api-type-siliconflow'。
+ * Translation dictionary key for display text (app namespace): suffix maps one-to-one with EmbeddingApiType values,
+ * e.g., 'siliconflow' → 'vectorSearchSettings.api-type-siliconflow'.
  */
 export const embeddingApiTypeLabelKey = (apiType: EmbeddingApiType): string =>
   `vectorSearchSettings.api-type-${apiType}`;

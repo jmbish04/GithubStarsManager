@@ -128,12 +128,14 @@ export function getRepoEvidence(idOrFullName: string | number) {
 const MAX_RELEASES_PER_REPO_EVIDENCE = 500;
 
 /**
- * 单个仓库的轻量 Release 行（已按发布时间降序）。
- * Repository Health 需要 Release 数量、最新稳定版本与发布频率，这些都要看完整列表
- * 而不只是最新一条；因此这里单独取一份最小列集合并限制上限。
+ * Lightweight release rows for a single repository (ordered by published date descending).
+ * Repository Health requires release count, latest stable version, and release frequency,
+ * all of which need the full list rather than just the latest entry; thus a minimal set
+ * of columns is fetched with an upper bound.
  *
- * 注意 SQLite 把布尔存成 0/1，这里显式归一化为 boolean，否则 `prerelease === true`
- * 永远为假，预发布会被误当成稳定版（与 getLatestRelease 的 `!!row.prerelease` 一致）。
+ * Note: SQLite stores booleans as 0/1; normalize explicitly to boolean here, otherwise
+ * `prerelease === true` is always false and prereleases would be mistaken for stable
+ * versions (consistent with getLatestRelease's `!!row.prerelease`).
  */
 export function getRepositoryReleases(repoId: number): HealthReleaseInput[] {
   const db = getDb();
@@ -206,7 +208,7 @@ export function getStats() {
   }
 
   const topTags = Object.entries(tagCounts)
-    // 同数标签按名称稳定排序，与 Electron mcpDiscovery.buildStats 保持一致
+    // Stable sort tags with identical counts by name, consistent with Electron mcpDiscovery.buildStats
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, 20)
     .map(([tag, count]) => ({ tag, count }));
@@ -449,8 +451,8 @@ export async function vectorSearch(
       body: JSON.stringify({ vector, topK: workerTopK, threshold }),
     });
   } catch {
-    // 连接失败 / 15s 超时 abort 都走这里；findSimilarRepositories 依赖本函数
-    // 永不 throw，异常必须折叠进声明的 { available: false } 结果
+    // Both connection failures and 15s abort timeouts land here; findSimilarRepositories relies
+    // on this function never throwing, collapsing exceptions into { available: false }
     return {
       available: false,
       reason: 'worker_query_failed',
@@ -471,8 +473,8 @@ export async function vectorSearch(
       reason: 'worker_query_failed',
     };
   }
-  // JSON null / 缺 matches 字段是合法 JSON，res.json() 不会 reject，必须在此
-  // 做结构校验；Electron 端 runVectorSearch 保持相同语义
+  // JSON null or missing matches field is valid JSON, so res.json() will not reject;
+  // structural validation is required here, maintaining identical semantics to Electron's runVectorSearch
   if (!data || !Array.isArray(data.matches)) {
     return { available: false, reason: 'worker_query_failed' };
   }

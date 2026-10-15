@@ -1,47 +1,47 @@
-# 提案：社区插件注册表（静态注册表 + GitHub Release）
+# Proposal: Community Plugin Registry (Static Registry + GitHub Releases)
 
-状态：提案，等待维护者决定托管位置与签名密钥归属
-对应开发守则：§17 Plugin Store / Community Registry、§18 签名 / 撤销 / 更新
+Status: Proposal, awaiting maintainer decisions on hosting location and signing key ownership
+Relevant Guidelines: §17 Plugin Store / Community Registry, §18 Signing / Revocation / Updates
 
-## 2026-10 修订：自助插件源（已实现）与静态注册表的关系
+## 2026-10 Revision: Relationship Between Self-Hosted Sources (Implemented) and Static Registry
 
-在静态注册表之外，客户端现在支持**用户自行维护的插件源**（插件市场）：源是一个 GitHub 仓库目录（如 `https://github.com/owner/repo/tree/main/plugins`），客户端用 contents API 列出目录、逐个子目录探测 `manifest.json` 形成插件列表；安装时用 git trees API 拿到文件清单，逐文件下载到 staging 目录，再复用与本地安装完全相同的校验、拷贝与原子落位流程（`pluginManager.installFromDirectory`）。更新等于先保留数据卸载旧版本再重装；启用始终需要权限确认。
+In addition to static registries, the client now supports **user-maintained plugin sources** (Plugin Marketplace): a source is a GitHub repository directory (such as `https://github.com/owner/repo/tree/main/plugins`). The client lists directories using the GitHub Contents API and probes for `manifest.json` across subdirectories to assemble a plugin catalog. When installing, it fetches the file list using the Git Trees API, downloads files to a staging directory, and executes the identical validation, copy, and atomic placement pipeline used for local installations (`pluginManager.installFromDirectory`). Updating is equivalent to uninstalling the previous version while preserving data, followed by re-installation; activation always requires explicit user permission confirmation.
 
-两者的分工：
+Division of responsibilities:
 
-- **自助插件源**解决"发现与分发"：任何仓库目录都可以成为源，无需经过本仓库的注册表 PR。信任模型与本地安装一致——安装不等于运行，Worker 插件拥有 Node.js 权限，启用前由用户自行判断。
-- **静态注册表**继续作为官方审核通道：`community-plugins.json` / `removed-plugins.json` 的撤销与拉黑记录仍会在插件市场里叠加显示——命中撤销/拉黑版本的市场条目会禁止安装与更新，已安装且被撤销的插件会提示立即停用。
+- **Self-hosted plugin sources** address "discovery and distribution": any repository directory can become a source without requiring a registry PR against this repository. The trust model is identical to local installation: installation does not imply execution; Worker plugins retain Node.js capabilities, requiring user discretion prior to enabling.
+- **Static registry** serves as the official audited channel: revocation and blocklist records in `community-plugins.json` / `removed-plugins.json` overlay marketplace views—marketplace entries matching revoked or blocklisted versions are blocked from installation and updates, and installed plugins that have been revoked prompt immediate deactivation.
 
-实现入口：`electron/plugins/pluginMarketplace.js`（主进程）、`src/components/settings/PluginMarketplaceDialog.tsx`（市场弹窗）、`src/components/settings/PluginSourcesDialog.tsx`（源管理弹窗）。
+Implementation entry points: `electron/plugins/pluginMarketplace.js` (main process), `src/components/settings/PluginMarketplaceDialog.tsx` (marketplace modal), `src/components/settings/PluginSourcesDialog.tsx` (source management modal).
 
-## 为什么是"静态注册表 + 固定版本"
+## Why "Static Registry + Pinned Releases"?
 
-插件系统已有 manifest 校验、权限确认、sandboxed Plugin Pages、capability router 与 CSP，但这不等于所有插件都有运行时隔离：`manifest.main` 会在 Node.js Worker 中执行，可直接访问文件系统、环境变量、网络与进程能力，Host capability router 无法约束这些直接调用。社区分发还缺少**分发、信任与本机代码隔离**这一层。可选路线有三条：
+The plugin system already includes manifest validation, permission prompts, sandboxed Plugin Pages, a capability router, and CSP, but this does not mean all plugins have technical runtime isolation: `manifest.main` runs in a Node.js Worker with direct access to filesystems, environment variables, networks, and process capabilities, which the Host capability router cannot restrict. Community distribution still lacks **distribution, trust, and local code isolation**. Three architectural paths exist:
 
-| 路线 | 问题 |
+| Path | Issues |
 |---|---|
-| 客户端直连插件作者仓库的最新 Release | 版本不可复现；作者随时可以替换同名资产；无法在合并前审查 |
-| 自建服务端索引 | 需要长期运维、宕机即装不了插件；与"客户端可离线工作"的取向冲突 |
-| **静态 JSON 注册表 + 固定 Release URL + SHA-256** | 每次变更都走一次可审查的 PR；客户端只认注册表里写死的版本与哈希；出问题可以拉黑 |
+| Client connects directly to latest Release of plugin author repo | Non-reproducible releases; author can replace assets with identical names; cannot review before merging |
+| Self-hosted server registry API | Requires ongoing operations; server outage breaks installations; conflicts with offline-first client philosophy |
+| **Static JSON Registry + Pinned Release URLs + SHA-256** | Every change requires a reviewable PR; client respects only pinned versions and hashes in registry; straightforward revocation |
 
-选第三条：把"信任"收敛成一次人工审核 + 一串不可变的哈希，客户端不猜、不自动跟随最新版。
+We choose the third path: converging "trust" into a human review and an immutable hash. The client never guesses or tracks moving latest tags.
 
-## 目录结构
+## Directory Layout
 
 ```
 registry/
-├─ community-plugins.json        已被接受的插件版本
-├─ removed-plugins.json          被撤销 / 拉黑的插件（含原因）
+├─ community-plugins.json        Accepted plugin versions
+├─ removed-plugins.json          Revoked / blocked plugins (with rationale)
 └─ schemas/
    ├─ community-plugin.schema.json
    └─ removed-plugin.schema.json
 ```
 
-暂定放在主仓库。另一个选项是单独开一个 `githubstarsmanager-plugins` 仓库，好处是注册表的提交历史不会污染主仓库、审核权限可以单独授予；代价是多一个仓库要跟踪。**这一条需要维护者定。**
+Tentatively located in the main repository. Another option is a dedicated `githubstarsmanager-plugins` repository, which prevents registry commit history from polluting the main repo and allows independent review permissions, at the cost of managing an additional repo. **This requires a maintainer decision.**
 
-## 记录字段
+## Record Fields
 
-`community-plugins.json` 是数组，每个条目对应"一个插件的一个版本"：
+`community-plugins.json` is an array where each entry represents "one version of one plugin":
 
 ```json
 {
@@ -53,7 +53,7 @@ registry/
   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "permissions": ["repositories:read", "storage"],
   "networkTargets": [],
-  "dataUsage": "只读取本地已收藏仓库的元数据用于计算健康分，不外发。",
+  "dataUsage": "Only reads metadata of locally starred repositories to calculate health scores; does not exfiltrate data.",
   "review": {
     "status": "approved",
     "date": "2026-09-21",
@@ -62,87 +62,87 @@ registry/
 }
 ```
 
-- `id` 必须与 manifest 里的一致；同一 `id` 可以有多个版本条目，客户端取**它自己支持的最高版本**（由 `apiVersion` 决定），不取"最新"。
-- `(id, version)` 组合必须唯一；同一插件可以登记多个不同版本。
-- `sha256` 是 zip 包的哈希。客户端下载后必须校验，校验失败直接丢弃并提示。
-- `networkTargets` 必须与 `permissions` 中的 `network:<domain>` 完全一致；客户端网络权限提示只使用通过 CI 核对的这份声明。
-- `review.commit` 是被审核的提交。人工审核对象必须是 `releaseUrl` 指向、重新计算后 SHA-256 等于 `sha256` 的同一份 ZIP，而不只是源码工作树；Release tag 或可验证的构建证明必须把该 ZIP 绑定到 `review.commit`。
+- `id` must match the manifest; the same `id` may have multiple version entries; the client selects **the highest version it supports** (governed by `apiVersion`), not blindly "latest".
+- The `(id, version)` combination must be unique; a plugin may register multiple distinct versions.
+- `sha256` is the hash of the zip archive. The client must verify after downloading, discarding and reporting an error on mismatch.
+- `networkTargets` must match `permissions` with `network:<domain>` exactly; client permission warnings use only declarations verified via CI.
+- `review.commit` is the commit audited. Manual review must audit the exact ZIP pointed to by `releaseUrl` matching `sha256`, rather than just the source tree; Release tags or verifiable build attestations must bind the ZIP to `review.commit`.
 
-`removed-plugins.json`：
+`removed-plugins.json`:
 
 ```json
 {
   "id": "com.example.bad-actor",
   "versions": ["1.0.0", "1.0.1"],
-  "reason": "1.0.1 在未声明的情况下向第三方域名发送了仓库列表。",
+  "reason": "1.0.1 sent repository lists to third-party domains without declaring it.",
   "date": "2026-09-21",
   "action": "revoke"
 }
 ```
 
-`action` 取 `revoke` 或 `block`。`revoke` 对匹配版本立即停用，并禁止安装、更新或回滚到该版本；`block` 禁止新的安装、更新与回滚，但不强制停用已安装版本。客户端在列出版本、安装、更新和回滚前都必须检查移除记录。若异常数据同时命中多条记录，`revoke` 优先；CI 会拒绝重叠记录，包括同版本的 `block`/`revoke` 冲突以及 `versions: []` 与具体版本记录并存。
+`action` is either `revoke` or `block`. `revoke` immediately deactivates matching versions and prohibits installation, updates, or rollback to that version; `block` prevents new installations, updates, and rollbacks, but does not forcibly deactivate already installed versions. Clients must check removal records before listing, installing, updating, and rolling back. If multiple conflicting records match, `revoke` takes precedence; CI rejects overlapping records, including `block`/`revoke` conflicts for the same version and coexisting `versions: []` with specific version records.
 
-## 提交流程
+## Submission Workflow
 
 ```
-插件作者仓库
-  → 向本仓库提 PR（只改 registry/community-plugins.json）
-  → CI 自动扫描（见下）
-  → 维护者人工审核（见下）
-  → 合并
-  → 客户端按固定版本 + SHA-256 安装
+Plugin Author Repository
+  → Submit PR to this repo (modifying only registry/community-plugins.json)
+  → Automated CI Scanning (see below)
+  → Maintainer Manual Review (see below)
+  → Merge PR
+  → Clients install via pinned version + SHA-256
 ```
 
-插件作者**不直接改代码**，只提交一个指向自己 Release 的条目。
+Plugin authors **never modify codebase files directly**, submitting only an entry pointing to their own Release.
 
-## CI 自动扫描清单
+## CI Automated Scanning Checklist
 
-PR 里出现新条目时，CI 需要把对应 zip 拉下来做静态检查：
+When a new entry appears in a PR, CI fetches the corresponding zip and performs static checks:
 
-- manifest 结构合法、`(id, version)` 组合唯一、`id` 与注册表条目一致、`apiVersion` 在支持范围内
-- 重新计算下载 ZIP 的 SHA-256 并与 `sha256` 比较；核对资产属于 `source` 仓库，并通过 Release tag commit 或可验证构建证明绑定到 `review.commit`
-- `networkTargets` 与所有 `network:<domain>` 权限完全一致，不能一边声明联网权限、一边给出空目标列表
-- `removed-plugins.json` 不含版本重叠、`block`/`revoke` 冲突或全版本记录与具体版本记录的歧义组合
-- 文件数量与解压后体积上限
-- **zip slip**：条目路径不得逃出解压根目录
-- **symlink**：包内不允许符号链接
-- 依赖漏洞扫描
-- 硬编码密钥 / token 扫描
-- `eval`、`new Function`、动态代码加载
-- `child_process`、shell 调用、进程执行
-- install scripts（`preinstall` / `postinstall`）
-- 未声明的网络访问（与 `networkTargets` 对照）
-- 遥测 / 上报行为
-- 自更新逻辑（插件不得自行更新）
-- 代码混淆迹象
-- 远程资源引用（`http(s)://` 字面量）
-- 页面 CSP 与 message bridge 的用法是否越界
-- 第一阶段拒绝包含 `manifest.main` 的社区插件。未来只有在提供有效运行时隔离，并向用户明确披露本机代码权限后，才允许这类插件进入社区注册表
+- Manifest structure is valid, `(id, version)` combination is unique, `id` matches registry entry, `apiVersion` is within supported range.
+- Re-calculate SHA-256 of downloaded ZIP and compare with `sha256`; verify asset belongs to `source` repository and binds to `review.commit` via Release tag or verifiable build attestation.
+- `networkTargets` strictly matches all `network:<domain>` permissions; declaring network permissions with an empty target list is rejected.
+- `removed-plugins.json` contains no version overlaps, `block`/`revoke` conflicts, or ambiguous combinations of all-version and specific-version records.
+- Enforce file count and uncompressed payload size caps.
+- **Zip slip**: Entry paths must not escape extraction root directory.
+- **Symlinks**: No symbolic links permitted within the archive.
+- Dependency vulnerability scans.
+- Hardcoded secrets / token scanning.
+- Detection of `eval`, `new Function`, or dynamic code evaluation.
+- `child_process`, shell invocations, or process execution.
+- Install scripts (`preinstall` / `postinstall`).
+- Undeclared network access (compared against `networkTargets`).
+- Telemetry / tracking behaviors.
+- Self-update logic (plugins must not self-update).
+- Signs of code obfuscation.
+- Remote resource references (`http(s)://` literals).
+- Audit page CSP and message bridge usage boundaries.
+- Phase 1 rejects community plugins declaring `manifest.main`. Only after effective runtime isolation and explicit user disclosure of local code execution are provided in the future will such plugins be admitted to the community registry.
 
-扫描结果作为 PR 评论贴出，人工审核在此基础上做判断——CI 只回答"有没有明显问题"，不回答"这个插件值得信任吗"。
+Scan outputs are posted as PR comments to assist manual review—CI determines "are there obvious defects", not "is this plugin trustworthy".
 
-## 人工审核清单
+## Manual Review Checklist
 
-- 描述与行为一致（README 说的和代码做的是同一件事）
-- 权限是必要的（读权限能解决的不给写权限）
-- 联网域名合理且与 `networkTargets` 一致
-- 数据用途清晰，不上传私有仓库信息、不上传浏览历史
-- 停用后没有后台任务残留
-- UI 不冒充宿主（不伪造系统提示、不伪装成官方设置页）
-- License 合规
-- 审核经过 SHA-256 复算的发布 ZIP 本身，而不是只审源码仓库的工作树
-- **每个新版本都重新检查**；权限增加时，客户端必须重新向用户确认
+- Description aligns with behavior (README claims match implementation).
+- Permissions are strictly necessary (read permissions used where write is not needed).
+- Network domains are legitimate and align with `networkTargets`.
+- Data usage is clear; does not exfiltrate private repository data or browsing history.
+- No persistent background tasks remain after deactivation.
+- UI does not impersonate the host (no fake system prompts or spoofed official settings panels).
+- License compliance.
+- Audit the release ZIP directly after SHA-256 verification, rather than merely reviewing the source working tree.
+- **Every new version must be re-reviewed**; permission increases require explicit client re-confirmation by users.
 
-## 客户端行为
+## Client Behavior
 
-- 只从注册表安装**固定版本**并校验 SHA-256，校验失败不安装。
-- 已安装插件启动时对照注册表：有更高兼容版本 → 提示更新（含 changelog 与**权限差异**），由用户手动确认。**第一阶段不做自动更新。**
-- 在版本选择、安装、更新和回滚前检查 `removed-plugins.json`：`revoke` 停用匹配的已安装版本并阻止后续使用，`block` 只阻止新的安装、更新和回滚；异常重叠时 `revoke` 优先。
-- 保留回滚所需的元数据（原版本、原哈希），但"回滚"同样由用户触发。
+- Only installs **pinned versions** from the registry and verifies SHA-256, aborting on mismatch.
+- Installed plugins inspect registry on startup: higher compatible version available → prompts update (displaying changelog and **permission diffs**), confirmed manually by user. **No automatic updates in Phase 1.**
+- Inspects `removed-plugins.json` prior to version selection, installation, updates, and rollback: `revoke` deactivates matching installed versions and prevents subsequent use; `block` only blocks new installs, updates, and rollbacks; `revoke` takes precedence on conflicts.
+- Retains metadata necessary for rollbacks (previous version, previous hash), though rollbacks remain strictly user-initiated.
 
-## 未决问题
+## Open Questions
 
-1. 注册表放主仓库还是单独仓库？
-2. 注册表本身要不要签名？如果要，密钥由谁持有、怎么轮换？在没有签名的情况下，哈希 + 审核记录已经能挡住"作者偷偷换包"，但挡不住"注册表仓库被改"。第一版建议先不引入签名，等有真实用户量再补。
-3. 谁有审核权？如果只有维护者一人，插件生态的扩张速度会被这个瓶颈限制，需要提前约定"低风险权限可以快速合并"的分级。
-4. 插件名与 id 的抢注规则（先到先得？与已存在插件相似度检查？）。
+1. Should the registry reside in the main repository or a dedicated repository?
+2. Should the registry file itself be cryptographically signed? If so, who holds the private key and how is key rotation handled? Without registry signatures, hashes + review records prevent authors from swapping packages, but do not prevent malicious commits to the registry repo. Version 1 suggests omitting signatures until significant user adoption occurs.
+3. Who holds review authority? If limited to a single maintainer, ecosystem growth will be bottlenecked; pre-agreed tiered review criteria ("low-risk permissions can merge quickly") should be established.
+4. Squatting rules for plugin names and IDs (first-come-first-served? similarity checks against existing plugins?).

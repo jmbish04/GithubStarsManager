@@ -13,15 +13,15 @@ function parseJsonColumn(value: unknown): unknown[] {
 }
 
 /**
- * 把 GitHub 的 license 值统一为 SPDX id 字符串或 null。
- * 接受三种形态：GitHub 原始对象 `{ key, spdx_id, name, url }`、已规范化的字符串、null。
- * 优先取 spdx_id（如 "MIT"），无则回退 key（如 "Other" → "NOASSERTION" 由前端归一化处理）。
+ * Unify GitHub license values into an SPDX id string or null.
+ * Accepts three forms: raw GitHub object `{ key, spdx_id, name, url }`, normalized string, or null.
+ * Prefers spdx_id (e.g. "MIT"), falling back to key (e.g. "Other" -> "NOASSERTION", handled by frontend normalization).
  */
 function toLicenseSpdxId(license: unknown): string | null {
   if (license == null) return null;
   if (typeof license === 'string') return license.trim() || null;
   if (typeof license === 'object') {
-    // 运行时校验：malformed 备份/第三方源可能把 spdx_id/key 写成非字符串
+    // Runtime validation: malformed backups or third-party sources may supply non-string spdx_id/key
     const l = license as { spdx_id?: unknown; key?: unknown };
     const spdx = typeof l.spdx_id === 'string' ? l.spdx_id.trim() : '';
     const key = typeof l.key === 'string' ? l.key.trim() : '';
@@ -111,7 +111,7 @@ router.put('/api/repositories', (req, res) => {
       return;
     }
 
-    // 验证每个仓库的ID
+    // Validate ID for each repository
     for (const repo of repositories) {
       if (!repo.id || typeof repo.id !== 'number' || repo.id <= 0) {
         res.status(400).json({ error: 'Each repository must have a valid positive integer id', code: 'INVALID_REPOSITORY_ID' });
@@ -138,7 +138,7 @@ router.put('/api/repositories', (req, res) => {
         res.status(400).json({ error: 'Each repository must have a valid non-negative stargazers_count', code: 'INVALID_STARGAZERS_COUNT' });
         return;
       }
-      // 校验 vector_indexed_at：允许 null/undefined 或合法 ISO 8601 字符串
+      // Validate vector_indexed_at: allow null/undefined or valid ISO 8601 string
       if (repo.vector_indexed_at !== null && repo.vector_indexed_at !== undefined && repo.vector_indexed_at !== '') {
         if (typeof repo.vector_indexed_at !== 'string' || isNaN(Date.parse(repo.vector_indexed_at))) {
           res.status(400).json({ error: 'vector_indexed_at must be an ISO 8601 string or null', code: 'INVALID_VECTOR_INDEXED_AT' });
@@ -182,13 +182,13 @@ router.put('/api/repositories', (req, res) => {
         last_edited = CASE WHEN excluded.last_edited IS NOT NULL AND excluded.last_edited != '' THEN excluded.last_edited ELSE repositories.last_edited END,
         subscribed_to_releases = excluded.subscribed_to_releases,
         vector_indexed_at = excluded.vector_indexed_at,
-        -- vector_indexed_license 是「上次向量索引时采用的 license」的照实记录，
-        -- 仅由索引流程（PATCH）写入；批量 upsert/sync 一律保留已存储值，避免被
-        -- 同步流写入的当前 license 覆盖而破坏增量变更检测。
+        -- vector_indexed_license records the exact license used during the last vector indexing;
+        -- written solely by the indexing workflow (PATCH). Bulk upsert/sync preserves existing values
+        -- to prevent current license values written by sync streams from breaking incremental change detection.
         vector_indexed_license = COALESCE(repositories.vector_indexed_license, excluded.vector_indexed_license),
-        -- 区分「省略 license 字段」与「显式提供 null/对象」：
-        -- 旧客户端/旧备份不含 license 字段时（@licenseProvided = 0）保留已存储值；
-        -- 显式提供时（@licenseProvided = 1）采用归一化后的 excluded.license（含 null 清空）。
+        -- Distinguish between "omitted license field" and "explicitly provided null/object":
+        -- When older clients/backups omit the license field (@licenseProvided = 0), preserve existing value;
+        -- When explicitly provided (@licenseProvided = 1), use normalized excluded.license (including null clear).
         license = CASE WHEN @licenseProvided IS 1 THEN excluded.license ELSE repositories.license END
     `);
 
@@ -221,7 +221,7 @@ router.put('/api/repositories', (req, res) => {
       let count = 0;
       for (const repo of repositories) {
         const owner = repo.owner as { login?: string; avatar_url?: string } | undefined;
-        // 仅当 payload 显式提供 license 字段时才覆盖已存储值；省略（旧客户端/旧备份）则保留。
+        // Overwrite stored value only when payload explicitly includes the license field; preserve if omitted (older clients/backups).
         const licenseProvided = Object.prototype.hasOwnProperty.call(repo, 'license') ? 1 : 0;
         stmt.run(
           repo.id, repo.name, repo.full_name, repo.description ?? null,
@@ -240,8 +240,8 @@ router.put('/api/repositories', (req, res) => {
           (repo.subscribed_to_releases === true || repo.subscribed_to_releases === 1) ? 1 : 0,
           repo.vector_indexed_at ?? null,
           toLicenseSpdxId(repo.license),
-          // 备份中 vector_indexed_license 已是规范化的 SPDX id 字符串或 null；
-          // 非 string 一律清空，避免奇怪类型破坏增量谓词的字符串比较。
+          // In backups, vector_indexed_license is already a normalized SPDX id string or null;
+          // clear non-strings to prevent unexpected types from breaking string comparisons in incremental predicates.
           typeof repo.vector_indexed_license === 'string' ? repo.vector_indexed_license || null : null,
           { licenseProvided }
         );
@@ -277,17 +277,17 @@ router.patch('/api/repositories/:id', (req, res) => {
       category_locked: (v) => (v === true || v === 1) ? 1 : 0,
       last_edited: (v) => v,
       subscribed_to_releases: (v) => (v === true || v === 1) ? 1 : 0,
-      // 规范化：null/undefined/空字符串 → null；仅接受字符串（ISO 时间戳）
+      // Normalization: null/undefined/empty string → null; accepts only strings (ISO timestamp)
       vector_indexed_at: (v) =>
         (v === null || v === undefined || v === '') ? null : v,
-      // vector_indexed_license：规范化为 SPDX id 字符串或 null；非字符串一律清空。
+      // vector_indexed_license: normalize to SPDX id string or null; clear all non-strings.
       vector_indexed_license: (v) =>
         (v === null || v === undefined || v === '' || typeof v !== 'string') ? null : v,
       description: (v) => v,
       name: (v) => v,
     };
 
-    // 校验 vector_indexed_at 类型：只允许 null 或 ISO 8601 字符串，拒绝数字/布尔/对象/非日期字符串
+    // Validate vector_indexed_at type: allow only null or ISO 8601 string, rejecting numbers/booleans/objects/non-date strings
     if ('vector_indexed_at' in updates) {
       const v = updates.vector_indexed_at;
       if (v !== null && v !== undefined && v !== '' && (typeof v !== 'string' || isNaN(Date.parse(v)))) {

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * 新语言字典初稿生成：以 zh 为源，经 Google 翻译免费端点产出 MT 初稿。
- * - {{placeholder}} 保真校验：缺失/错位时回退 en，再回退 zh
- * - 纯 ASCII 文案直接沿用 zh（多为产品名词）
- * - 每个命名空间完成即落盘，可断点续跑（已有译文的语言文件整体重译）
- * 用法：node scripts/codemods/generate-translations.mjs [--langs=ja,es,...] [--ns=common,login]
+ * Generates first-draft dictionaries for new languages: uses zh as the source and produces a machine-translated draft via the free Google Translate endpoint.
+ * - {{placeholder}} fidelity check: if missing or misplaced, fall back to en, then to zh
+ * - Pure-ASCII strings reuse zh as-is (mostly product names)
+ * - Each namespace is written to disk as soon as it finishes, so runs can resume (language files that already have translations are retranslated in full)
+ * Usage: node scripts/codemods/generate-translations.mjs [--langs=ja,es,...] [--ns=common,login]
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -41,7 +41,7 @@ async function translate(text, target, attempt = 1) {
   }
 }
 
-/** 占位符保护与校验 */
+/** Placeholder protection and validation */
 function protectPlaceholders(text) {
   const names = [];
   const protectedText = text.replace(/\{\{(\w+)\}\}/g, (_, name) => {
@@ -53,7 +53,7 @@ function protectPlaceholders(text) {
 
 function restorePlaceholders(translated, names, fallback) {
   if (!translated) return fallback;
-  // 索引集合必须与占位符完全一致（0..n-1 顺序无缺漏），否则整条回退
+  // The index set must match the placeholders exactly (0..n-1 in order, none missing); otherwise the whole entry falls back
   const indices = [...translated.matchAll(/\{\{(\d+)\}\}/g)].map((match) => Number(match[1])).sort((a, b) => a - b);
   const invalid = indices.length !== names.length || indices.some((value, index) => value !== index);
   if (invalid) return fallback;
@@ -96,7 +96,7 @@ async function main() {
             out[component][key] = enValue;
             continue;
           }
-          // --fill：已是译文（≠ en 或 zh 本身就是 en 相同值）的跳过
+          // --fill: skip entries that are already translated (differ from en, or where zh itself equals en)
           if (FILL && typeof currentValue === 'string' && currentValue !== '' && currentValue !== enValue) {
             out[component][key] = currentValue;
             continue;

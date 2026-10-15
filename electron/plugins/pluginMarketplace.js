@@ -10,26 +10,27 @@ const { loadPluginRegistry } = require('./pluginRegistryFeed');
 const { sanitizeText } = require('./pluginLogger');
 
 /**
- * 插件市场（自助插件源）。
+ * Plugin marketplace (self-hosted plugin sources).
  *
- * 用户把"GitHub 仓库目录"添加为插件源；客户端用 GitHub contents API 列出目录，
- * 逐个子目录探测 manifest.json（raw.githubusercontent，只读）形成插件目录。
- * 安装时用 git trees API 拿到该插件目录的完整文件清单，逐文件下载到 staging
- * 目录，再复用 pluginManager.installFromDirectory 完成校验、拷贝与原子落位。
- * 更新 = 先（保留数据）卸载旧版本，再安装新下载的版本。
+ * Users add GitHub repository directories as plugin sources. The client lists directories via
+ * GitHub contents API and probes each subdirectory for manifest.json (raw.githubusercontent, read-only)
+ * to build the catalog. During installation, it fetches the full file list via git trees API, downloads
+ * files into staging, and invokes pluginManager.installFromDirectory for validation, copying, and atomic placement.
+ * Update = uninstall old version (retaining data) and install the newly downloaded version.
  *
- * 本模块不做信任背书：来源插件与本地安装的插件走完全相同的 manifest 校验、
- * 权限确认与启用流程；官方静态注册表的撤销/拉黑对照在渲染层另行叠加。
+ * This module does not endorse third-party plugins: source plugins follow the exact same manifest validation,
+ * permission confirmation, and enablement flows as locally installed plugins. Official static registry
+ * revocations and blocks are layered on separately by the renderer.
  */
 
-/** 初始化种子源：本仓库自带的示例插件目录。 */
+/** Seed source for initialization: sample plugins directory included in this repository. */
 const DEFAULT_PLUGIN_SOURCE_URL = 'https://github.com/AmintaCCCP/GithubStarsManager/tree/main/examples/plugins';
 
 const MAX_LISTING_BYTES = 4 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 15_000;
-/** 单个源目录下的子目录探测上限；超出部分截断并提示，防止异常大目录拖垮遍历。 */
+/** Maximum subdirectory probes per source; truncated with warning to prevent runaway listings. */
 const MAX_SOURCE_DIRECTORIES = 200;
-/** 与 pluginManager 的安装限额保持一致。 */
+/** Kept in sync with pluginManager installation limits. */
 const MAX_PLUGIN_PACKAGE_FILES = 2000;
 const MAX_PLUGIN_PACKAGE_BYTES = 50 * 1024 * 1024;
 const PROBE_CONCURRENCY = 4;
@@ -39,7 +40,7 @@ const GITHUB_HOST = 'github.com';
 const RAW_HOST = 'raw.githubusercontent.com';
 const API_HOST = 'api.github.com';
 
-// Windows 保留设备名与以点/空格结尾的文件名在 Windows 卷上会出问题；git 允许它们，所以下载前要拦。
+// Windows reserved device names and filenames ending in dot/space cause issues on Windows volumes; git allows them, so reject before download.
 const WINDOWS_RESERVED_RE = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/i;
 
 function isInside(parent, candidate) {
@@ -58,7 +59,7 @@ function decodeSegment(segment) {
 function segmentIsSafe(segment) {
   if (segment.length === 0) return false;
   if (segment === '.' || segment === '..') return false;
-  // 拒绝路径分隔符与控制字符；其余字符交给 GitHub 端校验。
+  // Reject path separators and control characters; remaining characters are validated by GitHub.
   for (const character of segment) {
     const code = character.codePointAt(0);
     if (code < 0x20 || code === 0x7f) return false;
@@ -68,10 +69,11 @@ function segmentIsSafe(segment) {
 }
 
 /**
- * 解析插件源 URL：https://github.com/{owner}/{repo}[/tree/{ref}[/path]]。
+ * Parses plugin source URL: https://github.com/{owner}/{repo}[/tree/{ref}[/path]].
  *
- * GitHub 的 tag 可以含斜杠，与目录路径在 URL 上无法区分；这里按 GitHub 网页的
- * 同样规则处理：tree 后的第一段是 ref，其余是目录路径。带斜杠的 tag 不支持。
+ * GitHub tags may contain slashes, making them indistinguishable from directory paths in URLs.
+ * We follow GitHub web conventions: the first segment after /tree/ is the ref, and remaining segments
+ * form the directory path. Tags containing slashes are not supported.
  */
 function parseSourceUrl(input) {
   if (typeof input !== 'string' || input.length === 0 || input.length > 2048) return null;
@@ -155,7 +157,7 @@ function mapLimit(items, limit, mapper) {
   });
 }
 
-/** 读响应体，流式累计字节数，超过上限立即中止。 */
+/** Reads response body with streaming byte cap, aborting immediately when limit is exceeded. */
 async function readBodyCap(response, controller, maxBytes) {
   const contentLength = Number(response.headers?.get?.('content-length'));
   if (Number.isFinite(contentLength) && contentLength > maxBytes) {
@@ -191,9 +193,9 @@ async function readBodyCap(response, controller, maxBytes) {
 }
 
 /**
- * 统一的取数通道：超时、HTTP 状态检查、限流识别、字节上限。
- * 返回 { ok: true, bytes } 或 { ok: false, error: { code, message, status? } }，
- * code 是中性错误（HTTP_ERROR/TIMEOUT/UNREACHABLE/TOO_LARGE/RATE_LIMITED/READ_FAILED），由调用方映射为具体语义。
+ * Unified fetch channel: timeouts, HTTP status checks, rate limit detection, and byte limits.
+ * Returns { ok: true, bytes } or { ok: false, error: { code, message, status? } },
+ * where code is a neutral error (HTTP_ERROR/TIMEOUT/UNREACHABLE/TOO_LARGE/RATE_LIMITED/READ_FAILED) mapped by callers.
  */
 async function fetchCapped(fetchImpl, url, { headers = {}, maxBytes, requestTimeoutMs }) {
   if (typeof fetchImpl !== 'function') {
@@ -252,7 +254,7 @@ function githubApiHeaders() {
   };
 }
 
-/** 把路径（可能含多段，如 "plugins/fixture/manifest.json"）编码成安全的 URL 路径，保留段分隔符。 */
+/** Encodes a path (possibly multi-segment, e.g. "plugins/fixture/manifest.json") into a safe URL path, preserving slashes. */
 function encodePath(...pathParts) {
   return pathParts
     .filter((part) => part !== '')
@@ -281,7 +283,7 @@ function createPluginMarketplace({
 
   const stateStore = createMarketplaceStateStore(statePath);
   const loaded = stateStore.load();
-  // 区分"还没初始化"与"用户清空了所有源"：只有前者才种入默认源。
+  // Distinguish uninitialized from user clearing all sources: seed default source only on first run.
   const firstRun = loaded === null;
   let sources = loaded !== null ? loaded.sources : [];
   if (firstRun && seedDefaultSource) {
@@ -308,8 +310,8 @@ function createPluginMarketplace({
   }
 
   /**
-   * 源的去重键。URL 里没写 ref 时用已缓存的默认分支参与比较，
-   * 避免"显式写 main"与"省略 ref 解析到 main"被当成两个源。
+   * Deduplication key for sources. When ref is omitted in URL, compares using cached default branch
+   * so explicit "main" and implicit "main" are recognized as the same source.
    */
   function canonicalKey(parsed) {
     const ref = parsed.ref ?? defaultBranches.get(`${parsed.owner}/${parsed.repo}`) ?? '';
@@ -333,7 +335,7 @@ function createPluginMarketplace({
     };
   }
 
-  /** 源 URL 没写 ref 时，取仓库的默认分支并缓存。 */
+  /** Fetches and caches the repository default branch when ref is omitted from the source URL. */
   async function resolveDefaultBranch(parsed) {
     if (parsed.ref) return { ok: true, ref: parsed.ref };
     const repoKey = `${parsed.owner}/${parsed.repo}`;
@@ -362,11 +364,10 @@ function createPluginMarketplace({
   }
 
   /**
-   * 把 ref 名解析成不可变的提交 SHA。分支可能随时推进：若直接用 ref 名发请求，
-   * 同一次遍历/安装里的目录枚举与文件下载可能来自不同提交；绑定 SHA 后该次
-   * 操作内的 tree API、contents API 与所有 raw 下载都钉在同一个提交上。
-   * 注意 SHA 不持久缓存——每次刷新/安装都重新解析，否则分支推进后用户永远
-   * 看不到新版本。
+   * Resolves a ref name to an immutable commit SHA. Branches advance over time: requesting by ref
+   * directly risks directory enumeration and file downloads pulling from different commits. Pinning
+   * to SHA ensures git trees, contents API, and raw downloads target the exact same commit.
+   * SHA is not cached persistently: each refresh/install re-resolves so branch updates are visible.
    */
   async function resolveSourceCommit(parsed) {
     const ref = await resolveDefaultBranch(parsed);
@@ -393,7 +394,7 @@ function createPluginMarketplace({
     return { ok: true, sha };
   }
 
-  /** 遍历一个源：列出目录，逐个子目录探测 manifest.json。 */
+  /** Enumerates a source: lists directories and probes each subdirectory for manifest.json. */
   async function listSourcePlugins(source) {
     const parsed = parseSourceUrl(source.url);
     if (!parsed) {
@@ -449,7 +450,7 @@ function createPluginMarketplace({
         maxBytes: MAX_MANIFEST_BYTES,
         requestTimeoutMs,
       });
-      // 没有 manifest.json 的子目录不是插件：静默跳过，其余失败记为告警。
+      // Subdirectories lacking manifest.json are not plugins: silently skip; record other failures as warnings.
       if (!response.ok) {
         if (response.error.status === 404) return { skipped: true };
         return { skipped: false, warning: `${directory}: ${prefixedError('SOURCE_MANIFEST', response.error).message}` };
@@ -489,15 +490,15 @@ function createPluginMarketplace({
   }
 
   function publishCatalog(sourceId, result) {
-    // 遍历期间源可能已被删除：落库前确认它还在。
+    // The source may have been removed while listing: verify it still exists before publishing.
     if (!findSource(sourceId)) return;
     catalog.set(sourceId, result);
   }
 
   /**
-   * 遍历一个源并发布目录。同一源的去重与过期防护都在这里做：
-   * - 同一源已有遍历在途（含 URL 变更前发起的那次）时复用它；
-   * - 遍历期间源被删除或 URL 被编辑，过期结果直接丢弃。
+   * Refreshes a source and publishes catalog. Deduplicates in-flight calls and guards against stale results:
+   * - Reuses in-flight listing for the same source URL;
+   * - Discards results if source was removed or URL changed during listing.
    */
   function refreshOne(source) {
     const inFlightKey = `${source.id}:${source.url}`;
@@ -609,14 +610,14 @@ function createPluginMarketplace({
     async refresh(options) {
       const sourceId = typeof options?.sourceId === 'string' ? options.sourceId : null;
       const targets = sourceId ? sources.filter((source) => source.id === sourceId) : [...sources];
-      // 同一源的并发遍历在 refreshOne 内去重；这里只等全部目标完成。
+      // Concurrent refreshes for the same source are deduplicated in refreshOne; wait for all targets.
       await Promise.all(targets.map((source) => refreshOne(source)));
       return { success: true, state: getState() };
     },
 
     /**
-     * 从源安装一个插件：下载文件到 staging，再交给 pluginManager 完成安装。
-     * replace 为 true 时（更新场景）先保留数据卸载旧版本。
+     * Installs a plugin from source: downloads files to staging, then delegates to pluginManager.
+     * When replace is true (update flow), uninstalls the previous version while preserving data.
      */
     install(request) {
       const sourceId = typeof request?.sourceId === 'string' ? request.sourceId : '';
@@ -624,13 +625,13 @@ function createPluginMarketplace({
       const replace = request?.replace === true;
       const expectedPluginId = typeof request?.expectedPluginId === 'string' ? request.expectedPluginId.trim() : '';
       const expectedVersion = typeof request?.expectedVersion === 'string' ? request.expectedVersion.trim() : '';
-      // 安装与更新会卸载/重装插件，串行化避免并发安装互相踩踏。
+      // Installation and updates uninstall/reinstall plugins; serialize to avoid concurrency races.
       const run = () => installInner(sourceId, directoryName, replace, expectedPluginId, expectedVersion);
       const result = installChain.then(run, run);
       installChain = result.then(() => undefined, () => undefined);
       return result;
     },
-    /** 测试辅助：把内存状态重置为指定源列表。 */
+    /** Test helper: resets in-memory sources to the specified list. */
     __setSourcesForTests(next) {
       sources = normalizeState({ version: 1, sources: next }).sources;
     },
@@ -715,7 +716,7 @@ function createPluginMarketplace({
       return undefined;
     });
 
-    // 以实际下载的 manifest 为准，拿到插件 id 供更新流程卸载旧版本。
+    // Rely on the actually downloaded manifest to obtain plugin id for uninstallation in update flow.
     const manifestPath = path.join(stagingDirectory, 'manifest.json');
     let manifest;
     try {
@@ -731,8 +732,8 @@ function createPluginMarketplace({
   }
 
   /**
-   * 撤销/拉黑表的匹配：versions 为空表示全部版本；多条命中时 revoke 优先、
-   * 日期新的优先（与渲染层 pluginRegistryStatus 的判定保持一致）。
+   * Matches against revocation/block list: empty versions array means all versions.
+   * On multiple matches, revoke takes priority over block, and newer dates take priority (matching renderer logic).
    */
   function findRemovalRecord(removed, pluginId, version) {
     const matches = (removed || []).filter((record) =>
@@ -748,8 +749,8 @@ function createPluginMarketplace({
   }
 
   /**
-   * 官方静态注册表的撤销/拉黑终审：在主进程执行，不依赖渲染层的提示。
-   * 注册表暂时取不到时放行（与"对照提示"的定位一致；本地安装的信任模型不变）。
+   * Final verification against official static registry revocation/block list in main process, independent of renderer.
+   * Passes if registry is temporarily unreachable (matching informational nature and local install trust model).
    */
   async function checkOfficialRemoval({ id, version }) {
     const registry = await loadPluginRegistry({ fetchImpl });
@@ -763,8 +764,8 @@ function createPluginMarketplace({
   }
 
   async function installInner(sourceId, directoryName, replace, expectedPluginId, expectedVersion) {
-    // 请求必须带上用户在界面看到的插件身份——否则无法把下载内容与点击的条目
-    // 对应起来，install 可能装上、甚至覆盖替换掉别的插件。
+    // Request must include the plugin identity displayed to the user; otherwise downloaded files cannot
+    // be verified against the clicked entry, risking installing or replacing the wrong plugin.
     if (!expectedPluginId || !expectedVersion) {
       return { success: false, error: { code: 'MARKETPLACE_IDENTITY_REQUIRED', message: 'The install request must carry the plugin identity shown to the user' } };
     }
@@ -790,23 +791,23 @@ function createPluginMarketplace({
     try {
       const downloaded = await downloadPackageFiles(parsed, commit.sha, directoryName, parsed.dirPath, stagingDirectory);
       if (!downloaded.ok) return { success: false, error: downloaded.error };
-      // 下载耗时期间源可能已被删除：落盘前再确认一次，避免"幽灵源"的插件进入本地列表。
+      // Source may have been removed during download: verify before committing to avoid ghost plugins.
       if (!findSource(sourceId)) {
         return { success: false, error: { code: 'SOURCE_NOT_FOUND', message: 'The plugin source was not found' } };
       }
-      // 下载到的 manifest 必须与界面上的身份一致，防止"点 A 装 B"或"点 v2 装 v3"。
+      // Downloaded manifest must match the expected identity, preventing bait-and-switch installs.
       if (expectedPluginId !== downloaded.pluginId || expectedVersion !== downloaded.manifestVersion) {
         return { success: false, error: { code: 'MARKETPLACE_PLUGIN_CHANGED', message: 'The plugin changed on the source while installing; refresh and try again' } };
       }
-      // 官方撤销/拉黑记录在主进程终审（渲染层的检查只是提示）。
+      // Final verification against official revocation/block list in main process.
       const removal = await checkOfficialRemoval({ id: downloaded.pluginId, version: downloaded.manifestVersion });
       if (removal) {
         return { success: false, error: removal };
       }
       if (replace) {
-        // 更新：pluginManager 原子换目录，失败自动回滚旧版本与启用状态。
-        // 注意必须 await：try/finally 里的 return <promise> 不会等它 settlement，
-        // 不 await 会导致 finally 提前清掉 staging，把异步替换流程踩塌。
+        // Update: pluginManager atomically replaces directory, rolling back old version and state on failure.
+        // Must await: returning a promise inside try/finally without await would run finally before settlement,
+        // prematurely cleaning up staging and breaking the async replacement.
         return await pluginManager.replaceFromDirectory(stagingDirectory);
       }
       return pluginManager.installFromDirectory(stagingDirectory);

@@ -123,18 +123,20 @@ export const useRepositoryReleaseSheet = (repository: Repository) => {
     rpcDownloadConfig: state.rpcDownloadConfig,
   })));
   const { toast } = useDialog();
-  // RPC 发送与 AI 总结动作委托共享 hook（避免第三份拷贝）；summaries/downloadStates
-  // 的对外形状由 hook 供给，downloadStates 的 key 已版本化为 computeRpcDownloadKey(link)。
+  // RPC sending and AI summary actions are delegated to the shared hook (avoiding a third copy);
+  // summaries/downloadStates external shapes are supplied by the hook, and downloadStates keys
+  // are versioned via computeRpcDownloadKey(link).
   const artifactActions = useReleaseArtifactActions();
-  // 共享 hook 返回的 artifactActions 对象随 summaries/RPC 状态更新换引用——依赖只能
-  // 挂它解构出的引用稳定成员（useCallback 零依赖或仅依赖 store 值），否则每次状态
-  // 更新都会连带换 cancel effect / loadReleases / sendAssetToRpc 的身份。
+  // The artifactActions object returned by the shared hook changes reference when summaries/RPC
+  // state updates — dependencies must only attach to its destructured, reference-stable members
+  // (useCallback with zero dependencies or depending only on store values); otherwise every state
+  // update would change the identity of cancel effect / loadReleases / sendAssetToRpc.
   const { cancelSummaryRequests, reset: resetArtifactStates, sendRpcDownload } = artifactActions;
   const [releases, setReleases] = useState<Release[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // 非 RPC（浏览器）下载路径的行内 sending 状态不属 RPC 委托范围，留在本 hook；
-  // 同样使用版本化 key，与 RPC 状态合并后对外暴露。
+  // Inline sending state for non-RPC (browser) download path is outside RPC delegation scope,
+  // retained in this hook; also uses versioned keys, exposed externally merged with RPC state.
   const [browserDownloadStates, setBrowserDownloadStates] = useState<Record<string, 'idle' | 'sending'>>({});
   const fetchAbortRef = useRef<AbortController | null>(null);
   const t = useT('repositories');
@@ -221,7 +223,7 @@ export const useRepositoryReleaseSheet = (repository: Repository) => {
   }, [resetArtifactStates, fetchAllPages, githubToken, repository, t]);
 
   const sendAssetToRpc = useCallback(async (link: ReleaseDownloadLink) => {
-    // enabled 守卫留在 sheet：ReleaseCard 侧由按钮显隐承担（共享 hook 不重复判断）
+    // The enabled guard stays in sheet: on the ReleaseCard side, button visibility handles it (shared hook does not re-check)
     if (!rpcDownloadConfig.enabled) return;
     await sendRpcDownload(link);
   }, [sendRpcDownload, rpcDownloadConfig.enabled]);

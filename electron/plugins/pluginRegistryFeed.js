@@ -3,13 +3,15 @@
 const { validateList, validateRegistryEntry, validateRemovedEntry } = require('./pluginRegistrySchema');
 
 /**
- * 社区插件注册表的读取（开发守则 §17 / §18）。
+ * Community plugin registry fetching (Development Guidelines §17 / §18).
  *
- * 只做三件事：拿两个固定路径的 JSON、逐条校验、把结果整理成"按 id 分组的版本列表 + 撤销表"。
- * 这里**不下载任何插件包**：安装是下一步，且必须先在客户端校验 sha256。
+ * Performs three tasks: fetches two fixed-path JSON files, validates entries, and formats results
+ * into "version list grouped by id + revocation list".
+ * This module **does not download any plugin packages**: installation is a subsequent step, and
+ * the client must verify sha256 checksums first.
  */
 
-/** 注册表默认位置：主仓库的 registry/ 目录（见 docs/proposals/community-plugin-registry.md）。 */
+/** Default registry location: registry/ directory in the main repo (see docs/proposals/community-plugin-registry.md). */
 const DEFAULT_REGISTRY_BASE_URL = 'https://raw.githubusercontent.com/AmintaCCCP/GithubStarsManager/main/registry';
 
 const MAX_REGISTRY_BYTES = 4 * 1024 * 1024;
@@ -107,10 +109,11 @@ const fetchJson = async (fetchImpl, url, requestTimeoutMs) => {
 };
 
 /**
- * 读取并校验注册表。
+ * Reads and validates the registry.
  *
- * 两个文件都读不到时返回失败；只要有一个读到了就返回部分结果（并把另一个的失败原因带上），
- * 因为"没有撤销表"不应该让整块功能不可用，反之亦然。
+ * Returns failure when neither file can be read; returns partial results if at least one file is read
+ * (attaching the failure reason of the other file), because a missing revocation list should not disable
+ * the entire feature, and vice versa.
  */
 async function loadPluginRegistry({
   fetchImpl,
@@ -137,7 +140,7 @@ async function loadPluginRegistry({
     ? validateList(removedResult.value, validateRemovedEntry)
     : { accepted: [], rejected: [{ code: removedResult.error.code, message: removedResult.error.message }] };
 
-  // 按插件 id 分组：同一 id 的多个版本按语义化版本降序，客户端取"自己支持的最高版本"
+  // Group by plugin id: multiple versions for the same id sorted in descending semver order; client picks highest supported version
   const byId = new Map();
   for (const entry of plugins.accepted) {
     const versions = byId.get(entry.id) ?? [];
@@ -169,7 +172,7 @@ const compareNumericIdentifiers = (left, right) => {
   return a === b ? 0 : (a > b ? 1 : -1);
 };
 
-/** 比较注册表校验过的语义化版本。 */
+/** Compares semver versions validated by the registry schema. */
 function compareVersions(left, right) {
   const parse = (value) => {
     const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(String(value));
@@ -182,11 +185,11 @@ function compareVersions(left, right) {
     const comparison = compareNumericIdentifiers(a.numbers[index], b.numbers[index]);
     if (comparison !== 0) return comparison;
   }
-  // 预发布版本排在正式版本之前
+  // Prereleases precede final releases in semver precedence
   if (a.prerelease === b.prerelease) return 0;
   if (a.prerelease === null) return 1;
   if (b.prerelease === null) return -1;
-  // 按 semver 的规则逐段比较：纯数字段按数值比，否则按字典序
+  // Compare prerelease identifiers per semver spec: numeric identifiers compared numerically, otherwise lexicographically
   return comparePrerelease(a.prerelease, b.prerelease);
 }
 

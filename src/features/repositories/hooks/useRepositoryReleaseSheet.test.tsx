@@ -240,7 +240,7 @@ describe('useRepositoryReleaseSheet', () => {
     mocks.store.rpcDownloadConfig = { enabled: true, host: '', port: 6800, secret: '' };
     mocks.store.aiConfigs = [{ id: 'ai-config', name: 'Test AI', baseUrl: 'https://example.com/v1', apiKey: 'k', model: 'm' }];
     mocks.store.activeAIConfig = 'ai-config';
-    // abort 感知 mock：真实 fetch 在 signal 中止时会以 AbortError 拒绝
+    // Abort-aware mock: real fetch rejects with AbortError when signal is aborted
     let resolveSummary!: (value: string) => void;
     mocks.analyzeReleaseSummary.mockImplementation((_b: string, _m: unknown, signal: AbortSignal) =>
       new Promise<string>((resolve, reject) => {
@@ -273,7 +273,7 @@ describe('useRepositoryReleaseSheet', () => {
     act(() => {
       pending = result.current.generateSummary(sheetRelease);
     });
-    // RPC 状态更新会换掉 artifactActions 对象引用；总结请求不得被取消 effect 误中止
+    // RPC state updates replace the artifactActions object reference; summary requests must not be inadvertently aborted by the cancel effect
     await act(async () => {
       await result.current.sendAssetToRpc({
         id: 'asset-4',

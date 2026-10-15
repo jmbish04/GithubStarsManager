@@ -10,7 +10,7 @@
   </head>
   <body data-theme="dark">
     <main id="app">
-      <!-- 仓库头 -->
+      <!-- Repo header -->
       <header class="head" id="head" hidden>
         <div class="head-main">
           <h1><a id="repo-link" target="_blank" rel="noreferrer noopener"></a></h1>
@@ -32,7 +32,7 @@
       <!-- KPI -->
       <section class="kpis" id="kpis" hidden></section>
 
-      <!-- 图表卡片栅格 -->
+      <!-- Chart card grid -->
       <section class="grid" id="cards" hidden>
         <div class="card w12" id="card-facts">
           <h3></h3><p class="hint"></p>
@@ -124,12 +124,12 @@
           <p class="state"></p>
         </div>
       </section>
-      <!-- 无仓库上下文时的选择器 -->
+      <!-- Picker shown when there is no repo context -->
       <section id="picker" hidden>
-        <p class="muted" data-i18n="pickerHint">此入口没有携带仓库上下文（例如从「设置 → 插件 → 打开页面」进入）。搜索并选择一个已加载的仓库：</p>
+        <p class="muted" data-i18n="pickerHint">This entry point carries no repository context (for example, when opened from "Settings → Plugins → Open page"). Search for and select a loaded repository:</p>
         <div class="search-row">
           <input id="picker-query" type="search" maxlength="200" placeholder="search repositories…">
-          <button id="picker-search" type="button" class="btn" data-i18n="search">搜索</button>
+          <button id="picker-search" type="button" class="btn" data-i18n="search">Search</button>
         </div>
         <ul id="picker-results"></ul>
       </section>

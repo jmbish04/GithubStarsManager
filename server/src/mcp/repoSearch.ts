@@ -5,8 +5,9 @@
 import { hasRecentActivity, isArchivedRepository } from './repoHealth.js';
 
 /**
- * License 归一化的服务端镜像（与 src/utils/licenseFilter.ts 保持一致）。
- * 服务端 MCP 无法 import src/ 树，故此处保留一份相同实现；改前端那份时请一并同步。
+ * Server-side mirror of license normalization (consistent with src/utils/licenseFilter.ts).
+ * The server MCP cannot import the src/ tree, so an identical implementation is kept here;
+ * update both when making changes.
  */
 export const NO_LICENSE_SENTINEL = '__NO_LICENSE__';
 const NOASSERTION_KEYS = new Set(['', 'noassertion', 'other', 'none', 'no-license']);
@@ -21,7 +22,7 @@ export function normalizeLicense(v: unknown): string {
     return NOASSERTION_KEYS.has(resolved.toLowerCase()) ? NO_LICENSE_SENTINEL : resolved;
   }
   if (typeof v !== 'string') return NO_LICENSE_SENTINEL;
-  // 直接字符串路径也需 trim：避免 " Other " / " NOASSERTION " 等空白变体逃过哨兵归并
+  // String paths must also be trimmed: prevents whitespace variations like " Other " / " NOASSERTION " from escaping sentinel normalization
   const normalized = v.trim();
   return !normalized || NOASSERTION_KEYS.has(normalized.toLowerCase())
     ? NO_LICENSE_SENTINEL
@@ -54,8 +55,9 @@ export interface McpRepository {
   owner?: { login: string; avatar_url?: string };
   license?: string | null;
   /**
-   * GitHub 原生状态字段。当前后端 schema 不存储这些列，因此运行时为 undefined；
-   * Repository Health 事实据此保持 `null`（未知）而不是断言「未归档」。
+   * Native GitHub status fields. The current backend schema does not store these columns,
+   * so they are undefined at runtime; Repository Health facts accordingly remain `null`
+   * (unknown) rather than asserting "not archived".
    */
   archived?: boolean;
   disabled?: boolean;
@@ -79,9 +81,9 @@ export interface McpSearchFilters {
   isCategoryLocked?: boolean;
   analysisFailed?: boolean;
   category?: string;
-  /** SPDX id 过滤；含 {@link NO_LICENSE_SENTINEL} 表示「无/未声明 license」。 */
+  /** SPDX id filter; containing {@link NO_LICENSE_SENTINEL} represents "none / undeclared license". */
   licenses?: string[];
-  /** Repository Health 客观事实过滤（与 src/utils/repoSearch.ts 同一套语义）。 */
+  /** Repository Health objective facts filter (same semantics as src/utils/repoSearch.ts). */
   healthArchived?: boolean;
   healthRecentActivity?: boolean;
   healthHasLicense?: boolean;
@@ -157,7 +159,7 @@ export function matchesRepoFilters(repo: McpRepository, filters: McpSearchFilter
   if (filters.maxStars !== undefined && (repo.stargazers_count ?? 0) > filters.maxStars) {
     return false;
   }
-  // Repository Health 事实过滤：与 Electron MCP / 前端同一套语义（见 repoHealth.ts）。
+  // Repository Health fact filters: same semantics as Electron MCP / frontend (see repoHealth.ts).
   if (filters.healthArchived !== undefined && isArchivedRepository(repo) !== filters.healthArchived) {
     return false;
   }
@@ -208,8 +210,8 @@ export function applyRepoFilters<T extends McpRepository>(
     const bValue = getSortValue(b, sortBy);
     if (aValue < bValue) return sortOrder === 'desc' ? 1 : -1;
     if (aValue > bValue) return sortOrder === 'desc' ? -1 : 1;
-    // 与 src/utils/repoSearch.ts 的 sortRepositories 保持一致：同分时按 full_name
-    // 稳定排序，保证跨端（后端/Electron）分页结果一致。
+    // Consistent with sortRepositories in src/utils/repoSearch.ts: stable sort by full_name
+    // on tiebreaks to ensure consistent cross-platform (backend / Electron) pagination results.
     return a.full_name.localeCompare(b.full_name);
   });
   return sorted;

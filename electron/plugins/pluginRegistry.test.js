@@ -22,7 +22,7 @@ const approvedEntry = (overrides = {}) => ({
   sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
   permissions: ['repositories:read', 'storage'],
   networkTargets: [],
-  dataUsage: '只读取本地已收藏仓库的元数据用于计算健康分，不外发。',
+  dataUsage: 'Reads only locally starred repository metadata to calculate health scores; does not transmit externally.',
   review: { status: 'approved', date: '2026-09-21', commit: '0123456789abcdef0123456789abcdef01234567' },
   ...overrides,
 });
@@ -58,10 +58,10 @@ test('rejects entries that could not be installed safely', () => {
 
 test('validates removal entries and their action', () => {
   assert.equal(validateRemovedEntry({
-    id: 'com.example.bad', versions: ['1.0.0'], reason: '未声明就向第三方发送仓库列表', date: '2026-09-21', action: 'revoke',
+    id: 'com.example.bad', versions: ['1.0.0'], reason: 'Sent repository list to a third party without declaration', date: '2026-09-21', action: 'revoke',
   }).ok, true);
   assert.equal(validateRemovedEntry({
-    id: 'com.example.bad', versions: [], reason: '未声明就向第三方发送仓库列表', date: '2026-09-21', action: 'delete',
+    id: 'com.example.bad', versions: [], reason: 'Sent repository list to a third party without declaration', date: '2026-09-21', action: 'delete',
   }).code, 'REGISTRY_ACTION_INVALID');
 });
 
@@ -93,7 +93,7 @@ test('loads, validates and groups the registry, newest version first', async () 
     status: 200,
     text: async () => JSON.stringify(url.endsWith('community-plugins.json')
       ? [approvedEntry({ version: '1.0.0' }), approvedEntry({ version: '1.2.0' }), { id: 'broken' }]
-      : [{ id: 'com.example.bad', versions: ['1.0.0'], reason: '向第三方发送了仓库列表', date: '2026-09-21', action: 'revoke' }]),
+      : [{ id: 'com.example.bad', versions: ['1.0.0'], reason: 'Sent repository list to a third party', date: '2026-09-21', action: 'revoke' }]),
   });
 
   const result = await loadPluginRegistry({ fetchImpl });

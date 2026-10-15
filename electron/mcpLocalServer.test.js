@@ -512,7 +512,7 @@ test('Electron vector tools reject malformed worker payloads instead of returnin
   const workerUpstream = await listen((_request, response) => {
     workerRequests += 1;
     response.writeHead(200, { 'Content-Type': 'application/json' });
-    // 第 1 次返回 JSON null，第 2 次返回 matches 非数组的合法 JSON
+    // 1st call returns JSON null; 2nd call returns valid JSON with non-array matches
     response.end(workerRequests === 1 ? 'null' : JSON.stringify({ matches: 42 }));
   });
   const mcpPortProbe = await listen((_request, response) => response.end());

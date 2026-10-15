@@ -23,7 +23,7 @@ interface FilterModalProps {
 type FilterTab = 'assets' | 'repos';
 type RepoPickerTarget = 'include' | 'exclude';
 
-/** 关键词 chip 列表：白名单/黑名单共用同一中性样式；仓库 chip 可携带冲突态 */
+/** Keyword chip list: whitelist and blacklist share the same neutral style; repository chips can display conflict state */
 const KeywordChips: React.FC<{
   items: string[];
   removeLabel: (item: string) => string;
@@ -77,7 +77,7 @@ const KeywordChips: React.FC<{
   );
 };
 
-/** 字段说明：问号图标 + 悬停提示（全局 TooltipProvider 见 main.tsx） */
+/** Field hint: question mark icon + hover tooltip (see main.tsx for global TooltipProvider) */
 const FieldHint: React.FC<{ text: string }> = ({ text }) => (
   <Tooltip>
     <TooltipTrigger asChild>
@@ -95,7 +95,7 @@ const FieldHint: React.FC<{ text: string }> = ({ text }) => (
   </Tooltip>
 );
 
-/** 仓库选择器：在所属区块内原地展开，搜索 + 多选列表 + 已选计数 */
+/** Repository picker: expands in-place inside section, search + multiselect list + selected count */
 const RepoPickerPanel: React.FC<{
   title: string;
   accent: 'primary' | 'destructive';
@@ -250,13 +250,13 @@ export const FilterModal: React.FC<FilterModalProps> = ({
     }
     setNewKeyword('');
     setNewExcludeKeyword('');
-    // 重置清单包含当前标签与选择器状态：重开弹窗总是回到「资产过滤」
+    // Reset state including active tab and picker target: reopening modal always defaults to "Assets" tab
     setActiveTab('assets');
     setRepoPickerTarget(null);
     setRepoSearch('');
   }, [filter, isOpen]);
 
-  // 所有已关注 Release 的仓库（星标订阅 + 追更 + 自定义来源），按 full_name 去重排序
+  // All repositories with Release subscriptions (starred + followed + custom sources), deduplicated and sorted by full_name
   const releaseRepos = useMemo(() =>
     resolveReleaseSources({ repositories, releaseSubscriptions, releaseSourceSettings })
       .repositories
@@ -292,13 +292,13 @@ export const FilterModal: React.FC<FilterModalProps> = ({
     ));
   };
 
-  // 同一仓库同时出现在两组是合法草稿态：展示冲突提示（排除优先），不静默清理
+  // A repository appearing in both groups is a valid draft state: show conflict hint (exclusion takes precedence) without silent removal
   const isRepoConflicting = (fullName: string) =>
     isRepoIncluded(fullName) && isRepoExcluded(fullName);
 
   const addKeyword = () => {
     const trimmed = newKeyword.trim();
-    // 关键词匹配大小写不敏感，添加去重同样不区分大小写
+    // Keyword matching is case-insensitive; deduplication when adding is also case-insensitive
     if (trimmed && !keywords.some(k => k.toLowerCase() === trimmed.toLowerCase())) {
       setKeywords([...keywords, trimmed]);
       setNewKeyword('');
@@ -323,8 +323,8 @@ export const FilterModal: React.FC<FilterModalProps> = ({
     }
   };
 
-  // 名称必填且至少配置一项规则（资产关键词、排除关键词、包含仓库或排除仓库），
-  // 避免一个空过滤器被启用后意外匹配所有内容；保存守卫与按钮状态共用该派生值
+  // Name is required, and at least one rule must be configured (asset keywords, exclude keywords, include repos, or exclude repos)
+  // to prevent an empty filter from matching everything when enabled; save guard and button state share this derived value
   const canSave = name.trim().length > 0 &&
     (keywords.length > 0 || excludeKeywords.length > 0 ||
       includeRepos.length > 0 || alwaysExcludeRepos.length > 0);
@@ -334,8 +334,8 @@ export const FilterModal: React.FC<FilterModalProps> = ({
       return;
     }
 
-    // 四个数组始终写回（允许空数组）：updateAssetFilter 是 spread 合并，
-    // 省略键会导致清空后的黑名单/始终包含/始终排除仓库残留旧值。
+    // All four arrays are always written back (empty arrays allowed): updateAssetFilter uses spread merging,
+    // so omitting keys would leave stale values for cleared blacklists or included/excluded repos.
     const savedFilter: AssetFilter = {
       id: filter?.id || Date.now().toString(),
       name: name.trim(),
@@ -354,8 +354,8 @@ export const FilterModal: React.FC<FilterModalProps> = ({
   const assetRuleCount = keywords.length + excludeKeywords.length;
   const repoRuleCount = includeRepos.length + alwaysExcludeRepos.length;
 
-  // 仓库过滤标签：两个独立区块（包含=主色、排除=红色），选择器在所属区块内
-  // 原地展开，归属一目了然；同一时间最多展开一个
+  // Repository filter tab: two independent sections (include = primary, exclude = destructive); picker expands
+  // in-place within its section for clear context. Only one picker can be open at a time.
   const renderRepoSection = (target: RepoPickerTarget) => {
     const isInclude = target === 'include';
     const items = isInclude ? includeRepos : alwaysExcludeRepos;
@@ -499,9 +499,9 @@ export const FilterModal: React.FC<FilterModalProps> = ({
             </p>
           )}
 
-          {/* 资产过滤 */}
+          {/* Assets filter */}
           <TabsContent value="assets" className="space-y-4">
-            {/* Include keywords（白名单） */}
+            {/* Include keywords (allowlist) */}
             <div>
               <div className="mb-2 flex items-center gap-1.5">
                 <label htmlFor="filter-keywords" className="block text-sm font-medium text-foreground dark:text-foreground">
@@ -543,7 +543,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({
               )}
             </div>
 
-            {/* Exclude keywords（黑名单） */}
+            {/* Exclude keywords (blocklist) */}
             <div>
               <div className="mb-2 flex items-center gap-1.5">
                 <label htmlFor="filter-exclude-keywords" className="block text-sm font-medium text-foreground dark:text-foreground">
@@ -580,7 +580,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({
             </div>
           </TabsContent>
 
-          {/* 仓库过滤 */}
+          {/* Repositories filter */}
           <TabsContent value="repos" className="space-y-4">
             {renderRepoSection('include')}
             {renderRepoSection('exclude')}

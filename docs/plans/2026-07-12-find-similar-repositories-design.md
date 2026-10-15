@@ -1,29 +1,29 @@
-# 仓库页「查找相似仓库」特性设计
+# "Find Similar Repositories" Feature Design for the Repositories Page
 
-日期：2026-07-12
-状态：已实现
+Date: 2026-07-12
+Status: Implemented
 
-## 目标
+## Goals
 
-在仓库页（Repositories 视图）新增一个基于向量语义搜索的「查找相似仓库」交互：
+Add a vector-semantic-search-based "Find Similar Repositories" interaction to the Repositories view:
 
-- 设置中开启向量搜索开关且向量索引可用时，悬停仓库卡片，左下角「最近提交」时间变为高亮文字按钮「查找相似仓库」。
-- 点击后利用向量检索匹配语义相似仓库，并**完全替换**当前仓库列表为相似仓库结果（进入「相似仓库视图」）。
-- 支持链式查找：相似结果中的卡片同样可悬停点击，进一步深入。
-- 列表顶部以横幅提示当前状态，并提供「重置」按钮，**一键直接回到查找相似之前的最初列表**。
-- 交互清晰、无歧义：相似视图下点击分类侧栏即离开相似视图并切换到该分类。
+- When the vector search toggle is on in settings and the vector index is available, hovering a repository card turns the "Last commit" time at the bottom left into a highlighted text button, "Find Similar Repositories".
+- Clicking it uses vector retrieval to match semantically similar repositories and **completely replaces** the current repository list with the similar-repository results (entering the "similar repositories view").
+- Chained lookups are supported: cards in the similar results can also be hovered and clicked to go deeper.
+- A banner at the top of the list shows the current state and provides a "Reset" button that **returns directly to the original list from before the similarity lookup**.
+- The interaction is clear and unambiguous: clicking the category sidebar while in the similar view leaves that view and switches to the chosen category.
 
-## 关键决策（来自澄清问答）
+## Key Decisions (from clarifying Q&A)
 
-1. 点击后列表**完全替换**为相似仓库结果（非叠加 / 非过滤）。
-2. 相似仓库视图内**支持连续链式查找**（在结果上再查相似）。
-3. 重置按钮**直接回到初始列表**，忽略中间层级（无需多层栈）。
-4. 状态提示与重置入口放在**列表顶部横幅**。
-5. 按钮显示条件基于**实际可用性**（开关开启 + Worker 已连接 + 有向量数 + Embedding 配置完整），而非仅看开关，避免无效点击。
+1. After clicking, the list is **completely replaced** with the similar-repository results (not appended, not filtered).
+2. **Continuous chained lookups** are supported inside the similar-repositories view (find similar repos on top of results).
+3. The reset button **returns directly to the initial list**, ignoring intermediate levels (no multi-level stack needed).
+4. The status message and reset entry point live in a **banner at the top of the list**.
+5. Button visibility is based on **actual availability** (toggle on + Worker connected + nonzero vector count + complete Embedding configuration), not just the toggle, to avoid dead clicks.
 
-## 架构
+## Architecture
 
-### 状态（`useAppStore`）
+### State (`useAppStore`)
 
 ```ts
 similarView: SimilarViewState | null;
@@ -32,56 +32,56 @@ interface SimilarViewState {
   active: boolean;
   anchorRepoFullName: string;
   anchorRepoName: string;
-  similarResults: Repository[];        // 当前相似结果（渲染用）
-  originalSearchResults: Repository[]; // 进入前的 searchResults 快照，重置恢复用
+  similarResults: Repository[];        // Current similar results (used for rendering)
+  originalSearchResults: Repository[]; // Snapshot of searchResults before entering, used by reset to restore
 }
 ```
 
-- `enterSimilarView(repos, anchor)`：保存当前 `searchResults` 到 `originalSearchResults`，写入 `similarResults` 与锚点信息。
-- `resetSimilarView()`：恢复 `searchResults = originalSearchResults`，清空 `similarView`。
-- 不持久化（重载即回到正常视图，避免状态歧义）。
+- `enterSimilarView(repos, anchor)`: saves the current `searchResults` to `originalSearchResults` and writes `similarResults` and the anchor info.
+- `resetSimilarView()`: restores `searchResults = originalSearchResults` and clears `similarView`.
+- Not persisted (a reload returns to the normal view, avoiding ambiguous state).
 
-### 向量检索（`vectorSearchService.findSimilarRepositories`）
+### Vector Retrieval (`vectorSearchService.findSimilarRepositories`)
 
-`buildEmbeddingText(sourceRepo)` → `EmbeddingClient.embed([text], 'query')` 生成查询向量 → `VectorSearchService.query(vector, { topK: topK+1, threshold })` → 从全量仓库按 id 映射并**过滤源仓库自身** → 返回 `Repository[]`。
+`buildEmbeddingText(sourceRepo)` → `EmbeddingClient.embed([text], 'query')` generates the query vector → `VectorSearchService.query(vector, { topK: topK+1, threshold })` → map to the full repository list by id and **filter out the source repository itself** → return `Repository[]`.
 
-### 渲染接入（`App.tsx` RepositoriesView）
+### Rendering Integration (`App.tsx` RepositoriesView)
 
-- `similarView?.active` 时，列表数据源切换为 `similarView.similarResults`，并强制 `selectedCategory='all'`（忽略分类过滤，完整展示相似结果）。
-- 否则沿用原逻辑：`hasActiveSearchFilters(searchFilters) ? searchResults : repositories`。
-- `handleCategorySelect`：相似视图激活时点击分类先 `resetSimilarView()` 再切换分类，保证「点分类 = 离开相似视图」。
+- When `similarView?.active`, the list data source switches to `similarView.similarResults`, and `selectedCategory='all'` is forced (category filtering is ignored so the similar results are shown in full).
+- Otherwise the original logic applies: `hasActiveSearchFilters(searchFilters) ? searchResults : repositories`.
+- `handleCategorySelect`: when the similar view is active, clicking a category first calls `resetSimilarView()` and then switches category, guaranteeing that "click a category = leave the similar view".
 
-### 卡片按钮（`RepositoryCard`）
+### Card Button (`RepositoryCard`)
 
-- `vectorSearchAvailable` 派生标志：开关开启 + `vectorSearchStatus.connected` + `vectorCount > 0` + Embedding 配置完整 + Worker URL/Token 非空。
-- 「最近提交」行改造：默认显示时间文本；`group-hover` 时时间淡出、绝对定位覆盖显示高亮 `<button>「🔍 查找相似仓库」`。按钮 `pointer-events-none group-hover:pointer-events-auto`，避免遮盖非悬停时的卡片点击。
-- 按钮是 `<button>`，卡片 `handleCardClick` 已通过 `closest('button')` 排除，不会误开 README modal。
-- `handleFindSimilar`：创建 EmbeddingClient + VectorSearchService → `findSimilarRepositories` → `enterSimilarView`；过程显示 loading（卡片内 spinner），失败 `toast` 报错并保留原视图；空结果也进入视图并由横幅显示。
+- Derived `vectorSearchAvailable` flag: toggle on + `vectorSearchStatus.connected` + `vectorCount > 0` + complete Embedding configuration + non-empty Worker URL/Token.
+- "Last commit" row rework: the time text shows by default; on `group-hover` the time fades out and a highlighted `<button>"🔍 Find Similar Repositories"` is shown, absolutely positioned over it. The button uses `pointer-events-none group-hover:pointer-events-auto` so it does not intercept card clicks when not hovered.
+- The button is a `<button>`, and the card's `handleCardClick` already excludes it via `closest('button')`, so it will not accidentally open the README modal.
+- `handleFindSimilar`: creates EmbeddingClient + VectorSearchService → `findSimilarRepositories` → `enterSimilarView`; shows a loading state during the process (spinner inside the card); on failure, shows a `toast` error and keeps the original view; empty results also enter the view and are indicated by the banner.
 
-### 顶部横幅（`SimilarViewBanner`）
+### Top Banner (`SimilarViewBanner`)
 
-- 条件渲染于 `RepositoryList` 顶部（controls bar 之前）。
-- 左侧「正在查看 **{anchorRepoName}** 的相似仓库」，右侧醒目「← 重置」按钮。
+- Rendered conditionally at the top of `RepositoryList` (before the controls bar).
+- Left side: "Viewing repositories similar to **{anchorRepoName}**"; right side: a prominent "← Reset" button.
 
-## 边界与歧义消除
+## Edge Cases and Removing Ambiguity
 
-- 相似结果为空：横幅仍显示，列表空状态提示，重置可用。
-- 加载中：按钮显示 spinner，禁止重复点击。
-- 非仓库页（gists / releases / forks / settings / subscription）不显示该功能。
-- 重启应用后 `vectorSearchStatus` 不持久化（初始 `connected:false`），按钮不显示直到重新建立连接，符合「要求索引可用」。
+- Empty similar results: the banner still shows, the list shows its empty state message, and reset remains available.
+- While loading: the button shows a spinner and repeated clicks are blocked.
+- Non-repository pages (gists / releases / forks / settings / subscription) do not show this feature.
+- After restarting the app, `vectorSearchStatus` is not persisted (initially `connected:false`), so the button stays hidden until a connection is re-established, consistent with "requires an available index".
 
-## 修改文件清单
+## Modified Files
 
-- `src/types/index.ts` — 新增 `SimilarViewState` 类型与 `AppState.similarView` 字段。
-- `src/store/useAppStore.ts` — 新增 `similarView` 状态、`enterSimilarView` / `resetSimilarView` actions、初始值。
-- `src/services/vectorSearchService.ts` — 新增 `findSimilarRepositories`。
-- `src/components/RepositoryCard.tsx` — 悬停按钮 + `handleFindSimilar`。
-- `src/components/SimilarViewBanner.tsx` — 新组件（横幅）。
-- `src/components/RepositoryList.tsx` — 渲染横幅。
-- `src/App.tsx` — `RepositoriesView` 接入相似结果渲染；`handleCategorySelect` 退出逻辑。
+- `src/types/index.ts` — adds the `SimilarViewState` type and the `AppState.similarView` field.
+- `src/store/useAppStore.ts` — adds `similarView` state, `enterSimilarView` / `resetSimilarView` actions, and initial values.
+- `src/services/vectorSearchService.ts` — adds `findSimilarRepositories`.
+- `src/components/RepositoryCard.tsx` — hover button + `handleFindSimilar`.
+- `src/components/SimilarViewBanner.tsx` — new component (banner).
+- `src/components/RepositoryList.tsx` — renders the banner.
+- `src/App.tsx` — `RepositoriesView` renders similar results; `handleCategorySelect` exit logic.
 
-## 测试建议
+## Testing Suggestions
 
-- 单测 `findSimilarRepositories`（mock EmbeddingClient / VectorSearchService）。
-- 单测 store actions 快照恢复。
-- 手动验证：开启开关 + 配置 → 卡片 hover 显按钮 → 点击进相似视图 → 横幅出现 → 再次 hover 链式查找 → 重置回初始 → 相似视图下点分类离开视图。
+- Unit test `findSimilarRepositories` (mock EmbeddingClient / VectorSearchService).
+- Unit test store action snapshot restoration.
+- Manual verification: turn on the toggle + configure → hover a card to show the button → click to enter the similar view → banner appears → hover again for chained lookup → reset returns to the initial list → clicking a category in the similar view leaves the view.

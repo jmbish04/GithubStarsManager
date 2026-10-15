@@ -34,11 +34,11 @@ function isErrorValue(value: unknown): boolean {
 }
 
 /**
- * Error → 日志记录：{ name, message, stack } 之外保留错误上的自有可枚举
- * 属性（如 Object.assign 挂上去的 code 等诊断字段）——在引入 Error 预处理
- * 之前这些字段经 sanitizeForLog 的对象遍历可见，不能因改走 sanitizeError
- * 而丢失。附加字段同样走脱敏与循环引用守卫；标准字段放在后面以附加字段
- * 同名时为准（已脱敏）。
+  * Error → log record: in addition to { name, message, stack }, keep the error's own enumerable
+  * properties (e.g. diagnostic fields like code attached via Object.assign) — before Error preprocessing
+  * was introduced, these fields were visible through sanitizeForLog's object traversal and must not be
+  * lost by routing through sanitizeError. Extra fields also go through redaction and the circular-reference guard; standard fields come last so that
+  * on a name collision with an extra field, the standard field wins (already redacted).
  */
 function errorToLogRecord(error: unknown): Record<string, unknown> {
   const extras = sanitizeForLog({ ...(error as object) }) as Record<string, unknown>;

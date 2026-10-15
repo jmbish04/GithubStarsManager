@@ -12,7 +12,7 @@ if (process.isMainFrame) contextBridge.exposeInMainWorld('electronAPI', {
     clear: () => ipcRenderer.invoke('x-auth:clear'),
   },
   telegramFetchChannel: (channel, before) => ipcRenderer.invoke('telegram-fetch-channel', channel, before),
-  // WebDAV：主进程代发 DAV 请求，绕开渲染进程的 CORS 限制
+  // WebDAV: main process proxies DAV requests to bypass renderer CORS restrictions
   webdavRequest: (params) => ipcRenderer.invoke('webdav-request', params),
   desktop: {
     getPrefs: () => ipcRenderer.invoke('desktop:getPrefs'),
@@ -21,7 +21,7 @@ if (process.isMainFrame) contextBridge.exposeInMainWorld('electronAPI', {
     setMinimizeToTray: (enabled) => ipcRenderer.invoke('desktop:setMinimizeToTray', enabled),
     show: () => ipcRenderer.invoke('desktop:show'),
   },
-  // 诊断日志桥：批量追加（invoke）与卸载前冲刷（send 单向，不 await）
+  // Diagnostic logging bridge: batched append (invoke) and pre-unload flush (send, one-way, no await)
   diagnostics: {
     append: (payload) => ipcRenderer.invoke('diagnostics:append', payload),
     flush: (payload) => ipcRenderer.send('diagnostics:flush', payload),
@@ -53,11 +53,11 @@ if (process.isMainFrame) contextBridge.exposeInMainWorld('electronAPI', {
     getSearchEndpoint: () => ipcRenderer.invoke('plugins:getSearchEndpoint'),
     configureWebSearch: (endpoint) => ipcRenderer.invoke('plugins:configureWebSearch', endpoint),
     searchWeb: (request) => ipcRenderer.invoke('plugins:searchWeb', request),
-    // 社区插件注册表（开发守则 §17）：只读校验过的注册表，不含安装动作
+    // Community plugin registry (Dev guideline §17): read-only verified registry, excluding installation actions
     registry: {
       load: () => ipcRenderer.invoke('plugins:loadRegistry'),
     },
-    // 插件市场（自助插件源）：源管理 + 目录遍历 + 从源安装/更新
+    // Plugin marketplace (self-hosted sources): source management + directory traversal + install/update from source
     marketplace: {
       getState: () => ipcRenderer.invoke('plugins:marketplace:getState'),
       addSource: (input) => ipcRenderer.invoke('plugins:marketplace:addSource', input),

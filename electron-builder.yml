@@ -1,12 +1,12 @@
-# Electron Builder 配置 —— CI（build-desktop.yml）与本地（scripts/build-desktop.js）
-# 共用的唯一配置来源，内容与 0.8.4 及之前 CI 运行时注入 package.json 的
-# effective config 对齐（除下述三处有意变更：files 不再包含 node_modules、
-# 去掉重复打包 dist 的 extraResources、publish 固定为 null）。
+# Electron Builder config — the single source of truth shared by CI (build-desktop.yml) and local builds (scripts/build-desktop.js);
+# its contents match the effective config that CI injected into package.json at runtime in 0.8.4 and earlier
+# (except for three intentional changes: files no longer includes node_modules,
+# extraResources no longer bundles dist a second time, and publish is fixed to null).
 #
-# 注意：electron-builder 会按根 package.json 的 `dependencies` 自动收集生产
-# 依赖树打进安装包。dependencies 必须只保留 Electron 主进程运行时真正
-# require 的包（当前仅 undici，用于代理 ProxyAgent）；前端依赖全部放在
-# devDependencies，由 vite 在构建期打包进 dist/。
+# Note: electron-builder automatically collects the production
+# dependency tree from the root package.json `dependencies` into the installer. `dependencies` must contain only packages the Electron main process
+# actually requires at runtime (currently just undici, for the proxy ProxyAgent); all frontend dependencies go in
+# devDependencies and are bundled into dist/ by vite at build time.
 appId: com.github-stars-manager.app
 productName: GitHub Stars Manager
 copyright: Copyright © 2024 GitHub Stars Manager
@@ -26,25 +26,25 @@ extraMetadata:
   main: electron/main.js
 
 compression: normal
-# asar 开启后源码以归档分发。已核实 electron/main.js 对 __dirname 的引用全部为
-# 只读读取：preload.js、dist/index.html、electron/assets/*.png 均在归档内，Electron
-# 的 fs shim / loadFile / nativeImage 可直接读取 asar 路径；../build/* 为遗留回退
-# 路径（files 配置包含 build/**/*，匹配文件会进入归档，asar 前后行为一致）。所有
-# 写入都落在 userData（proxy-config、数据库、日志、插件目录），不依赖 asar 外
-# 的可写路径。
+# With asar enabled, the sources ship as an archive. All references to __dirname in electron/main.js have been verified to be
+# read-only: preload.js, dist/index.html, and electron/assets/*.png are all inside the archive, and Electron
+# fs shim / loadFile / nativeImage can read asar paths directly; ../build/* is a legacy fallback
+# path (the files config includes build/**/*, so matching files go into the archive and behave the same with or without asar). All
+# writes land in userData (proxy-config, database, logs, plugin directory) and do not depend on a writable path outside
+# the asar.
 asar: true
 
-# 发布统一由 release job（softprops/action-gh-release）完成；构建命令同时带
-# --publish=never，双重保证 electron-builder 不会尝试自行发布。
+# Publishing is handled entirely by the release job (softprops/action-gh-release); the build command also passes
+# --publish=never as a second guarantee that electron-builder never tries to publish on its own.
 publish: null
 
-# 目标矩阵与 0.8.4 起实际发布的产物一致（Setup.exe / dmg x64+arm64 / AppImage）。
-# 旧版 yml 中的 win.ia32 与 linux.deb/rpm 从未生效：CI 一直用运行时注入的
-# package.json build 字段（已由 `loaded configuration file=package.json` 日志证实），
-# 本地构建则会因缺包失败——Electron 44 不再发布 win32-ia32 发行包；deb/rpm 即便
-# 构建成功也不会被发布（release job 只收集 exe/msi/dmg/AppImage）。如需新增产物
-# 类型，请连同 build-desktop.yml 的 Upload artifacts / Prepare release 步骤一起改。
-# Windows 配置
+# The target matrix matches the artifacts actually released since 0.8.4 (Setup.exe / dmg x64+arm64 / AppImage).
+# win.ia32 and linux.deb/rpm in the old yml never took effect: CI always used the build field injected into
+# package.json at runtime (confirmed by the `loaded configuration file=package.json` log),
+# while local builds would fail on a missing package — Electron 44 no longer publishes win32-ia32 distributions; even if deb/rpm
+# built successfully they would not be published (the release job only collects exe/msi/dmg/AppImage). To add a new artifact
+# type, also update the Upload artifacts / Prepare release steps in build-desktop.yml.
+# Windows configuration
 win:
   target:
     - target: nsis
@@ -60,7 +60,7 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: GitHub Stars Manager
 
-# macOS 配置
+# macOS configuration
 mac:
   target:
     - target: dmg
@@ -75,7 +75,7 @@ dmg:
   title: GitHub Stars Manager
   icon: build/icon.png
 
-# Linux 配置
+# Linux configuration
 linux:
   target: AppImage
   icon: build/icon-512x512.png

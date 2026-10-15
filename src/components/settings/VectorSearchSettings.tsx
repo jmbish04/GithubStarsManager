@@ -376,7 +376,7 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
                 const dim = DEFAULT_EMBEDDING_DIMENSIONS[formApiType];
                 setFormDimensions(dim);
                 setFormDimensionsInput(String(dim));
-                // 临时高亮显示已设置的维度
+                // Temporarily highlight the configured dimensions
                 dimensionsInputRef.current?.focus();
                 dimensionsInputRef.current?.select();
               }}
@@ -561,7 +561,7 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
           {t('vectorSearchSettings.index-content')}
         </h3>
 
-        {/* 索引内容选择 */}
+        {/* Index content selection */}
         <div className="space-y-2">
           <h4 id="embedding-index-content-label" className="block text-sm font-medium text-muted-foreground dark:text-muted-foreground">
             {t('vectorSearchSettings.index-content')}
@@ -604,7 +604,7 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
           </div>
         </div>
 
-        {/* README 字符数设置 */}
+        {/* README character limit setting */}
         {formIndexMode === 'readme' && (
           <div className="space-y-1">
             <label htmlFor="readme-max-characters" className="block text-sm font-medium text-muted-foreground dark:text-muted-foreground">
@@ -630,7 +630,7 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
           </div>
         )}
 
-        {/* 保存索引配置 */}
+        {/* Save index configuration */}
         <Button
           onClick={handleSaveWorkerConfig}
           variant={workerSaved ? 'default' : 'outline'}
@@ -800,7 +800,7 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
         </div>
 
         <div id="vector-deploy-guide" hidden={!showDeployGuide} className="px-4 pb-4 text-sm text-muted-foreground dark:text-muted-foreground space-y-4">
-            {/* 首次部署 */}
+            {/* Initial deployment */}
             <div className="p-3 bg-accent/50 dark:bg-card/50 rounded-md">
               <p className="font-medium text-foreground dark:text-foreground mb-2">
                 {t('vectorSearchSettings.initial-deployment')}
@@ -828,7 +828,7 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
               </ol>
             </div>
 
-            {/* 更新部署 */}
+            {/* Redeployment */}
             <div className="p-3 bg-accent/50 dark:bg-card/50 rounded-md">
               <p className="font-medium text-foreground dark:text-foreground mb-2">
                 {t('vectorSearchSettings.redeploy-after-code-changes')}
@@ -849,7 +849,7 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
               </p>
             </div>
 
-            {/* 模型变更警告 */}
+            {/* Model change warning */}
             <div className="rounded-lg border border-border bg-muted/40 p-4 text-muted-foreground">
               <p className="font-medium text-foreground">
                 {t('vectorSearchSettings.must-rebuild-index-after-changing-embedding-mode')}

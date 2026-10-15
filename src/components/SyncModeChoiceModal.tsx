@@ -16,11 +16,11 @@ import {
 } from './ui/alert-dialog';
 
 /**
- * 首次登录 / 首次使用 GitHub Lists 同步时，选择同步范围。
- * 必须渲染在已认证的组件树内（例如 App 的已登录 shell），
- * 不能在 LoginScreen 里触发——因为 setUser 后 LoginScreen 会被卸载，弹窗无法显示。
+ * Select sync scope on first login / first use of GitHub Lists sync.
+ * Must be rendered inside an authenticated component tree (such as App's authenticated shell),
+ * cannot be triggered inside LoginScreen—because LoginScreen unmounts after setUser, preventing the modal from displaying.
  *
- * 该弹窗是阻塞式（blocking）模态：必须完成选择，不可关闭、不可点背景跳过。
+ * This modal is a blocking modal: a choice must be completed; it cannot be closed or dismissed by clicking the backdrop.
  */
 export const SyncModeChoiceModal: React.FC = () => {
   const syncModeConfigured = useAppStore((state) => state.syncModeConfigured);

@@ -1,21 +1,21 @@
 /**
  * Repository Health facts (Electron / CommonJS build).
  *
- * 与 `src/utils/repositoryHealth.ts` 保持同一套算法：Core 的客观事实必须跨运行时一致，
- * 否则 UI、MCP 与插件会给出互相矛盾的数字。
+ * Maintains the exact same algorithm as `src/utils/repositoryHealth.ts`: Core objective facts must be consistent across runtimes,
+ * otherwise UI, MCP, and plugins will produce conflicting figures.
  *
- * 为什么是重复实现而不是共享模块：Electron 侧是 CommonJS（electron/package.json 无
- * `"type": "module"`），而仓库根是 ESM，且 electron-builder 只打包 `dist/`、`electron/`
- * 与 `node_modules/`，因此无法 import `src/` 树。这与既有 `mcpDiscovery.js` /
- * `server/src/mcp/repoSearch.ts` 的三份镜像实现是同一约束；改这里时请同步
- * `server/src/mcp/repoHealth.ts` 与 `src/utils/repositoryHealth.ts`。
+ * Why a duplicate implementation instead of a shared module: The Electron side is CommonJS (electron/package.json lacks
+ * `"type": "module"`), whereas repository root is ESM, and electron-builder bundles only `dist/`, `electron/`,
+ * and `node_modules/`, preventing imports from the `src/` tree. This is the same constraint as the 3 mirrored implementations
+ * of `mcpDiscovery.js` / `server/src/mcp/repoSearch.ts`; when modifying here, please synchronize
+ * `server/src/mcp/repoHealth.ts` and `src/utils/repositoryHealth.ts`.
  *
- * 边界与 TS 版一致：只输出客观事实与保守观测，不输出健康总分或「健康 / 不健康」结论。
+ * Boundaries match the TS version: outputs only objective facts and conservative observations, not an overall health score or "healthy / unhealthy" verdicts.
  */
 
 const MS_PER_DAY = 86400000;
 const DAYS_PER_YEAR = 365.25;
-/** 与 TS 版一致：超过一年无 push 只作为中性观测「No pushes in 12 months」。 */
+/** Matches the TS version: No pushes in over a year is treated as a neutral observation "No pushes in 12 months". */
 const NO_RECENT_ACTIVITY_DAYS = 365;
 const MIN_FREQUENCY_WINDOW_DAYS = 30;
 const PRERELEASE_TOKENS = new Set([
@@ -38,12 +38,12 @@ function round1(value) {
   return Math.round(value * 10) / 10;
 }
 
-/** 布尔事实的三态化：只有记录里确实存在布尔值时才给出 true/false，否则为 null（未知）。 */
+/** Tri-state boolean facts: returns true/false only if the boolean actually exists in the record; otherwise null (unknown). */
 function toTriState(value) {
   return typeof value === 'boolean' ? value : null;
 }
 
-/** 预发布判定：先信任 GitHub 标记，再按 tag 词元兜底（避免 `presto` 里的 `pre` 误判）。 */
+/** Pre-release detection: trusts GitHub flags first, falling back to tag tokens (avoids misidentifying "pre" in "presto"). */
 function isPrereleaseRelease(release) {
   if (release?.prerelease === true) return true;
   const tag = String(release?.tag_name ?? '').toLowerCase();
@@ -54,7 +54,7 @@ function isPrereleaseRelease(release) {
     .some((token) => PRERELEASE_TOKENS.has(token.replace(/\d+$/, '')));
 }
 
-/** 取某仓库的 Release，按发布时间降序（不可解析的条目丢弃）。 */
+/** Fetches releases for a repository in descending published_at order (drops unparseable entries). */
 function releasesForRepository(releases, repositoryId) {
   return (Array.isArray(releases) ? releases : [])
     .filter((release) => Number(release?.repository?.id ?? release?.repo_id) === Number(repositoryId))
@@ -64,11 +64,11 @@ function releasesForRepository(releases, repositoryId) {
 }
 
 /**
- * 推导仓库健康事实（snake_case，便于直接作为 MCP JSON 证据输出）。
+ * Derives repository health facts (snake_case, suitable for direct MCP JSON evidence output).
  *
- * @param {object} repo 已存储的仓库记录。
- * @param {Array} [releases] 该仓库的 Release；不传表示调用方没有这项数据，Release 相关事实为 null。
- * @param {number} [now] 计算「距今多久」的基准时间，便于测试注入。
+ * @param {object} repo Stored repository record.
+ * @param {Array} [releases] Releases for this repository; if omitted, caller lacks this data, and Release-related facts will be null.
+ * @param {number} [now] Reference timestamp for "how long ago", injected for testing.
  */
 function deriveRepositoryHealthFacts(repo, releases, now = Date.now()) {
   const provided = Array.isArray(releases);
@@ -85,15 +85,15 @@ function deriveRepositoryHealthFacts(repo, releases, now = Date.now()) {
   const daysSinceLastPush = pushedTimestamp === null
     ? null
     : Math.max(0, Math.floor((now - pushedTimestamp) / MS_PER_DAY));
-  // 仓库年龄未知时无法换算「频率」：只有「确实没有任何 Release」才是 0，其余保持 null，
-  // 否则会把「Release 总数」当成「次/年」报出去（与 TS 版必须一致）。
+  // Cannot compute frequency when repository age is unknown: only "genuinely zero releases" is 0; remainder remains null,
+  // otherwise "total release count" would be reported as "releases/year" (must match the TS version).
   const releasesPerYear = ageDays === null
     ? (provided && own.length === 0 ? 0 : null)
     : round1(own.length / (Math.max(ageDays, MIN_FREQUENCY_WINDOW_DAYS) / DAYS_PER_YEAR));
 
   const facts = {
-    // GitHub 原生状态字段：三态。`null` = 该记录里根本没有这个事实（例如后端未存储），
-    // 不能当成 false —— 把「未知」说成「未归档」是伪造事实。
+    // GitHub native status fields: tri-state. `null` = fact is completely absent in the record (e.g. not stored in backend);
+    // cannot be treated as false — calling "unknown" "unarchived" falsifies facts.
     archived: toTriState(repo?.archived),
     disabled: toTriState(repo?.disabled),
     fork: toTriState(repo?.fork),
@@ -104,7 +104,7 @@ function deriveRepositoryHealthFacts(repo, releases, now = Date.now()) {
     age_days: ageDays,
     days_since_last_push: daysSinceLastPush,
 
-    // Release 事实在未提供 releases 时为 null（未知），而不是 0（已知没有）。
+    // Release facts are null (unknown) when releases are not provided, rather than 0 (known none).
     release_count: provided ? own.length : null,
     has_releases: provided ? own.length > 0 : null,
     releases_fetched: provided && repo?.has_fetched_releases === true,
@@ -123,7 +123,7 @@ function deriveRepositoryHealthFacts(repo, releases, now = Date.now()) {
   return { ...facts, signals: deriveRepositoryHealthSignals(facts) };
 }
 
-/** Core 允许提供的保守观测，顺序固定（archived → disabled → no-releases → no-recent-activity）。 */
+/** Conservative observations permitted by Core, in fixed order (archived → disabled → no-releases → no-recent-activity). */
 function deriveRepositoryHealthSignals(facts) {
   const signals = [];
   if (facts.archived) signals.push('archived');
@@ -136,14 +136,14 @@ function deriveRepositoryHealthSignals(facts) {
 }
 
 /**
- * 判断仓库是否已归档，三态返回（与 TS 版一致）。
- * 字段缺失时返回 undefined，调用方的严格相等比较因此不会把「未知」算成未归档。
+ * Determines if a repository is archived, returning tri-state (matching TS version).
+ * Returns undefined when field is missing, so caller's strict equality checks will not treat "unknown" as unarchived.
  */
 function isArchivedRepository(repo) {
   return typeof repo?.archived === 'boolean' ? repo.archived : undefined;
 }
 
-/** 与 TS 版一致：时间不可解析时返回 false（筛选语义下「未知」不算「近期活跃」）。 */
+/** Matches TS version: returns false when timestamp cannot be parsed ("unknown" is not "recently active" in filter semantics). */
 function hasRecentActivity(repo, now = Date.now()) {
   const pushed = toTimestamp(repo?.pushed_at) ?? toTimestamp(repo?.updated_at);
   if (pushed === null) return false;

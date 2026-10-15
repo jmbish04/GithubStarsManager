@@ -23,7 +23,7 @@
  * webdav / ai services stay untouched — they carry business context this
  * layer cannot know about, and the plan keeps both views without dedup.
  *
- * Not covered (by design, see plan §六): XMLHttpRequest / EventSource /
+ * Not covered (by design, see plan §6): XMLHttpRequest / EventSource /
  * WebSocket — the repo has zero usages; add sibling probes here if any are
  * ever introduced.
  */
@@ -358,8 +358,8 @@ export function installFetchCapture(options?: { isDebugMode?: () => boolean }): 
     } catch (error) {
       const aborted = isAbortError(error);
       const errorName = errorNameOf(error);
-      // 错误名也是自由文本（自定义 Error 子类可携带任意 name）：写日志前先做
-      // 整值脱敏（长令牌形态的 name 只有整值规则能识别），再行内脱敏并限长。
+      // Error names are also free text (custom Error subclasses can carry any name): before logging, first apply
+      // whole-value redaction (only whole-value rules recognize a long-token-shaped name), then inline redaction and length limiting.
       const sanitizedErrorName = errorName
         ? redactInline(sanitizeForLog(errorName) as string).slice(0, 120)
         : undefined;

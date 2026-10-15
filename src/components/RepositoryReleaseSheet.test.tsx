@@ -21,7 +21,7 @@ const hookMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../store/useAppStore', () => ({
-  useAppStore: (selector: (state: { language: 'zh' }) => unknown) => selector({ language: 'zh' }),
+  useAppStore: (selector: (state: { language: 'en' }) => unknown) => selector({ language: 'en' }),
 }));
 
 vi.mock('../features/repositories/hooks/useRepositoryReleaseSheet', () => ({
@@ -89,8 +89,8 @@ const renderSheet = () => render(
   />
 );
 
-// 侧栏现在还会渲染 Repository Health 事实面板，面板里的「最新稳定版本」同样是 tag 名，
-// 因此针对 Release 条目的查询必须限定在 Release 列表容器内，避免与事实面板串台。
+// The sheet now also renders the Repository Health fact panel, where "latest stable version" is also a tag name.
+// Queries for release entries must therefore be scoped within the release list container to avoid crosstalk.
 const releaseList = () => within(screen.getByTestId('release-list'));
 
 describe('RepositoryReleaseSheet', () => {
@@ -112,23 +112,23 @@ describe('RepositoryReleaseSheet', () => {
     expect(releaseList().getByText('v1')).toBeInTheDocument();
     expect(releaseList().queryByText('v11')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Release 分页 next page' }));
+    await user.click(screen.getByRole('button', { name: 'Release pagination next page' }));
     expect(releaseList().getByText('v11')).toBeInTheDocument();
     expect(releaseList().queryByText('v1')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Release 分页 previous page' }));
+    await user.click(screen.getByRole('button', { name: 'Release pagination previous page' }));
     await user.click(releaseList().getByText('v1').closest('button')!);
 
     expect(screen.getByText('Source code (v1.zip)')).toBeInTheDocument();
     const zipRow = screen.getByText('Source code (v1.zip)').closest('tr');
     expect(zipRow).not.toBeNull();
-    await user.click(within(zipRow!).getByRole('button', { name: '下载' }));
+    await user.click(within(zipRow!).getByRole('button', { name: 'Download' }));
     expect(hookMocks.downloadAsset).toHaveBeenCalledWith(expect.objectContaining({
       authenticatedUrl: 'https://api.github.com/repos/owner/example-repository/zipball/v1',
     }));
     expect(screen.queryByText('Source code (v1.tar.gz)')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'v1 资产分页 next page' }));
+    await user.click(screen.getByRole('button', { name: 'v1 asset pagination next page' }));
     expect(screen.getByText('Source code (v1.tar.gz)')).toBeInTheDocument();
   });
 
@@ -137,10 +137,10 @@ describe('RepositoryReleaseSheet', () => {
     renderSheet();
 
     await user.click(releaseList().getByText('v1').closest('button')!);
-    await user.click(screen.getByRole('tab', { name: '更新日志' }));
+    await user.click(screen.getByRole('tab', { name: 'Notes' }));
     expect(screen.getByTestId('markdown')).toHaveAttribute('data-font-size', 'small');
 
-    await user.click(screen.getByRole('tab', { name: '总结' }));
+    await user.click(screen.getByRole('tab', { name: 'Summary' }));
     expect(hookMocks.generateSummary).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
   });
 
@@ -159,15 +159,15 @@ describe('RepositoryReleaseSheet', () => {
 
     await user.click(releaseList().getByText('v1').closest('button')!);
 
-    // 可识别平台的资产渲染品牌徽章（与 ReleaseCard 的 AssetLeadingIcon 一致）。
-    // getAllByTitle：simple-icons 的 svg 内部也带 <title>，需按徽章 class 过滤出外层 span。
+    // Recognized platform assets render a brand badge (consistent with ReleaseCard's AssetLeadingIcon).
+    // getAllByTitle: simple-icons svgs also have internal <title>, so filter outer span by badge class.
     const getBadge = (title: string) =>
       screen.getAllByTitle(title).find((el) => el.classList.contains('asset-platform-badge'));
     expect(getBadge('macOS')).toBeDefined();
     expect(getBadge('Windows')).toBeDefined();
     expect(getBadge('Linux')).toBeDefined();
 
-    // 平台不可识别的资产回退到通用下载图标，不猜平台。
+    // Unrecognized platform assets fall back to generic download icon without guessing.
     const zipRow = screen.getByText('myapp-1.0.zip').closest('tr');
     expect(zipRow).not.toBeNull();
     expect(zipRow!.querySelector('.asset-platform-badge')).toBeNull();
@@ -180,7 +180,7 @@ describe('RepositoryReleaseSheet', () => {
     renderSheet();
 
     await user.click(releaseList().getByText('v1').closest('button')!);
-    await user.click(screen.getAllByRole('button', { name: '下载' })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Download' })[0]);
 
     expect(hookMocks.downloadAsset).toHaveBeenCalledWith(expect.objectContaining({
       name: 'asset-1-1.zip',

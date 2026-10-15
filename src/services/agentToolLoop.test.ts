@@ -131,7 +131,7 @@ const releasesPayload = [
 describe('runToolLoopRepositoryChatTurn (native function-calling loop)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // clearAllMocks 不清 Once 队列：显式 reset，防止用例间响应串味。
+    // clearAllMocks does not clear the Once queue: reset explicitly to prevent responses leaking between cases.
     mocks.generateWithTools.mockReset();
     mocks.generateChatText.mockReset();
     mocks.generateChatTextStream.mockReset();
@@ -174,14 +174,14 @@ describe('runToolLoopRepositoryChatTurn (native function-calling loop)', () => {
 
     const result = await runToolLoopRepositoryChatTurn(turnInput('What is this project?'));
 
-    // 被拒绝的那一轮不得触发任何 Release 读取。
+    // The rejected round must not trigger any Release reads.
     expect(mocks.getRepositoryReleases).not.toHaveBeenCalled();
     expect(result.content).toContain('/README.md - 1-4');
   });
 
   it('retries a failed release fetch when the model asks again after a tool error', async () => {
-    // 工具失败会释放 actionHash 并回退 metaFetched 标记：相同的 read_recent_releases
-    // 第二次调用必须真正重新请求 GitHub，而不是被当作重复动作拦截。
+    // A tool failure releases the actionHash and rolls back the metaFetched flag: the same read_recent_releases
+    // second call must actually re-request GitHub rather than be blocked as a duplicate action.
     mocks.getRepositoryReleases
       .mockRejectedValueOnce(new Error('network glitch'))
       .mockResolvedValueOnce(releasesPayload);

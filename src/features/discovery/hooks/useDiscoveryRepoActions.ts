@@ -24,9 +24,9 @@ export interface DiscoveryRepoActions {
   optimisticStarred: boolean | null;
 }
 
-// 原 SubscriptionRepoCard.handleStar 的 repositoryToAdd 字面量提纯：
-// 抹去发现页特有字段（键保留、值置 undefined）并补 Star 时间。
-// cast 是必须的——Repository 没有 rank/channel/platform 键，运行时形状与原实现逐字一致。
+// Extracted repositoryToAdd literal from SubscriptionRepoCard.handleStar:
+// Clears discovery-specific fields (keys retained with undefined values) and adds starred_at timestamp.
+// The cast is necessary — Repository does not have rank/channel/platform keys; runtime shape matches the original implementation exactly.
 export const discoveryRepoToRepository = (repo: DiscoveryRepo, starredAt: string): Repository => ({
   ...repo,
   rank: undefined,
@@ -64,7 +64,7 @@ export const useDiscoveryRepoActions = ({ repo }: UseDiscoveryRepoActionsOptions
 
   const [isStarring, setIsStarring] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  // 本地乐观状态，用于立即反映Star操作结果
+  // Local optimistic state used to immediately reflect star operation results
   const [optimisticStarred, setOptimisticStarred] = useState<boolean | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -74,19 +74,19 @@ export const useDiscoveryRepoActions = ({ repo }: UseDiscoveryRepoActionsOptions
     };
   }, []);
 
-  // 检查仓库是否已在本地存在（已被Star）。
-  // 必须按 GitHub 身份判定（id 优先，合成 id 的名称兜底），不能只比 full_name：
-  // 旧仓库被改名/删除后，其旧名可能被另一个仓库复用，仅比名称会把后者误判为
-  // 已 Star，从而挡住用户 Star 它的操作。
+  // Check if repository already exists locally (already starred).
+  // Must check by GitHub identity (id preferred, synthetic id fallback from full_name), not full_name alone:
+  // if an old repo is renamed or deleted, its old name may be reused by another repo. Comparing name only would
+  // misidentify the latter as already starred, blocking the user from starring it.
   const isStarredComputed = useMemo(() => {
     return findIdentityMatch(repo, repositories) !== undefined;
   }, [repositories, repo]);
 
-  // 优先使用乐观状态，否则使用计算状态
+  // Prefer optimistic state; fall back to computed state
   const isStarred = optimisticStarred !== null ? optimisticStarred : isStarredComputed;
 
-  // 执行取消Star操作。无 confirm——取消 Star 的确认是 View 侧自定义 Modal（B8），
-  // View 确认按钮负责清 unstarConfirmOpen/pendingUnstarAction 后调用本方法。
+  // Execute unstar operation. No confirm dialog here — confirmation is handled by the view layer's custom modal (B8);
+  // the view confirm button clears unstarConfirmOpen/pendingUnstarAction before calling this method.
   const executeUnstar = useCallback(async () => {
     if (!githubToken) return;
 
@@ -96,15 +96,15 @@ export const useDiscoveryRepoActions = ({ repo }: UseDiscoveryRepoActionsOptions
       const githubApi = createGitHubApiService(githubToken);
       const [owner, name] = repo.full_name.split('/');
 
-      // 乐观更新：立即更新UI状态
+      // Optimistic update: immediately update UI state
       setOptimisticStarred(false);
 
       await githubApi.unstarRepository(owner, name);
 
-      // 从本地删除。
-      // 必须按 GitHub 身份定位待删记录：只比 full_name 会删错 ——
-      // 旧仓库改名/删除后其旧名被另一个仓库复用时，命中的是旧记录，
-      // 结果删掉无关记录而真正取消 Star 的那条仍留在库里。
+      // Delete locally.
+      // Must locate record to delete by GitHub identity: matching name alone could delete the wrong record —
+      // if an old repo is renamed or deleted and its old name is reused, matching by name targets the old record,
+      // deleting an unrelated entry while leaving the actual unstarred repo in the store.
       const existingRepo = findIdentityMatch(repo, repositories);
       if (existingRepo) {
         deleteRepository(existingRepo.id);
@@ -112,10 +112,10 @@ export const useDiscoveryRepoActions = ({ repo }: UseDiscoveryRepoActionsOptions
 
       await forceSyncToBackend();
 
-      // 操作成功，清除乐观状态
+      // On success, clear optimistic state
       setOptimisticStarred(null);
     } catch (error) {
-      // 操作失败，回滚乐观状态
+      // On failure, rollback optimistic state
       setOptimisticStarred(null);
       console.error('Failed to unstar repository:', error);
       const errorMessage = t('useDiscoveryRepoActions.failed-to-unstar-repository-please-check-your-ne');
@@ -125,7 +125,7 @@ export const useDiscoveryRepoActions = ({ repo }: UseDiscoveryRepoActionsOptions
     }
   }, [githubToken, repo, repositories, deleteRepository, t, toast]);
 
-  // 添加Star（取消Star路径由 View 确认 Modal 承担，不在本方法内）
+  // Star repository (unstar path is handled by the view confirm modal, not within this method)
   const star = useCallback(async (onStar?: (repo: DiscoveryRepo) => void) => {
     if (!githubToken || isStarring) return;
 
@@ -135,7 +135,7 @@ export const useDiscoveryRepoActions = ({ repo }: UseDiscoveryRepoActionsOptions
       const githubApi = createGitHubApiService(githubToken);
       const [owner, name] = repo.full_name.split('/');
 
-      // 乐观更新：立即更新UI状态
+      // Optimistic update: immediately update UI state
       setOptimisticStarred(true);
 
       await githubApi.starRepository(owner, name);
@@ -148,12 +148,12 @@ export const useDiscoveryRepoActions = ({ repo }: UseDiscoveryRepoActionsOptions
 
       await forceSyncToBackend();
 
-      // 操作成功，清除乐观状态
+      // On success, clear optimistic state
       setOptimisticStarred(null);
 
       toast(t('useDiscoveryRepoActions.successfully-starred'), 'success');
     } catch (error) {
-      // 操作失败，回滚乐观状态
+      // On failure, rollback optimistic state
       setOptimisticStarred(null);
       console.error('Failed to star repository:', error);
       const errorMessage = t('useDiscoveryRepoActions.failed-to-star-repository-please-check-your-netw');
@@ -163,7 +163,7 @@ export const useDiscoveryRepoActions = ({ repo }: UseDiscoveryRepoActionsOptions
     }
   }, [githubToken, isStarring, repo, t, toast, addRepository]);
 
-  // 单卡 AI 分析（无 forceSync、成功无 toast、重新分析无 confirm——与 RepositoryCard 不同，勿"补齐"）
+  // Single-card AI analysis (no forceSync, no toast on success, no re-analyze confirm — unlike RepositoryCard; do not add them)
   const analyze = useCallback(async (onAnalyzed?: (repo: DiscoveryRepo) => void) => {
     if (!githubToken) {
       toast(t('useDiscoveryRepoActions.github-token-not-found-please-login-again'), 'error');

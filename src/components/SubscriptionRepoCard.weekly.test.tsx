@@ -61,7 +61,7 @@ const makeWeeklyRepo = (): DiscoveryRepo => ({
 describe('SubscriptionRepoCard weekly channel', () => {
   beforeEach(() => {
     mockedUseAppStore.mockImplementation((selector: (s: unknown) => unknown) =>
-      selector({ language: 'zh', githubToken: 'token' }));
+      selector({ language: 'en', githubToken: 'token' }));
     mockedUseWeeklyIssueBody.mockReturnValue(() => ({
       issueData: { body: '项目地址：**https://github.com/foo/bar**' },
       loading: false,
@@ -71,23 +71,23 @@ describe('SubscriptionRepoCard weekly channel', () => {
 
   it('renders weekly badges and the view-original-post button', () => {
     render(<TooltipProvider><SubscriptionRepoCard repo={makeWeeklyRepo()} /></TooltipProvider>);
-    expect(screen.getByTitle('查看原贴')).toBeInTheDocument();
-    expect(screen.getByText('周刊收录')).toBeInTheDocument();
-    expect(screen.getByText('第 300 期')).toBeInTheDocument();
+    expect(screen.getByTitle('View original post')).toBeInTheDocument();
+    expect(screen.getByText('In Weekly')).toBeInTheDocument();
+    expect(screen.getByText('Issue #300')).toBeInTheDocument();
   });
 
   it('does not render weekly badges without a weekly issue', () => {
     const repo = makeWeeklyRepo();
     delete repo.weeklyIssue;
     render(<TooltipProvider><SubscriptionRepoCard repo={repo} /></TooltipProvider>);
-    expect(screen.queryByTitle('查看原贴')).not.toBeInTheDocument();
-    expect(screen.queryByText('周刊收录')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('View original post')).not.toBeInTheDocument();
+    expect(screen.queryByText('In Weekly')).not.toBeInTheDocument();
   });
 
   it('opens the original-post modal with the cached issue body', () => {
     render(<TooltipProvider><SubscriptionRepoCard repo={makeWeeklyRepo()} /></TooltipProvider>);
-    fireEvent.click(screen.getByTitle('查看原贴'));
+    fireEvent.click(screen.getByTitle('View original post'));
     expect(screen.getByText('【开源自荐】bar')).toBeInTheDocument();
-    expect(screen.getByText('在 GitHub 打开')).toBeInTheDocument();
+    expect(screen.getByText('Open on GitHub')).toBeInTheDocument();
   });
 });

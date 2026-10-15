@@ -60,8 +60,8 @@ export function BatchStarImportDialog({ isOpen, onClose }: BatchStarImportDialog
   } = useBatchStarImport();
   const selectedCount = rows.filter(row => row.status === 'ready' && row.selected).length;
   const starredCount = rows.filter(row => row.status === 'starred').length;
-  // locked 在解析与 Star 批处理期间同时禁用关闭，避免中途打断半完成的批次；
-  // 翻译只读不改选区，允许随时关闭弹窗。
+  // locked disables closing during resolution and star batch processing to prevent interrupting half-completed batches;
+  // translation is read-only and does not alter selections, allowing the modal to be closed at any time.
   const locked = isResolving || isStarring;
   const busy = locked || isTranslating;
   const hasSelectable = rows.some(row => row.status === 'ready');
@@ -157,8 +157,8 @@ export function BatchStarImportDialog({ isOpen, onClose }: BatchStarImportDialog
             const statusKey = row.status === 'ready' && row.candidate.confidence === 'low'
               ? 'check-name'
               : row.status;
-            // 已 Star（含本次批处理刚 Star 成功）的仓库固定为选中禁用态，
-            // 与"无法再次 Star"的业务状态保持一致。
+            // Already starred repositories (including those successfully starred in this batch) are locked in a selected disabled state,
+            // reflecting the domain state of "cannot be starred again".
             const rowStarred = row.status === 'already-starred' || row.status === 'starred';
             const originalDescription = row.detail?.description || t('batchStar.no-description');
             const translatedDescription = row.detail ? translations[row.detail.full_name] : undefined;

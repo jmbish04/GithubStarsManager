@@ -19,21 +19,21 @@ import {
 } from '../utils/repositoryHealth';
 
 /**
- * Repository Health 事实面板。
+ * Repository Health facts panel.
  *
- * 只展示客观事实与保守观测，**不展示任何健康总分或「健康 / 不健康」结论**——
- * 主观评分属于插件（见 docs/plans/2026-09-17-product-roadmap.md §4.3）。
- * 因此这里刻意不做颜色化的「好 / 坏」判定，未知事实显示为「未知」而不是猜测。
+ * Only displays objective facts and conservative observations; **does not display any aggregate health score or "healthy / unhealthy" conclusions**—
+ * subjective scoring belongs in plugins (see docs/plans/2026-09-17-product-roadmap.md §4.3).
+ * Therefore, colorized "good / bad" judgments are deliberately avoided here, and unknown facts are shown as "Unknown" rather than guessed.
  */
 interface RepositoryHealthPanelProps {
   repository: Repository;
-  /** 该仓库的本地 Release；用于推导 Release 相关事实，缺失时对应事实为未知。 */
+  /** Local releases for this repo; used to derive Release-related facts. When absent, the corresponding facts are unknown. */
   releases?: Release[];
-  /** 仅用于 date-fns 的本地化；界面文案一律走 i18n key。 */
+  /** Used solely for date-fns localization; UI copy exclusively uses i18n keys. */
   language: AppLanguage;
 }
 
-/** 分组标题的 i18n key。 */
+/** i18n keys for group headers. */
 const GROUP_KEYS: Record<RepositoryHealthGroup, string> = {
   activity: 'repositoryHealthPanel.activity',
   maintenance: 'repositoryHealthPanel.maintenance',
@@ -41,7 +41,7 @@ const GROUP_KEYS: Record<RepositoryHealthGroup, string> = {
   maturity: 'repositoryHealthPanel.maturity',
 };
 
-/** 事实标签的 i18n key。 */
+/** i18n keys for fact labels. */
 const FACT_KEYS: Record<RepositoryHealthFactId, string> = {
   pushedAt: 'repositoryHealthPanel.last-push',
   latestCommitAt: 'repositoryHealthPanel.latest-commit',
@@ -70,8 +70,8 @@ const FACT_KEYS: Record<RepositoryHealthFactId, string> = {
 };
 
 /**
- * 保守观测的 i18n key（图标见 {@link SIGNAL_ICONS}）。
- * `no-recent-activity` 用中性文案与图标，避免暗示「不健康」。
+ * i18n keys for conservative observations (see {@link SIGNAL_ICONS} for icons).
+ * `no-recent-activity` uses neutral copy and icon to avoid implying "unhealthy".
  */
 const SIGNAL_KEYS: Record<RepositoryHealthSignalId, string> = {
   archived: 'repositoryHealthPanel.archived',
@@ -87,12 +87,12 @@ const SIGNAL_ICONS: Record<RepositoryHealthSignalId, React.ComponentType<{ class
   'no-recent-activity': AlertTriangle,
 };
 
-/** 千分位数字；非有限值原样回落，避免显示 NaN。 */
+/** Number with thousand separators; non-finite values fall back as-is to avoid displaying NaN. */
 function formatCount(value: number, language: AppLanguage): string {
   return Number.isFinite(value) ? formatNumber(value, language) : '—';
 }
 
-/** 绝对日期（YYYY-MM-DD），用于 tooltip 与相对时间的兜底。 */
+/** Absolute date (YYYY-MM-DD), used for tooltips and fallback for relative time. */
 function formatAbsoluteDate(value: string): string {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return value;
@@ -100,10 +100,10 @@ function formatAbsoluteDate(value: string): string {
 }
 
 /**
- * 事实值的展示文本。`undefined` 一律显示「未知」，不做任何推断。
+ * Display text for a fact value. `undefined` always displays "Unknown" without inference.
  *
- * `t` 由调用方传入而不是在这里 `useT()`：这是一个普通函数，可能被条件调用，
- * 在函数内部调用 Hook 会违反 Hooks 规则。
+ * `t` is passed by caller rather than using `useT()` here: this is a standard function that might be called conditionally,
+ * and calling a Hook inside it would violate Hooks rules.
  */
 function formatFactValue(
   fact: RepositoryHealthFact,
@@ -163,7 +163,7 @@ export const RepositoryHealthPanel: React.FC<RepositoryHealthPanelProps> = ({
 }) => {
   const t = useT('repositories');
 
-  // 纯函数推导：无网络请求，Release 未同步时相关事实自动成为「未知」。
+  // Pure function derivation: no network requests; when releases are not synced, related facts automatically become "Unknown".
   const groups = useMemo(() => {
     const snapshot = deriveRepositoryHealthSnapshot(repository, releases);
     return { snapshot, views: groupRepositoryHealthFacts(snapshot) };

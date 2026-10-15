@@ -368,11 +368,12 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
     APP_SESSIONSTORAGE_KEYS.forEach((key) => sessionStorage.removeItem(key));
 
     // Clear IndexedDB - only remove the specific database used by this app.
-    // 走持久化层的串行删除：除磁盘清扫外，还会在串行写链上取消待写、完成删除并
-    // 重置分片判脏簿记——直接调底层 removeItem 会让随后的 store 重置写入以过期
-    // 基准判脏，只补写部分分片，而 meta 仍声明全部分片。
-    // 必须 await 删除真正落盘（zustand v4 的 clearStorage 不回传 Promise）：
-    // 若链上还有排队的大写入，2 秒后的 reload 可能早于删除提交，数据复活。
+    // Perform serialized deletion through persistence layer: aside from disk sweep, cancels pending
+    // writes in the serial write queue, executes deletion, and resets dirty shard tracking. Directly
+    // calling removeItem would cause subsequent store resets to calculate dirty shards against stale
+    // benchmarks, writing only partial shards while meta still claims all shards.
+    // Must await true disk flush (zustand v4's clearStorage does not return a Promise):
+    // if large writes are queued, a reload after 2s could precede delete commit, reviving data.
     try {
       await removePersistedSnapshot(useAppStore.persist.getOptions().name ?? 'github-stars-manager');
     } catch (error) {
@@ -452,7 +453,7 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
   const deleteCategorySettings = async () => {
     try {
       const store = useAppStore.getState();
-      // 先复制分类数组，避免在迭代过程中修改原数组
+      // Copy category array first to avoid mutating during iteration
       const categoriesToDelete = [...store.customCategories];
       // Reset category-related state
       for (const cat of categoriesToDelete) {
@@ -497,10 +498,10 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
 
   const deleteDiscoveryData = useCallback(async () => {
     try {
-      // 在清理前先中止并等待进行中的推文与 Telegram 同步，防止并发写入导致清理后脏数据写回
+      // Abort and await in-flight tweet and Telegram sync before cleanup, preventing concurrent writes from restoring dirty data
       await abortXTweetSync();
       await abortTelegramSync();
-      // 周刊/推文/Telegram 频道数据在独立 IndexedDB，一并清空
+      // Weekly, tweet, and Telegram channel data live in separate IndexedDB; clear them as well
       await weeklyIssuesStorage.clearAll();
       await xTweetStorage.clearAll();
       await telegramStorage.clearAll();
@@ -833,7 +834,7 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
           }
         }
         if (selectedTypes.includes('searchFilters') && importedData.searchFilters) {
-          // 旧备份可能缺少新增的 licenses 字段，导入时默认 [] 保持 SearchFilters 契约
+          // Older backups may lack the new licenses field; default to [] on import to preserve SearchFilters contract
           const importedFilters = importedData.searchFilters;
           useAppStore.setState({
             searchFilters: {
@@ -1096,7 +1097,7 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
         }
       }
 
-      // 如果导入的数据包含屏蔽的密钥，提示用户
+      // Notify user if imported data contains masked secrets
       if (hasMaskedSecrets(importedData)) {
         showSuccess(t('dataManagementPanel.data-imported-successfully-some-secrets-were-mas'));
       } else {
@@ -1235,19 +1236,19 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
   }, [releases, readReleases, deleteDiscoveryData, addLog, showSuccess, showError, t]);
 
   const deleteAllData = async () => {
-    // 分步跟踪未完成的存储：失败时记录哪一步未完成并保留失败状态（不重置内存、
-    // 不提示成功），用户重试时清理幂等重跑即可续清残留
+    // Track uncompleted storages step-by-step: on failure, record which step failed and retain failure state
+    // (without resetting memory or showing success); retrying can idempotently clear residual data
     const pendingStorages: string[] = [];
     try {
-      // 先清除存储，确保存储清除成功后再重置状态
-      // 这样可以避免状态已重置但存储清除失败导致的数据不一致
+      // Clear storage first, and reset state only after storage is successfully cleared
+      // This prevents data inconsistency if state is reset but storage clearing fails
       try {
         await clearAllStorage();
       } catch (e) {
         pendingStorages.push(t('dataManagementPanel.app-storage'));
         throw e;
       }
-      // 周刊/推文频道数据在独立 IndexedDB，一并清空
+      // Weekly and tweet channel data live in separate IndexedDB; clear them as well
       try {
         await weeklyIssuesStorage.clearAll();
       } catch (e) {
@@ -1269,16 +1270,16 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
         throw e;
       }
 
-      // 清除 Electron 桌面端独立保存的加密凭据文件（x-auth.enc）
+      // Clear encrypted credential file (x-auth.enc) stored separately in Electron desktop client
       try {
         await clearEncryptedXAuthViaDesktop();
       } catch {
-        // 忽略桌面端清理失败
+        // Ignore desktop cleanup failure
       }
 
-      // 存储清除成功后，重置所有状态到初始值
+      // Reset all states to initial values after storage is successfully cleared
       useAppStore.setState({
-        // 用户和认证
+        // User and authentication
         user: null,
         githubToken: null,
         isAuthenticated: false,
@@ -1286,36 +1287,36 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
         xTweetAuth: null,
         xTweetAuthRevision: 0,
 
-        // 仓库数据
+        // Repository data
         repositories: [],
         searchResults: [],
         lastSync: null,
 
-        // Release 数据
+        // Release data
         releases: [],
         releaseSubscriptions: new Set<number>(),
         readReleases: new Set<number>(),
 
-        // AI 配置
+        // AI configuration
         aiConfigs: [],
         activeAIConfig: null,
 
-        // WebDAV 配置
+        // WebDAV configuration
         webdavConfigs: [],
         activeWebDAVConfig: null,
         lastBackup: null,
 
-        // 分类设置
+        // Category settings
         customCategories: [],
         hiddenDefaultCategoryIds: [],
         categoryOrder: [],
         collapsedSidebarCategoryCount: 20,
         defaultCategoryOverrides: {},
 
-        // 资源过滤器
+        // Asset filters
         assetFilters: [],
 
-        // UI 设置
+        // UI settings
         selectedCategory: 'all',
         isSidebarCollapsed: false,
         searchFilters: {

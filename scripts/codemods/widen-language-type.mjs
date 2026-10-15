@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * 一次性 codemod：把消费 store 语言值的 `'zh' | 'en'` 类型注解宽化为 AppLanguage。
- * 只处理白名单文件（人工逐一判定过，不含语言定义本身与 AI 模板收口类型），
- * 值比较逻辑（`language === 'zh'` 等）不受影响。
- * 用法：node scripts/codemods/widen-language-type.mjs
+ * One-time codemod: widens `'zh' | 'en'` type annotations consuming store language values to AppLanguage.
+ * Only processes allowlisted files (each reviewed by hand; excludes the language definition itself and the AI template narrowing types).
+ * Value comparison logic (`language === 'zh'`, etc.) is unaffected.
+ * Usage: node scripts/codemods/widen-language-type.mjs
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

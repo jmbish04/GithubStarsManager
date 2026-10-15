@@ -31,7 +31,7 @@ import {
 
 type SortBy = 'stars' | 'updated' | 'name' | 'starred' | 'created';
 
-// 标签走 i18n key（searchBar.sort-<value>），这里只保留顺序。created 是本仓库新增的排序。
+// Labels use i18n keys (searchBar.sort-<value>), only ordering is kept here. 'created' is a newly added sort option.
 const sortOptions: SortBy[] = ['stars', 'updated', 'name', 'starred', 'created'];
 
 interface SortByDropdownProps {
@@ -99,8 +99,8 @@ export const SearchBar: React.FC = () => {
   })));
 
   const { confirm } = useDialog();
-  // 搜索动作（向量/关键词/AI 搜索、星标同步）由 hook 承担；
-  // 两 ref 实体挂 hook、以 RefObject 暴露，View 的过滤 effect 原样读写。
+  // Search actions (vector/keyword/AI search, star sync) are handled by the hook;
+  // two ref entities are mounted in hook and exposed as RefObjects, read/written as-is by View's filter effect.
   const {
     isSearching,
     searchPhase,
@@ -129,19 +129,19 @@ export const SearchBar: React.FC = () => {
   
   const statusStats = useMemo(() => {
     const stats = {
-      analyzed: 0,      // 已AI分析（成功）
-      notAnalyzed: 0,   // 未AI分析
-      failed: 0,        // 分析失败
-      subscribed: 0,    // 已订阅Release
-      notSubscribed: 0, // 未订阅Release
-      edited: 0,        // 已编辑
-      notEdited: 0,     // 未编辑
-      locked: 0,        // 分类已锁定
-      notLocked: 0,     // 分类未锁定
+      analyzed: 0,      // AI analyzed (success)
+      notAnalyzed: 0,   // Not AI analyzed
+      failed: 0,        // Analysis failed
+      subscribed: 0,    // Subscribed to Release
+      notSubscribed: 0, // Not subscribed to Release
+      edited: 0,        // Customized
+      notEdited: 0,     // Not customized
+      locked: 0,        // Category locked
+      notLocked: 0,     // Category unlocked
     };
     
     repositories.forEach(repo => {
-      // AI分析状态统计
+      // AI analysis status statistics
       if (repo.analyzed_at && repo.analysis_failed) {
         stats.failed++;
       } else if (repo.analyzed_at && !repo.analysis_failed) {
@@ -150,21 +150,21 @@ export const SearchBar: React.FC = () => {
         stats.notAnalyzed++;
       }
       
-      // 订阅状态统计
+      // Subscription status statistics
       if (releaseSubscriptions.has(repo.id)) {
         stats.subscribed++;
       } else {
         stats.notSubscribed++;
       }
       
-      // 自定义状态统计
+      // Custom status statistics
       if (isRepoCustomized(repo, allCategories)) {
         stats.edited++;
       } else {
         stats.notEdited++;
       }
 
-      // 锁定状态统计
+      // Lock status statistics
       const isCategoryLocked = !!repo.category_locked;
       if (isCategoryLocked) {
         stats.locked++;
@@ -189,14 +189,14 @@ export const SearchBar: React.FC = () => {
   useEffect(() => {
     // Extract unique languages, tags, and platforms from repositories
     const languages = [...new Set(repositories.map(r => r.language).filter(Boolean))] as string[];
-    // 标签包含AI标签、GitHub topics和用户自定义标签
+    // Tags include AI tags, GitHub topics, and custom user tags
     const tags = [...new Set([
       ...repositories.flatMap(r => r.ai_tags || []),
       ...repositories.flatMap(r => r.topics || []),
       ...repositories.flatMap(r => r.custom_tags || [])
     ])];
     const platforms = [...new Set(repositories.flatMap(r => r.ai_platforms || []))] as string[];
-    // 开源许可：归一化为 SPDX id 或 NO_LICENSE_SENTINEL，排序并把「无」项放最后
+    // Open-source licenses: normalize to SPDX ID or NO_LICENSE_SENTINEL, sort and place "None" at the end
     const licenses = [...new Set(repositories.map(r => normalizeLicense(r.license)))].sort((a, b) => {
       if (a === NO_LICENSE_SENTINEL) return 1;
       if (b === NO_LICENSE_SENTINEL) return -1;
@@ -338,7 +338,7 @@ export const SearchBar: React.FC = () => {
       allCategories,
     });
 
-    // 如果分类锁定筛选导致结果为0，自动清除该筛选条件（UI 侧副作用保留在此）
+    // If category lock filter yields 0 results, automatically clear this filter condition (UI-side side effect retained here)
     if (searchFilters.isCategoryLocked !== undefined && filtered.length === 0) {
       const withoutLock = applyRepoFilters(
         repos,
@@ -346,7 +346,7 @@ export const SearchBar: React.FC = () => {
         { releaseSubscriptions, allCategories }
       );
       if (withoutLock.length > 0) {
-        console.log('分类锁定筛选导致结果为空，自动清除该筛选条件');
+        console.log('Category lock filter yielded empty results, automatically clearing this filter');
         setSearchFilters({ isCategoryLocked: undefined });
         return sortRepositories(
           withoutLock,
@@ -359,8 +359,8 @@ export const SearchBar: React.FC = () => {
     return filtered;
   };
 
-  // View-UI 部分（实时搜索开关/历史/建议下拉与搜索历史 localStorage）留在 View，
-  // 搜索编排（向量 → 关键词，含 HyDE/rerank 与降级路径）在 useSearchActions.aiSearch。
+  // View-UI parts (real-time search toggle/history/suggestions dropdown and search history localStorage) stay in View;
+  // search orchestration (vector -> keyword, including HyDE/rerank and fallback paths) is in useSearchActions.aiSearch.
   const handleAISearch = async () => {
     if (!searchQuery.trim()) return;
 
@@ -489,8 +489,8 @@ export const SearchBar: React.FC = () => {
     }
   };
 
-  // 焦点漫游：ArrowDown/ArrowUp 在搜索历史/建议项之间移动。index 为负时从
-  // 末尾开始计数，-1 即最后一项，使输入框内按 ArrowUp 直达最后一项。
+  // Focus roaming: ArrowDown/ArrowUp moves between search history/suggestion items. Negative index counts
+  // from the end, with -1 being the last item, allowing ArrowUp in the input box to directly reach the last item.
   const focusSearchOption = (index: number) => {
     const options = searchDropdownRef.current?.querySelectorAll<HTMLButtonElement>('button[data-search-option]');
     if (!options || options.length === 0) return;
@@ -587,12 +587,12 @@ export const SearchBar: React.FC = () => {
     (searchFilters.healthRecentActivity !== undefined ? 1 : 0) +
     (searchFilters.healthHasLicense !== undefined ? 1 : 0);
 
-  // 平台图标与显示名统一由 platformMeta 模块提供
+  // Platform icons and display names are provided uniformly by the platformMeta module
 
   const t = useT('app');
 
-  // 同步星标仓库及 list：先确认（警告会覆盖未锁定仓库的分类并加锁），再执行。
-  // 'auto'/'stars-only' 入口原无确认，勿加（B8）。
+  // Sync starred repos and lists: confirm first (warns that unlocked categories will be overridden and locked), then execute.
+  // 'auto'/'stars-only' entry points originally lacked confirmation; do not add (B8).
   const handleStarAndListSync = async () => {
 
     const confirmed = await confirm(
@@ -616,7 +616,7 @@ export const SearchBar: React.FC = () => {
     return date.toLocaleDateString(getIntlLocale(language));
   };
 
-  // 全局快捷键支持（Ctrl/Cmd+K、Ctrl/Cmd+Shift+F、/、Escape）
+  // Global keyboard shortcuts support (Ctrl/Cmd+K, Ctrl/Cmd+Shift+F, /, Escape)
   useSearchShortcuts({
     onFocusSearch: () => {
       searchInputRef.current?.focus();
@@ -960,7 +960,7 @@ export const SearchBar: React.FC = () => {
               {t('searchBar.status-filters')}
             </h4>
             <div className="flex flex-wrap gap-2">
-              {/* 已AI分析 - 仅在存在已分析仓库或当前已选择时显示，且与"分析失败"互斥 */}
+              {/* AI analyzed - only shown when analyzed repos exist or currently selected, mutually exclusive with "analysis failed" */}
               {(statusStats.analyzed > 0 || searchFilters.isAnalyzed === true) && searchFilters.analysisFailed !== true && (
                 <Button
                   onClick={() => setSearchFilters({ 
@@ -980,7 +980,7 @@ export const SearchBar: React.FC = () => {
                   <span className="text-xs opacity-70">({statusStats.analyzed})</span>
                 </Button>
               )}
-              {/* 未AI分析 - 仅在存在未分析仓库时显示 */}
+              {/* Not AI analyzed - only shown when unanalyzed repos exist */}
               {statusStats.notAnalyzed > 0 && (
                 <Button
                   onClick={() => setSearchFilters({ 
@@ -1000,7 +1000,7 @@ export const SearchBar: React.FC = () => {
                   <span className="text-xs opacity-70">({statusStats.notAnalyzed})</span>
                 </Button>
               )}
-              {/* 分析失败 - 仅在存在失败仓库或当前已选择时显示，且与"已AI分析"互斥 */}
+              {/* Analysis failed - only shown when failed repos exist or currently selected, mutually exclusive with "AI analyzed" */}
               {(statusStats.failed > 0 || searchFilters.analysisFailed === true) && searchFilters.isAnalyzed !== true && (
                 <Button
                   onClick={() => setSearchFilters({ 
@@ -1020,7 +1020,7 @@ export const SearchBar: React.FC = () => {
                   <span className="text-xs opacity-70">({statusStats.failed})</span>
                 </Button>
               )}
-              {/* 已订阅Release - 仅在存在已订阅仓库或当前已选择时显示 */}
+              {/* Subscribed to Release - only shown when subscribed repos exist or currently selected */}
               {(statusStats.subscribed > 0 || searchFilters.isSubscribed === true) && (
                 <Button
                   onClick={() => setSearchFilters({ 
@@ -1040,7 +1040,7 @@ export const SearchBar: React.FC = () => {
                   <span className="text-xs opacity-70">({statusStats.subscribed})</span>
                 </Button>
               )}
-              {/* 未订阅Release - 仅在存在未订阅仓库时显示 */}
+              {/* Not subscribed to Release - only shown when unsubscribed repos exist */}
               {statusStats.notSubscribed > 0 && (
                 <Button
                   onClick={() => setSearchFilters({ 
@@ -1060,7 +1060,7 @@ export const SearchBar: React.FC = () => {
                   <span className="text-xs opacity-70">({statusStats.notSubscribed})</span>
                 </Button>
               )}
-              {/* 已自定义 - 仅在存在已自定义仓库或当前已选择时显示 */}
+              {/* Customized - only shown when customized repos exist or currently selected */}
               {(statusStats.edited > 0 || searchFilters.isEdited === true) && (
                 <Button
                   onClick={() => setSearchFilters({
@@ -1080,7 +1080,7 @@ export const SearchBar: React.FC = () => {
                   <span className="text-xs opacity-70">({statusStats.edited})</span>
                 </Button>
               )}
-              {/* 分类已锁定 - 仅在存在已锁定仓库或当前已选择时显示 */}
+              {/* Category locked - only shown when category-locked repos exist or currently selected */}
               {(statusStats.locked > 0 || searchFilters.isCategoryLocked === true) && (
                 <Button
                   onClick={() => setSearchFilters({
@@ -1100,7 +1100,7 @@ export const SearchBar: React.FC = () => {
                   <span className="text-xs opacity-70">({statusStats.locked})</span>
                 </Button>
               )}
-              {/* 分类未锁定 - 仅在存在未锁定仓库或当前已选择时显示 */}
+              {/* Category unlocked - only shown when unlocked repos exist or currently selected */}
               {(statusStats.notLocked > 0 || searchFilters.isCategoryLocked === false) && (
                 <Button
                   onClick={() => setSearchFilters({
@@ -1295,8 +1295,8 @@ export const SearchBar: React.FC = () => {
             </div>
           </div>
 
-          {/* Repository Health 客观事实过滤（见 src/utils/repositoryHealth.ts）。
-              这里刻意不放「健康 / 不健康」之类主观筛选，只按可验证事实过滤。 */}
+          {/* Repository Health objective facts filter (see src/utils/repositoryHealth.ts).
+              Subjective filters like "healthy / unhealthy" are deliberately avoided here; filters only on verifiable facts. */}
           <div>
             <h4 className="text-sm font-medium text-foreground dark:text-foreground mb-3">
               {t('searchBar.repository-health-facts')}

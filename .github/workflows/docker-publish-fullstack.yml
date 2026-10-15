@@ -32,12 +32,15 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/github-stars-manager-fullstack
 
+# Heavy work runs on the Proxmox runner (guest 135, label proxmox-actions), not on
+# GitHub-hosted machines. PRs from other forks fall back to GitHub so untrusted
+# code never runs on the LAN-adjacent runner.
 jobs:
   validate:
     if: github.event_name == 'pull_request'
     # Pinned: `ubuntu-latest` migrates to Ubuntu 26.04 between 2026-10-19 and
     # 2026-11-19 (actions/runner-images#14748).
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     # Fork PRs can only read default-branch GHA caches, so a fork PR validate
     # runs the full multi-arch build cold; keep the timeout above that.
     timeout-minutes: 60
@@ -79,7 +82,7 @@ jobs:
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     # Pinned: `ubuntu-latest` migrates to Ubuntu 26.04 between 2026-10-19 and
     # 2026-11-19 (actions/runner-images#14748).
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     # A cache or registry outage must not leave a publishing run blocked forever.
     timeout-minutes: 30
     permissions:

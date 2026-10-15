@@ -75,14 +75,14 @@ const RepositoriesView = React.memo(({
   const similarView = useAppStore((state) => state.similarView);
   const exitSimilarView = useAppStore((state) => state.exitSimilarView);
 
-  // 相似视图下用户发起搜索时，自动退出相似视图（搜索优先于相似浏览，避免界面歧义）
+  // When the user initiates a search while in similar view, automatically exit similar view (search takes precedence over similar browsing to avoid UI ambiguity)
   useEffect(() => {
     if (similarView?.active && isActive) {
       exitSimilarView();
     }
   }, [similarView?.active, isActive, exitSimilarView]);
 
-  // 相似仓库视图激活时，列表数据源切换为相似结果，且忽略分类过滤
+  // When similar repositories view is active, switch list data source to similar results and ignore category filtering
   const listRepositories = similarView?.active
     ? similarView.similarResults
     : (isActive ? searchResults : repositories);
@@ -211,20 +211,20 @@ function App() {
     applyThemePreset(themePreset);
   }, [themePreset]);
 
-  // Theme token（开发守则 §14）：内联 CSS 变量覆盖预设；恢复默认时删掉内联值，
-  // 预设的 --radius / --primary 自然重新生效。排在预设 effect 之后即可。
+  // Theme token (development guideline §14): inline CSS variables override presets; when reverting to default,
+  // remove inline values so preset --radius / --primary naturally take effect again. Running after preset effect is sufficient.
   useEffect(() => {
     applyThemeTokens(themeTokens);
   }, [themeTokens, theme, themePreset]);
 
-  // Language side effect: zustand 的 language 是唯一事实源，这里只负责装载
-  // 语言包、切换 i18next 并同步 <html lang>。
+  // Language side effect: Zustand's language is the single source of truth; this only loads
+  // language packs, switches i18next, and syncs <html lang>.
   useEffect(() => {
     void changeAppLanguage(language);
   }, [language]);
 
   const handleCategorySelect = useCallback((category: string) => {
-    // 相似仓库视图下点击分类 = 离开相似视图并切换到该分类，避免交互歧义
+    // Clicking a category while in similar repositories view exits similar view and switches to that category to avoid interaction ambiguity
     if (useAppStore.getState().similarView?.active) {
       useAppStore.getState().exitSimilarView();
     }

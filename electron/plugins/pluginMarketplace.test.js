@@ -31,13 +31,13 @@ const SHA = 'a'.repeat(40);
 
 const jsonHeaders = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 
-/** refs 名 → 提交 SHA 的解析端点（所有遍历/下载都会先解析到不可变 SHA）。 */
+/** refs name -> commit SHA endpoint (all traversals/downloads resolve to an immutable SHA first). */
 const commitRoute = (ref = 'main') => [`api.github.com/repos/owner/repo/commits/${ref}`, () => jsonHeaders({ sha: SHA })];
 
-/** contents API 的目录响应：dirs 是目录名数组。返回工厂，避免 Response 被二次消费。 */
+/** contents API directory response: dirs is an array of directory names. Returns factory to avoid Response reuse. */
 const contentsResponse = (dirs) => () => jsonHeaders(dirs.map((name) => ({ name, path: name, type: 'dir' })));
 
-/** git trees API 响应：files 是 [path, size] 数组。 */
+/** git trees API response: files is an array of [path, size]. */
 const treeResponse = (files, { truncated = false } = {}) => () => jsonHeaders({
   sha: 'treesha',
   truncated,
@@ -46,7 +46,7 @@ const treeResponse = (files, { truncated = false } = {}) => () => jsonHeaders({
 
 const rawResponse = (body) => () => new Response(body, { status: 200 });
 
-/** 构造 fetchImpl：url → Response | Error；未匹配的 URL 报 404。 */
+/** Builds fetchImpl: url -> Response | Error; unmatched URLs return 404. */
 function makeFetch(routes, { onRequest } = {}) {
   const calls = [];
   const fetchImpl = async (url, options) => {
@@ -169,7 +169,7 @@ describe('plugin marketplace', () => {
     return createPluginManager({ pluginsRoot, statePath: path.join(tmpRoot, 'plugins-state.json') });
   }
 
-  /** 绝大多数用例不关心种子行为：关闭默认源种子，让 entries[0] 就是新加的源。 */
+  /** Most tests do not test seeding behavior: disable default seeding so entries[0] is the newly added source. */
   function makeMarketplace(fetchImpl, options = {}) {
     return createPluginMarketplace({
       statePath: stateFilePath,
@@ -195,7 +195,7 @@ describe('plugin marketplace', () => {
     assert.equal(state.entries[0].status, 'pending');
     assert.equal(JSON.parse(fs.readFileSync(stateFilePath, 'utf8')).sources.length, 1);
 
-    // 第二个实例读取同一文件，不再种入第二条默认源。
+    // Second instance reading same file does not re-seed default source.
     const again = createPluginMarketplace({
       statePath: stateFilePath,
       stagingRoot,
@@ -229,7 +229,7 @@ describe('plugin marketplace', () => {
     assert.equal(entry.plugins.length, 1);
     assert.equal(entry.plugins[0].directoryName, 'good');
     assert.equal(entry.plugins[0].manifest.id, 'com.example.marketplace-fixture');
-    // bad-json 产生告警；no-manifest 与 .hidden 静默跳过。
+    // bad-json produces warning; no-manifest and .hidden are silently skipped.
     assert.equal(entry.warnings.length, 1);
     assert.match(entry.warnings[0], /bad-json/);
 
@@ -252,7 +252,7 @@ describe('plugin marketplace', () => {
   it('resolves the default branch when the URL omits a ref', async () => {
     const branchSha = 'b'.repeat(40);
     const { fetchImpl, calls } = makeFetch([
-      // 顺序敏感：repo-info 与 commits 都是 /repos/owner/repo 的前缀，用正则精确匹配。
+      // Order-sensitive: repo-info and commits share the /repos/owner/repo prefix; match with exact regex.
       [/\/repos\/owner\/repo\/commits\/develop$/, () => jsonHeaders({ sha: branchSha })],
       [/\/repos\/owner\/repo$/, () => jsonHeaders({ default_branch: 'develop' })],
       [`api.github.com/repos/owner/repo/contents/plugins?ref=${branchSha}`, contentsResponse(['good'])],
@@ -264,7 +264,7 @@ describe('plugin marketplace', () => {
     const [entry] = result.state.entries;
     assert.equal(entry.status, 'ok', JSON.stringify(entry.error));
     assert.equal(entry.plugins.length, 1);
-    // 目录枚举与 manifest 探测都钉在解析出的提交 SHA 上。
+    // Both directory listing and manifest probing pin to the resolved commit SHA.
     assert.ok(calls.some((call) => call.url.includes(`contents/plugins?ref=${branchSha}`)));
     assert.ok(calls.some((call) => call.url.includes(`/${branchSha}/plugins/good/manifest.json`)));
   });
@@ -331,14 +331,14 @@ describe('plugin marketplace', () => {
       expectedVersion: '1.0.0',
     });
     assert.equal(result.success, true);
-    // 安装的所有下载请求都钉在解析出的提交 SHA 上（分支推进不会混入不一致文件）。
+    // All download requests for installation pin to the resolved commit SHA (branch advance won't mix inconsistent files).
     const rawCalls = calls.filter((call) => call.url.includes('raw.githubusercontent.com/owner/repo'));
     assert.ok(rawCalls.length >= 2);
     assert.ok(rawCalls.every((call) => call.url.includes(`/${SHA}/`)));
     assert.ok(calls.some((call) => call.url.includes(`git/trees/${SHA}`) || call.url.includes(`git/trees/${SHA.split('').join('')}`)));
     assert.equal(result.pluginId, 'com.example.marketplace-fixture');
 
-    // 落位目录以 manifest id 命名，内容完整；staging 已清理。
+    // Placement directory is named by manifest id, contents complete, staging cleaned up.
     assert.deepEqual(fs.readdirSync(pluginsRoot), ['com.example.marketplace-fixture']);
     assert.equal(
       fs.readFileSync(path.join(pluginsRoot, 'com.example.marketplace-fixture', 'worker.js'), 'utf8'),
@@ -349,7 +349,7 @@ describe('plugin marketplace', () => {
 
   it('replaces an installed plugin on update while keeping its data', async () => {
     const manifestJson = validManifestJson({ main: 'worker.js' });
-    // Response 实例是一次性的：两次安装用工厂函数生成新响应。
+    // Response instances are one-shot: use factory functions to create new responses across two installs.
     const { fetchImpl } = makeFetch([
       commitRoute(),
       ['git/trees', treeResponse([['plugins/fixture/manifest.json', manifestJson.length], ['plugins/fixture/worker.js', 32]])],
@@ -406,7 +406,7 @@ describe('plugin marketplace', () => {
       ['git/trees', treeResponse([['plugins/fixture/manifest.json', manifestJson.length], ['plugins/fixture/worker.js', 32]])],
       [`raw.githubusercontent.com/owner/repo/${SHA}/plugins/fixture/manifest.json`, rawResponse(manifestJson)],
       [`raw.githubusercontent.com/owner/repo/${SHA}/plugins/fixture/worker.js`, rawResponse('x\n')],
-      // 官方注册表：插件列表为空；移除表里冻结了 1.0.0 的撤销记录。
+      // Official registry: plugin list is empty; removal list records a revocation for 1.0.0.
       ['AmintaCCCP/GithubStarsManager/main/registry/community-plugins.json', () => new Response('[]', { status: 200 })],
       ['AmintaCCCP/GithubStarsManager/main/registry/removed-plugins.json', () => new Response(JSON.stringify([{
         id: 'com.example.marketplace-fixture',
@@ -474,8 +474,8 @@ describe('plugin marketplace', () => {
     });
     assert.equal(first.success, true, JSON.stringify(first));
 
-    // 更新时的文件清单缺了 manifest 声明的入口：installFromDirectory 校验失败
-    // → 回滚：旧目录原样回来，状态仍是"未启用"。
+    // The update file tree lacks the manifest-declared entry point: installFromDirectory fails validation
+    // -> Rollback: old directory restored as-is, status remains disabled.
     treeFiles = [{ path: 'plugins/fixture/manifest.json', type: 'blob', size: manifestJson.length }];
     const second = await marketplace.install({ sourceId, directoryName: 'fixture', replace: true,
       expectedPluginId: 'com.example.marketplace-fixture',
@@ -509,7 +509,7 @@ describe('plugin marketplace', () => {
     });
     assert.equal(result.success, false);
     assert.equal(result.error.code, 'MARKETPLACE_ENTRY_UNSAFE');
-    // 逃逸路径在写入前就被拒绝：staging 清空，目标文件不存在于任何位置。
+    // Escaping path is rejected before writing: staging emptied, target file does not exist anywhere.
     assert.deepEqual(fs.readdirSync(stagingRoot), []);
     assert.ok(!fs.existsSync(path.join(tmpRoot, 'escape.js')));
     assert.ok(!fs.existsSync(path.join(tmpRoot, 'escape')));
@@ -579,7 +579,7 @@ describe('plugin marketplace', () => {
       commitRoute(),
       ['git/trees', treeResponse([['plugins/fixture/manifest.json', manifestJson.length], ['plugins/fixture/worker.js', 32]])],
       [`raw.githubusercontent.com/owner/repo/${SHA}/plugins/fixture/manifest.json`, rawResponse(manifestJson)],
-      // worker.js 下载 404 → 安装失败
+      // worker.js download 404 -> installation failure
     ]);
     const marketplace = makeMarketplace(fetchImpl);
     const added = await marketplace.addSource({ url: 'https://github.com/owner/repo/tree/main/plugins' });
@@ -610,7 +610,7 @@ describe('plugin marketplace', () => {
   it('refreshes a single source on demand and reports per-request timeouts', async () => {
     const { fetchImpl } = makeFetch([
       commitRoute(),
-      // 永不结算，但监听 abort 信号（与真实 net.fetch 行为一致），超时后立即拒绝。
+      // Never resolves, but listens to abort signal (matching real net.fetch behavior), rejecting on timeout.
       ['api.github.com/repos/owner/repo/contents/plugins', (_url, { signal } = {}) => new Promise((_resolve, reject) => {
         signal?.addEventListener('abort', () => reject(new Error('aborted')));
       })],
@@ -636,7 +636,7 @@ describe('plugin marketplace', () => {
 
   it('re-resolves the commit SHA on every refresh so branch movement becomes visible', async () => {
     const shas = ['a'.repeat(40), 'b'.repeat(40)];
-    // makeFetch 在调用处理器前就记录请求，处理器里自己计数，别用 calls 反推。
+    // makeFetch records calls before invoking the handler; count inside the handler, don't infer from calls.
     let commitCallCount = 0;
     const { fetchImpl, calls } = makeFetch([
       ['api.github.com/repos/owner/repo/commits/main', () => {
@@ -651,7 +651,7 @@ describe('plugin marketplace', () => {
     assert.equal(added.success, true);
     await marketplace.refresh({ sourceId: added.state.sources[0].id });
 
-    // 两次遍历各自解析一次提交，且 contents 请求分别钉在两个不同的 SHA 上。
+    // Two traversals resolve commit separately; contents requests pin to two distinct SHAs.
     const contentsCalls = calls.filter((call) => call.url.includes('/contents/'));
     assert.equal(contentsCalls.length, 2);
     assert.ok(contentsCalls[0].url.includes(`ref=${shas[0]}`));
@@ -710,7 +710,7 @@ describe('plugin marketplace', () => {
     const enabled = await pluginManager.enable('com.example.marketplace-fixture', ['storage']);
     assert.equal(enabled.success, true, JSON.stringify(enabled));
 
-    // 更新包缺入口 → 回滚后：状态与 Worker 都必须恢复为启用态。
+    // Update package missing entry point -> on rollback: both state and Worker must be restored to enabled.
     treeFiles = [{ path: 'plugins/fixture/manifest.json', type: 'blob', size: manifestJson.length }];
     const second = await marketplace.install({ sourceId, directoryName: 'fixture', replace: true,
       expectedPluginId: 'com.example.marketplace-fixture',
@@ -719,8 +719,8 @@ describe('plugin marketplace', () => {
     assert.equal(second.success, false);
     const listed = await pluginManager.list();
     const rolledBack = listed.plugins.find((plugin) => plugin.manifest.id === 'com.example.marketplace-fixture');
-    assert.equal(rolledBack.enabled, true, '回滚后应保持启用状态');
-    assert.equal(rolledBack.status, 'active', 'status 必须回到 active，不能报 error');
+    assert.equal(rolledBack.enabled, true, 'must remain enabled after rollback');
+    assert.equal(rolledBack.status, 'active', 'status must return to active, not error');
   });
 
   it('rolls back the old directory and runtime when installFromDirectory throws synchronously', async () => {
@@ -760,7 +760,7 @@ describe('plugin marketplace', () => {
     const enabled = await pluginManager.enable('com.example.marketplace-fixture', ['storage']);
     assert.equal(enabled.success, true, JSON.stringify(enabled));
 
-    // 临时弄坏 pluginsRoot 权限，让 installFromDirectory 的 mkdirSync 同步抛异常
+    // Temporarily break pluginsRoot permissions so installFromDirectory mkdirSync throws synchronously
     const rootMode = fs.statSync(pluginsRoot).mode;
     fs.chmodSync(pluginsRoot, 0o000);
     let second;
@@ -773,11 +773,11 @@ describe('plugin marketplace', () => {
       fs.chmodSync(pluginsRoot, rootMode);
     }
 
-    assert.equal(second.success, false, '同步异常必须被外层 catch 兜住');
+    assert.equal(second.success, false, 'synchronous exception must be caught by outer try/catch');
     const listed = await pluginManager.list();
     const restored = listed.plugins.find((plugin) => plugin.manifest.id === 'com.example.marketplace-fixture');
-    assert.equal(restored.enabled, true, '旧版本目录必须被恢复为启用状态');
-    assert.equal(restored.status, 'active', '激活恢复后状态必须是 active');
+    assert.equal(restored.enabled, true, 'old version directory must be restored to enabled state');
+    assert.equal(restored.status, 'active', 'status must be active after reactivation');
   });
 
   it('keeps previous grants when a disabled plugin updates to unchanged permissions', async () => {
@@ -820,12 +820,12 @@ describe('plugin marketplace', () => {
       expectedVersion: '1.0.0',
     });
     assert.equal(second.success, true, JSON.stringify(second));
-    assert.equal(second.keptEnabled, false, '停用的插件更新后仍处于停用');
+    assert.equal(second.keptEnabled, false, 'disabled plugin remains disabled after update');
     assert.equal(second.permissionsChanged, false);
     const listed = await pluginManager.list();
     const updated = listed.plugins.find((plugin) => plugin.manifest.id === 'com.example.marketplace-fixture');
     assert.equal(updated.enabled, false);
-    assert.deepEqual(updated.grantedPermissions, ['storage'], '权限没变时旧授权应保留');
+    assert.deepEqual(updated.grantedPermissions, ['storage'], 'previous grants should be preserved when permissions are unchanged');
   });
 
   it('keeps reporting activation failure without pretending the update succeeded', async () => {
@@ -872,7 +872,7 @@ describe('plugin marketplace', () => {
     });
     assert.equal(second.success, false);
     assert.equal(second.error.code, 'WORKER_SPAWN_FAILED');
-    // 新版本文件已就位但激活失败：插件保持停用，错误状态由 recordError 记录。
+    // New version files in place but activation failed: plugin remains disabled; error state recorded by recordError.
     const listed = await pluginManager.list();
     const replaced = listed.plugins.find((plugin) => plugin.manifest.id === 'com.example.marketplace-fixture');
     assert.equal(replaced.enabled, false);

@@ -1,8 +1,8 @@
 /**
- * 插件市场（自助插件源）的客户端桥。
+ * Client bridge for the plugin marketplace (self-service plugin sources).
  *
- * 源管理、目录遍历与安装都在主进程完成；渲染进程只拿到已经校验过的结构。
- * 只有桌面端有这条通道，Web 形态返回 false，界面据此隐藏市场入口。
+ * Source management, catalog traversal, and installation all happen in the main process; the renderer only receives already-validated structures.
+ * Only the desktop build has this channel; the Web build returns false, and the UI uses that to hide the marketplace entry.
  */
 
 import type {

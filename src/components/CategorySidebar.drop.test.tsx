@@ -8,9 +8,9 @@ import type { Repository } from '../types';
 vi.mock('../store/useAppStore', () => ({
   useAppStore: vi.fn(),
   getAllCategories: () => [
-    { id: 'all', name: '全部分类', icon: '📁', keywords: [] },
-    { id: 'cat-b', name: '分类B', icon: '📦', keywords: [], isCustom: true },
-    { id: 'cat-c', name: '分类C', icon: '🧪', keywords: [], isCustom: true },
+    { id: 'all', name: 'All Categories', icon: '📁', keywords: [] },
+    { id: 'cat-b', name: 'Category B', icon: '📦', keywords: [], isCustom: true },
+    { id: 'cat-c', name: 'Category C', icon: '🧪', keywords: [], isCustom: true },
   ],
   sortCategoriesByOrder: (categories: { id: string }[]) => categories,
 }));
@@ -47,7 +47,7 @@ const categorizedRepo: Repository = {
   },
   topics: ['test'],
   ai_platforms: ['web', 'cli'],
-  custom_category: '分类B',
+  custom_category: 'Category B',
   category_locked: true,
 };
 
@@ -62,7 +62,7 @@ const storeState = {
   deleteCustomCategory: vi.fn(),
   hideDefaultCategory: vi.fn(),
   showDefaultCategory: vi.fn(),
-  language: 'zh' as const,
+  language: 'en' as const,
   updateRepository: vi.fn(),
   isSidebarCollapsed: false,
   setSidebarCollapsed: vi.fn(),
@@ -97,10 +97,10 @@ beforeEach(() => {
 });
 
 describe('CategorySidebar drop-to-uncategorize (issue #353 suggestion)', () => {
-  it('将已分类仓库拖到「全部分类」时显式清空分类并同步后端', async () => {
+  it('explicitly clears category and syncs to backend when dragging categorized repo to "All Categories"', async () => {
     renderSidebar([categorizedRepo]);
 
-    await dropOnCategory('全部分类', String(categorizedRepo.id));
+    await dropOnCategory('All Categories', String(categorizedRepo.id));
 
     expect(storeState.updateRepository).toHaveBeenCalledOnce();
     const updated = storeState.updateRepository.mock.calls[0][0] as Repository;
@@ -110,16 +110,16 @@ describe('CategorySidebar drop-to-uncategorize (issue #353 suggestion)', () => {
     expect(useRepositoryDragStore.getState().isDragging).toBe(false);
   });
 
-  it('本就无分类的仓库拖到「全部分类」时不写入不同步', async () => {
+  it('does not write or sync when dragging an already uncategorized repo to "All Categories"', async () => {
     renderSidebar([{ ...categorizedRepo, custom_category: '', category_locked: false }]);
 
-    await dropOnCategory('全部分类', String(categorizedRepo.id));
+    await dropOnCategory('All Categories', String(categorizedRepo.id));
 
     expect(storeState.updateRepository).not.toHaveBeenCalled();
     expect(syncMocks.forceSyncToBackend).not.toHaveBeenCalled();
   });
 
-  it('无锁定分类且 AI/默认分类均未命中的仓库拖到「全部分类」时保持 no-op（保留 undefined 以便后续 AI 归类）', async () => {
+  it('remains a no-op when dragging a repo with no locked category and no AI/default match to "All Categories" (preserving undefined for future AI categorization)', async () => {
     const neverMatchedRepo: Repository = {
       ...categorizedRepo,
       id: 2,
@@ -135,35 +135,35 @@ describe('CategorySidebar drop-to-uncategorize (issue #353 suggestion)', () => {
     };
     renderSidebar([neverMatchedRepo]);
 
-    await dropOnCategory('全部分类', '2');
+    await dropOnCategory('All Categories', '2');
 
     expect(storeState.updateRepository).not.toHaveBeenCalled();
     expect(syncMocks.forceSyncToBackend).not.toHaveBeenCalled();
   });
 
-  it('拖到普通分类时沿用原有改分类逻辑（回归保护）', async () => {
+  it('follows standard re-categorization logic when dragging to a normal category (regression guard)', async () => {
     renderSidebar([categorizedRepo]);
 
-    await dropOnCategory('分类C', String(categorizedRepo.id));
+    await dropOnCategory('Category C', String(categorizedRepo.id));
 
     expect(storeState.updateRepository).toHaveBeenCalledOnce();
     const updated = storeState.updateRepository.mock.calls[0][0] as Repository;
-    expect(updated.custom_category).toBe('分类C');
+    expect(updated.custom_category).toBe('Category C');
     expect(updated.category_locked).toBe(true);
     expect(syncMocks.forceSyncToBackend).toHaveBeenCalledOnce();
   });
 
-  it('同步失败时回滚为原始仓库数据', async () => {
+  it('rolls back to original repository data when sync fails', async () => {
     syncMocks.forceSyncToBackend.mockRejectedValue(new Error('sync failed'));
     renderSidebar([categorizedRepo]);
 
-    await dropOnCategory('全部分类', String(categorizedRepo.id));
+    await dropOnCategory('All Categories', String(categorizedRepo.id));
 
-    // 回滚：以原始仓库对象调用 updateRepository
+    // Rollback: calls updateRepository with original repo object
     expect(storeState.updateRepository).toHaveBeenCalledTimes(2);
     const rollback = storeState.updateRepository.mock.calls[1][0] as Repository;
-    expect(rollback.custom_category).toBe('分类B');
+    expect(rollback.custom_category).toBe('Category B');
     expect(rollback.category_locked).toBe(true);
-    expect(syncMocks.toast).toHaveBeenCalledWith('同步到后端失败，已恢复分类更改。', 'error');
+    expect(syncMocks.toast).toHaveBeenCalledWith('Failed to sync to backend. Category change has been reverted.', 'error');
   });
 });

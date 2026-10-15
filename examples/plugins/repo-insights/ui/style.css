@@ -1,10 +1,10 @@
-/* Repo Insights — 仓库洞察插件页面样式。
+/* Repo Insights — plugin page styles.
  *
- * 插件页面 CSP 的 style-src 不含 'unsafe-inline'：动态 <style> 与 style 属性
- * 都会被拦截，因此所有样式集中在这份外链样式表；运行期唯一的动态样式是
- * 健康分圆环的 stroke-dasharray（SVG 展示属性，不受 style-src 约束）。
- * 配色沿用宿主 BI 看板的设计语言（深色面板 + 蓝/紫/绿/琥珀/红强调色），
- * 并按 init context 的 theme 提供浅色变体。
+ * The plugin page CSP's style-src does not include 'unsafe-inline': dynamic <style> and style attributes
+ * are both blocked, so all styles live in this external stylesheet; the only runtime dynamic style is
+ * the health score ring's stroke-dasharray (an SVG presentation attribute, not subject to style-src).
+ * The palette follows the host BI dashboard design language (dark panels + blue/purple/green/amber/red accents),
+ * with a light variant based on the init context theme.
  */
 
 :root {
@@ -40,8 +40,8 @@ body[data-theme="light"] {
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-/* .head/.kpis/.grid 等有显式 display，会盖掉 hidden 属性的 UA 样式，
-   必须显式压制，否则初始化前会闪现空骨架。 */
+/* .head/.kpis/.grid etc. set an explicit display, which overrides the UA style for the hidden attribute,
+   so it must be suppressed explicitly, or an empty skeleton flashes before initialization. */
 [hidden] { display: none !important; }
 html, body {
   min-height: 100%;
@@ -159,8 +159,8 @@ a:hover { text-decoration: underline; }
 .rows .tag-name { font-weight: 600; white-space: nowrap; }
 .rows .row-date { margin-left: auto; color: var(--tx2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
-/* 仓库体检（客观事实 + 保守信号；按信息相关度分组，未知项沉底弱化）。 */
-/* 维护者与贡献者容器：两个子面板（所有者 / 贡献者）。 */
+/* Repo health check (objective facts + conservative signals; grouped by relevance, unknown items sink to the bottom and are dimmed). */
+/* Maintainers and contributors container: two sub-panels (owner / contributors). */
 .maint-grid {
   display: grid;
   grid-template-columns: minmax(230px, 2fr) minmax(320px, 3fr);
@@ -327,7 +327,7 @@ a:hover { text-decoration: underline; }
   color: var(--badge-tx);
   text-decoration: underline;
 }
-/* 加载中状态：文案后跟旋转指示（纯 CSS，无需内联样式）。 */
+/* Loading state: the text is followed by a spinner (pure CSS, no inline styles needed). */
 .state.loading::after {
   content: '';
   display: inline-block;

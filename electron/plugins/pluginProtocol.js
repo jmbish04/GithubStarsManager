@@ -87,9 +87,9 @@ function sanitizeRepository(repository) {
       ? repository.topics.filter((topic) => typeof topic === 'string').slice(0, 100)
       : [],
     license: typeof repository.license === 'string' ? repository.license : null,
-    // Repository Health 客观事实（见 docs/plans/2026-09-17-product-roadmap.md §4）。
-    // 全部来自公开仓库元数据，属于既有 `repositories:read` 权限范围，不新增能力；
-    // 未知一律为 null，插件据此可以区分「未归档」与「本地没有这个事实」。
+    // Repository Health facts (see docs/plans/2026-09-17-product-roadmap.md §4).
+    // All derived from public repository metadata within the existing `repositories:read` permission scope;
+    // unknown values remain null so plugins can distinguish "unarchived" from "fact unavailable locally".
     archived: typeof repository.archived === 'boolean' ? repository.archived : null,
     disabled: typeof repository.disabled === 'boolean' ? repository.disabled : null,
     fork: typeof repository.fork === 'boolean' ? repository.fork : null,

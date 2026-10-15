@@ -120,7 +120,7 @@ const SelectionAwareButton: React.FC<SelectionAwareButtonProps> = ({
   };
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    // 阻止事件冒泡，防止触发卡片的点击事件
+    // Stop event propagation to prevent triggering card click event
     e.stopPropagation();
     onClick?.(e);
   };
@@ -180,7 +180,7 @@ const PluginRepositoryActionItems: React.FC<{
     <DropdownMenuItem
       key={`${action.pluginId}:${action.id}`}
       onSelect={() => (action.opensPage
-        // 弹窗由应用根上的 PluginPageHost 渲染，菜单关闭不会把它一起卸掉。
+        // The modal is rendered by PluginPageHost on the app root, so closing the menu will not unmount it.
         ? pluginPageSession.open({
           pluginId: action.pluginId,
           pluginName: action.pluginName,
@@ -478,13 +478,13 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
 }) => {
     const t = useT('repositories');
   const language = useAppStore((state) => state.language);
-  // 卡片可见字段（开发守则 §14）：未提供时按默认（显示）处理
+  // Card visible fields (Dev Guide §14): treat as default (visible) when not provided
   const cardFields = useAppStore((state) => state.repositoryCardFields);
   const savedActionPreferences = useAppStore((state) => state.repositoryCardActions);
   const actionPreferences = useMemo(() => normalizeRepositoryCardActions(savedActionPreferences), [savedActionPreferences]);
   const showDescription = isRepositoryCardFieldVisible(cardFields, 'description');
-  // 「自动翻译仓库描述」：仅当卡片实际展示原始描述时才翻译
-  // （字段开关关闭 / 自定义描述 / AI 总结优先级更高时不发起翻译），翻译中/失败回退原文。
+  // "Auto-translate repository description": translate only when the card actually displays the original description
+  // (not triggered if field visibility is disabled, or custom description / AI summary takes precedence); falls back to original on pending/failure.
   const showsOriginalDescription =
     showDescription &&
     !!repository.description &&
@@ -553,7 +553,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     };
   }, [viewMode, primaryOverflowActionCount, selectionMode]);
 
-  // 高亮搜索关键词的工具函数 - 使用缓存优化
+  // Utility to highlight search keywords - optimized with cache
   const highlightSearchTerm = useCallback((text: string, searchTerm: string): React.ReactNode => {
     if (!searchTerm.trim() || !text) return text;
 
@@ -605,7 +605,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     return num.toString();
   };
 
-  // 缓存语言颜色映射
+  // Cache language color mapping
   const languageColors = useMemo(() => ({
     JavaScript: '#f1e05a',
     TypeScript: '#3178c6',
@@ -632,7 +632,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     return languageColors[language as keyof typeof languageColors] || '#6b7280';
   }, [languageColors]);
 
-  // 展示平台：优先 release 资产/仓库元数据的确定性识别，无信号时回退 ai_platforms
+  // Display platforms: prioritize deterministic recognition from release assets/repo metadata; fall back to ai_platforms when no signal
   const displayPlatforms = useRepositoryPlatforms(repository);
 
   // Convert GitHub URL to DeepWiki URL
@@ -645,37 +645,37 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     return `https://zread.ai/${fullName}`;
   };
 
-  // 使用 useMemo 缓存显示内容计算
-  // 方案一：分离内容与状态指示，同时显示多个状态标签
+  // Use useMemo to cache display content computation
+  // Option 1: separate content and status indicators, displaying multiple status badges simultaneously
   const displayContent = useMemo(() => {
-    // 确定显示的内容（按优先级）
-    // custom_description === '' 表示用户明确清空，应显示为空
-    // custom_description === undefined 表示无自定义，回退到AI/原始
+    // Determine displayed content (by priority)
+    // custom_description === '' indicates user explicitly cleared it, should display as empty
+    // custom_description === undefined indicates no custom content, falls back to AI/original
     let content: string;
     let contentSource: 'custom' | 'ai' | 'original' | 'empty';
 
-    // 检查是否有明确的自定义描述（包括空标记）
+    // Check whether there is an explicit custom description (including empty marker)
     const hasExplicitCustomDesc = repository.custom_description !== undefined;
     const isExplicitlyCleared = repository.custom_description === '';
 
     if (isExplicitlyCleared) {
-      // 用户明确清空描述
+      // User explicitly cleared description
       content = t('repositoryCard.no-description');
       contentSource = 'empty';
     } else if (repository.custom_description) {
-      // 有自定义描述
+      // Has custom description
       content = repository.custom_description;
       contentSource = 'custom';
     } else if (showAISummary && repository.ai_summary) {
-      // 显示AI总结
+      // Show AI summary
       content = repository.ai_summary;
       contentSource = 'ai';
     } else if (repository.description) {
-      // 显示原始描述（开启自动翻译时为译文，未完成/失败回退原文）
+      // Show original description (translated if auto-translation enabled, falls back to original if pending/failed)
       content = translatedDescription ?? repository.description;
       contentSource = 'original';
     } else {
-      // 无可用描述
+      // No description available
       content = t('repositoryCard.no-description-available');
       contentSource = 'empty';
     }
@@ -696,8 +696,8 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
       }
     }
 
-    // 判断仓库是否有任何自定义行为（与筛选器逻辑一致）
-    // 描述：有自定义描述标记（包括明确清空），且内容与AI/原始不同
+    // Determine whether repo has any custom actions (consistent with filter logic)
+    // Description: marked with custom description (including explicitly cleared) and differs from AI/original
     const hasCustomDesc = repository.custom_description !== undefined;
     const repoDesc = (repository.description || '').trim();
     const aiDesc = (repository.ai_summary || '').trim();
@@ -705,7 +705,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     const isDescEdited = hasCustomDesc &&
       (customDesc === '' || (customDesc !== repoDesc && customDesc !== aiDesc));
 
-    // 标签：有自定义标签标记（包括明确清空），且内容与AI/Topics不同
+    // Tags: marked with custom tags (including explicitly cleared) and differs from AI/topics
     const hasCustomTags = repository.custom_tags !== undefined;
     const aiTags = repository.ai_tags || [];
     const topics = repository.topics || [];
@@ -716,14 +716,14 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
         JSON.stringify([...customTags].sort()) !== JSON.stringify([...topics].sort())
       ));
 
-    // 分类：有自定义分类标记（包括明确清空），且与AI/默认不一致
+    // Category: marked with custom category (including explicitly cleared) and differs from AI/default
     const aiCat = getAICategory(repository, allCategories);
     const defaultCat = getDefaultCategory(repository, allCategories);
     const customCat = repository.custom_category;
     const isCategoryEdited = customCat !== undefined &&
       (customCat === '' || (customCat !== aiCat && customCat !== defaultCat));
 
-    // 任意一个为true则显示已自定义（注意：分类锁定不算自定义）
+    // If any is true, display as customized (note: category locking is not considered customization)
     const isCustomized = isDescEdited || isTagsEdited || isCategoryEdited;
 
     return {
@@ -739,14 +739,14 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     };
   }, [repository, showAISummary, allCategories, t, translatedDescription]);
 
-  // 使用 useMemo 缓存标签计算
-  // 逻辑：优先显示自定义标签，如果没有则按AI分析状态显示AI标签或Topics
+  // Use useMemo to cache tag computation
+  // Logic: prioritize custom tags; if none, show AI tags or topics according to AI analysis state
   const displayTags = useMemo(() => {
-    // 检查是否有明确的自定义标签设置（包括空数组）
+    // Check whether there are explicit custom tags set (including empty array)
     const hasExplicitCustomTags = repository.custom_tags !== undefined;
     const isExplicitlyCleared = hasExplicitCustomTags && repository.custom_tags!.length === 0;
 
-    // 优先显示自定义标签（如果非空）
+    // Prioritize custom tags (if non-empty)
     if (repository.custom_tags && repository.custom_tags.length > 0) {
       return {
         tags: repository.custom_tags.map(tag => ({ tag, source: 'custom' as const })),
@@ -756,7 +756,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
       };
     }
 
-    // 如果用户明确清空标签，显示空状态
+    // If user explicitly cleared tags, show empty state
     if (isExplicitlyCleared) {
       return {
         tags: [],
@@ -766,7 +766,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
       };
     }
 
-    // 没有自定义标签时，按AI分析状态显示
+    // When no custom tags, show based on AI analysis state
     const isAnalyzed = !!repository.analyzed_at && !repository.analysis_failed;
     if (isAnalyzed && repository.ai_tags && repository.ai_tags.length > 0) {
       return {
@@ -786,7 +786,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     }
   }, [repository.custom_tags, repository.analyzed_at, repository.analysis_failed, repository.ai_tags, repository.topics]);
 
-  // 使用 useMemo 缓存AI分析按钮提示文本
+  // Use useMemo to cache AI analysis button tooltip text
   const aiButtonTitle = useMemo(() => {
     if (repository.analysis_failed) {
       const analyzeTime = new Date(repository.analyzed_at!).toLocaleString();
@@ -810,25 +810,25 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     event.dataTransfer.setData('application/x-gsm-repository-id', String(repository.id));
     event.dataTransfer.effectAllowed = 'move';
 
-    // 设置拖拽图片为整个卡片
+    // Set drag image to entire card
     const cardElement = event.currentTarget.closest('.repository-card') as HTMLElement;
     if (cardElement) {
       const rect = cardElement.getBoundingClientRect();
-      // offsetX/Y 使拖拽图片中心对准鼠标位置
+      // offsetX/Y centers drag image on mouse position
       event.dataTransfer.setDragImage(cardElement, event.clientX - rect.left, event.clientY - rect.top);
     }
 
     event.stopPropagation();
     isDraggingRef.current = true;
-    // 标记正在拖拽，防止触发卡片点击
-    // 全局状态走 dragStore：document 级兜底监听保证源卡片在 drop 时
-    // 被卸载（如分类视图切换）后拖拽状态仍能可靠清除（issue #353）
+    // Mark dragging to prevent triggering card click
+    // Global state uses dragStore: document-level fallback listener ensures drag state
+    // is reliably cleared even if source card unmounts upon drop (e.g., category view toggle) (issue #353)
     useRepositoryDragStore.getState().startDrag();
   };
 
   const handleDragEnd = () => {
     isDraggingRef.current = false;
-    // document 兜底监听通常已先行复位；此处同步调用保持幂等一致
+    // document fallback listener has usually reset already; synchronous call here ensures idempotent consistency
     useRepositoryDragStore.getState().endDrag();
   };
 
@@ -838,19 +838,19 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
   };
 
   const handleDragHandleClick = (event: React.MouseEvent) => {
-    // 如果发生了拖拽，阻止点击事件
+    // If dragging occurred, prevent click event
     if (isDraggingRef.current || useRepositoryDragStore.getState().isDragging) {
       event.preventDefault();
       event.stopPropagation();
     }
   };
 
-  // 移动端触摸拖拽处理
+  // Mobile touch drag handling
   const handleTouchStart = (event: React.TouchEvent) => {
     const touch = event.touches[0];
     touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
     isTouchDraggingRef.current = false;
-    // 取消上一次拖拽的抑制定时器，避免其在本次拖拽的抑制窗口内提前清位
+    // Cancel previous drag suppression timer to avoid premature clearing within current suppression window
     if (touchSuppressTimeoutRef.current) {
       clearTimeout(touchSuppressTimeoutRef.current);
       touchSuppressTimeoutRef.current = null;
@@ -864,7 +864,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     const deltaX = Math.abs(touch.clientX - touchStartPosRef.current.x);
     const deltaY = Math.abs(touch.clientY - touchStartPosRef.current.y);
     
-    // 如果移动距离超过阈值，认为是拖拽
+    // If movement distance exceeds threshold, treat as drag
     if (deltaX > 10 || deltaY > 10) {
       isTouchDraggingRef.current = true;
     }
@@ -872,10 +872,10 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
 
   const handleTouchEnd = () => {
     if (isTouchDraggingRef.current) {
-      // 触摸拖拽后的兼容鼠标事件序列（touchend → mousemove → click）会让
-      // dragStore 的 document 级 mousemove 兜底立即清位，因此触摸拖拽不能
-      // 走全局拖拽状态；用实例级标志独立抑制 200ms 内补发的 click。
-      // 重启窗口前先取消旧定时器，防止连续快速拖拽时旧定时器提前清位。
+      // Compatible mouse event sequence after touch drag (touchend -> mousemove -> click) would cause
+      // dragStore's document-level mousemove fallback to clear immediately, so touch dragging cannot
+      // use global drag state; use instance-level flag to independently suppress click emitted within 200ms.
+      // Cancel previous timer before restarting window to prevent early clearing on rapid successive drags.
       if (touchSuppressTimeoutRef.current) {
         clearTimeout(touchSuppressTimeoutRef.current);
       }
@@ -887,13 +887,13 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     touchStartPosRef.current = null;
   };
 
-  // 使用 ref 记录当前选中状态，避免闭包问题
+  // Use ref to record current selection state, avoiding closure issues
   const isSelectedRef = useRef(isSelected);
   useEffect(() => {
     isSelectedRef.current = isSelected;
   }, [isSelected]);
 
-  // 使用 ref 来跟踪是否已经处理了点击
+  // Use ref to track whether click has already been processed
   const isProcessingClickRef = useRef(false);
 
   const handleReleaseSheetOutsideDismiss = useCallback<DialogContentPointerDownOutsideHandler>((event) => {
@@ -908,14 +908,14 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     editModalOutsideDismissedAtRef.current = Date.now();
   }, []);
 
-  // 使用 useCallback 优化事件处理函数
+  // Optimize event handler with useCallback
   const handleCardClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    // 点击目标是链接/按钮等交互元素时永不拦截：链接导航与按钮动作必须保留
-    // 默认行为；时间窗防误触（弹窗关闭防抖/拖拽标志）只应作用于卡片空白区域。
-    // 交互元素检查必须先于所有拦截分支，否则弹窗关闭防抖或拖拽标志一旦
-    // 滞留，「在 GitHub 上查看」等链接会被 preventDefault 吞掉（issue #353）。
+    // Never intercept when click target is an interactive element (link/button, etc.): link navigation and button actions must preserve
+    // default behavior; time-window accidental click prevention (modal close debounce / drag flag) should only apply to blank card areas.
+    // Interactive element check must precede all interception branches; otherwise if modal close debounce or drag flag lingers,
+    // links like "View on GitHub" will be swallowed by preventDefault (issue #353).
     const target = event.target as HTMLElement;
-    // 排除卡片本身的 role="button"，只检查子元素的交互元素
+    // Exclude card's own role="button", check interactive elements on child elements only
     if (target.closest('button, a, input, textarea, select, [draggable="true"]')) return;
 
     const releaseSheetDismissedAt = releaseSheetOutsideDismissedAtRef.current;
@@ -938,14 +938,14 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
       }
     }
 
-    // 防止重复处理
+    // Prevent duplicate processing
     if (isProcessingClickRef.current) {
       event.preventDefault();
       event.stopPropagation();
       return;
     }
 
-    // 如果正在拖拽，不处理点击（含触摸拖拽后的兼容 click 抑制窗口）
+    // If currently dragging, ignore click (including compatible click suppression window after touch drag)
     if (isDraggingRef.current || isTouchDraggingRef.current || useRepositoryDragStore.getState().isDragging) {
       event.preventDefault();
       event.stopPropagation();
@@ -956,22 +956,22 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     menuDismissedByPointerDownRef.current = false;
     if (dismissedByPointerDown) return;
 
-    // 菜单展开时，点击卡片空白处仅收起菜单，不触发详情或选择。
+    // When menu is expanded, clicking blank area of card only collapses menu without triggering details or selection
     if (isActionsMenuOpen) {
       setIsActionsMenuOpen(false);
       return;
     }
 
-    // 如果选择模式下，点击卡片切换选择状态
+    // In selection mode, clicking card toggles selection state
     if (selectionMode && onSelect) {
-      // 阻止默认行为以防止焦点改变导致页面滚动
+      // Prevent default behavior to prevent page scroll caused by focus change
       event.preventDefault();
       event.stopPropagation();
-      // 设置标志防止重复处理
+      // Set flag to prevent duplicate processing
       isProcessingClickRef.current = true;
-      // 立即执行选择操作
+      // Immediately perform selection
       onSelect(repository.id);
-      // 重置标志
+      // Reset flag
       setTimeout(() => {
         isProcessingClickRef.current = false;
       }, 50);
@@ -981,23 +981,23 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     setReadmeModalOpen(true);
   }, [selectionMode, onSelect, repository.id, isActionsMenuOpen]);
 
-  // 处理鼠标按下事件，阻止焦点变化导致页面滚动
+  // Handle mousedown event to prevent page scrolling caused by focus change
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    // 在选择模式下，阻止默认行为以防止焦点变化
+    // In selection mode, prevent default behavior to stop focus change
     if (selectionMode && onSelect) {
       event.preventDefault();
     }
   }, [selectionMode, onSelect]);
 
-  // 处理键盘事件，使卡片可键盘操作
-  // 当编辑模态框或README模态框打开时，禁用卡片键盘事件
+  // Handle keyboard events to make card keyboard-accessible
+  // When edit modal or README modal is open, disable card keyboard events
   const isModalOpen = editModalOpen || readmeModalOpen || releaseSheetOpen;
   
   const handleCardKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    // 仅由卡片自身获得焦点时处理，避免拦截三点菜单等后代控件的原生键盘行为。
+    // Process only when card itself receives focus to avoid intercepting native keyboard behavior on child controls like the three-dot menu.
     if (event.target !== event.currentTarget) return;
 
-    // 如果任何模态框打开，不处理键盘事件
+    // If any modal is open, do not handle keyboard events
     if (isModalOpen) return;
     
     if (event.key === 'Enter' || event.key === ' ') {
@@ -1010,7 +1010,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
     }
   }, [selectionMode, onSelect, repository.id, isModalOpen]);
 
-  // 使用 useMemo 缓存卡片类名，避免重复计算
+  // Use useMemo to cache card class name, avoiding redundant computation
   const cardClassName = useMemo(() => {
     const baseClasses = viewMode === 'list'
       ? 'repository-card repository-card--list ui-card group relative px-6 pt-5 pb-0 transition-[color,background-color,border-color,box-shadow] duration-200 cursor-pointer'
@@ -1058,7 +1058,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
           </p>
         </div>
         
-        {/* 拖拽按钮 - 右上角 - 手机和平板端隐藏 */}
+        {/* Drag button - top right - hidden on mobile and tablet */}
         {viewMode === 'list' && (
           <div className="ml-auto flex min-w-0 flex-1 items-start justify-end gap-1.5">
             {displayContent.isCustomized && (
@@ -1137,7 +1137,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
               onMouseDown={handleDragHandleMouseDown}
               onClick={(e) => {
                 handleDragHandleClick(e);
-                // 显示弱气泡提示
+                // Show subtle toast tooltip
                 setShowDragHint(true);
                 if (dragHintTimeoutRef.current) {
                   clearTimeout(dragHintTimeoutRef.current);
@@ -1150,8 +1150,8 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   e.stopPropagation();
-                  // 键盘等价的分类操作：打开编辑弹窗完成分类，
-                  // 而不是仅显示拖拽提示气泡（拖拽本身无键盘等价物）。
+                  // Keyboard-equivalent categorization: open edit modal to complete categorization,
+                  // rather than only showing drag tooltip bubble (drag has no direct keyboard equivalent).
                   setEditModalOpen(true);
                 }
               }}
@@ -1166,11 +1166,11 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
             >
               <GripVertical className="w-4 h-4" />
             </div>
-            {/* 弱气泡提示 */}
+            {/* Subtle toast tooltip */}
             {showDragHint && (
               <div className="absolute top-full right-0 z-50 mt-2 whitespace-nowrap rounded-lg border border-border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-dialog animate-fade-in">
                 {t('repositoryCard.drag-me-to-left-sidebar')}
-                {/* 气泡箭头 */}
+                {/* Tooltip arrow */}
                 <div className="absolute bottom-full right-3 h-0 w-0 border-x-4 border-b-4 border-l-transparent border-r-transparent border-b-popover"></div>
               </div>
             )}
@@ -1240,17 +1240,17 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
         </Tooltip>
         )}
 
-        {/* 方案一：同时显示多个状态标签 */}
+        {/* Option 1: display multiple status badges simultaneously */}
         {viewMode === 'grid' && (
         <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-          {/* 已自定义标签 - 与筛选器逻辑一致 */}
+          {/* Customized badge - consistent with filter logic */}
           {displayContent.isCustomized && (
             <div className="flex items-center space-x-1 text-xs text-muted-foreground dark:text-muted-foreground" title={t('repositoryCard.this-repository-has-been-customized-description')}>
               <Edit3 className="w-3 h-3" />
               <span>{t('repositoryCard.customized')}</span>
             </div>
           )}
-          {/* AI 分析状态标签 (合并展示) */}
+          {/* AI analysis status badge (combined display) */}
           {displayContent.isAnalysisFailed ? (
             <div className="flex items-center space-x-1 text-xs text-destructive dark:text-destructive" title={t('repositoryCard.ai-analysis-failed-click-ai-button-to-retry')}>
               <Bot className="w-3 h-3" />
@@ -1281,7 +1281,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
 
       {/* List mode keeps tags and repository metadata on one wrapping information row. */}
       <div className={viewMode === 'list' ? 'flex flex-wrap items-center gap-x-3 gap-y-2' : 'contents'}>
-      {/* Tags - 未AI分析时显示Topics，AI分析后显示AI标签 */}
+      {/* Tags - shows topics before AI analysis, AI tags after analysis */}
       {isRepositoryCardFieldVisible(cardFields, 'tags') && displayTags.tags.length > 0 && (
         <div className={`flex flex-wrap ${viewMode === 'list' ? 'gap-1' : 'gap-2 mb-4'}`}>
           {displayTags.tags.map((tagItem, index) => (
@@ -1346,7 +1346,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
             </div>
           )}
           {isRepositoryCardFieldVisible(cardFields, 'license') && (() => {
-            // license：归一化后展示 SPDX id；无 license 不渲染
+            // license: display SPDX id after normalization; do not render if no license
             const lic = normalizeLicense(repository.license);
             if (lic === NO_LICENSE_SENTINEL) return null;
             return (
@@ -1389,7 +1389,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
           </div>
 
 
-          {/* 选择按钮 */}
+          {/* Selection button */}
           {onSelect && (
             <Button
               variant="ghost"
@@ -1473,7 +1473,7 @@ const RepositoryCardComponent: React.FC<RepositoryCardProps> = ({
   );
 };
 
-// 使用 React.memo 优化，避免不必要的重渲染
+// Optimize with React.memo to prevent unnecessary re-renders
 export const RepositoryCard = React.memo(RepositoryCardComponent, (prevProps, nextProps) => {
   const allCategoriesEqual = 
     prevProps.allCategories.length === nextProps.allCategories.length &&

@@ -5,7 +5,7 @@ import type { Release, ReleaseAsset } from '../types';
 import { InstallableAssetRecommendation } from './InstallableAssetRecommendation';
 import { resolveDeviceArchitecture } from '../utils/deviceTarget';
 
-// 只替换架构探测，平台探测保持真实实现（它读 navigator，测试里由 stubDevicePlatform 控制）。
+// Only replace architecture detection; platform detection keeps real implementation (reads navigator, controlled in tests by stubDevicePlatform).
 vi.mock('../utils/deviceTarget', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils/deviceTarget')>();
   return { ...actual, resolveDeviceArchitecture: vi.fn() };
@@ -37,7 +37,7 @@ function makeRelease(assets: ReleaseAsset[]): Release {
   };
 }
 
-/** 固定「当前设备」为 Windows，避免依赖 jsdom 的 UA 字符串。 */
+/** Fix "current device" as Windows to avoid depending on jsdom UA string. */
 function stubDevicePlatform(platform: string): void {
   Object.defineProperty(navigator, 'userAgentData', {
     value: { platform },
@@ -46,7 +46,7 @@ function stubDevicePlatform(platform: string): void {
   });
 }
 
-/** 让平台探测拿不到任何线索，用于「平台未知」的用例。 */
+/** Clear all platform hints for "unknown platform" test cases. */
 function stubUnknownDevice(): void {
   Object.defineProperty(navigator, 'userAgentData', { value: undefined, configurable: true });
   Object.defineProperty(navigator, 'platform', { value: 'Unknown', configurable: true });
@@ -54,7 +54,7 @@ function stubUnknownDevice(): void {
 }
 
 beforeEach(() => {
-  // 默认：架构探测立刻给出「拿不到」的结果
+  // Default: architecture detection immediately resolves to undefined ("unavailable")
   vi.mocked(resolveDeviceArchitecture).mockResolvedValue(undefined);
 });
 
@@ -64,7 +64,7 @@ afterEach(() => {
 });
 
 describe('InstallableAssetRecommendation', () => {
-  it('为当前设备推荐最佳资产，且只有点击才下载', async () => {
+  it('recommends the best asset for current device and only downloads upon click', async () => {
     stubDevicePlatform('Windows');
     const onDownload = vi.fn();
     const user = userEvent.setup();
@@ -78,7 +78,7 @@ describe('InstallableAssetRecommendation', () => {
       />,
     );
 
-    // 未点击前绝不下载、绝不执行任何东西
+    // Never download or execute anything before being clicked
     expect(onDownload).not.toHaveBeenCalled();
     expect(screen.getByText('App-1.2.0-x64-setup.exe')).toBeInTheDocument();
 
@@ -90,7 +90,7 @@ describe('InstallableAssetRecommendation', () => {
     );
   });
 
-  it('不声称安装包安全，并指向下方的手动资产列表', () => {
+  it('does not claim installer is safe and points to manual asset list below', () => {
     stubDevicePlatform('Windows');
     render(
       <InstallableAssetRecommendation
@@ -104,11 +104,11 @@ describe('InstallableAssetRecommendation', () => {
         '按文件名与 Release 元数据识别，未验证安装包安全性，也不会自动运行。你始终可以在下方资产列表中手动选择其他资产。',
       ),
     ).toBeInTheDocument();
-    // 绝不能出现「已通过安全校验」这类结论
+    // Must never contain conclusions like "passed security verification"
     expect(screen.queryByText(/已通过安全|安全可靠|已验证安全/)).not.toBeInTheDocument();
   });
 
-  it('无适配资产时不渲染整块', () => {
+  it('does not render the block when there are no matching assets', () => {
     stubDevicePlatform('Windows');
     const { container } = render(
       <InstallableAssetRecommendation
@@ -121,7 +121,7 @@ describe('InstallableAssetRecommendation', () => {
     expect(screen.queryByTestId('installable-asset-recommendation')).not.toBeInTheDocument();
   });
 
-  it('只有源代码或元数据时不渲染', () => {
+  it('does not render when only source code or metadata assets exist', () => {
     stubDevicePlatform('Windows');
     const { container } = render(
       <InstallableAssetRecommendation
@@ -137,7 +137,7 @@ describe('InstallableAssetRecommendation', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('列出其他候选，并说明排除了什么', async () => {
+  it('lists alternative candidates and explains what was excluded', async () => {
     stubDevicePlatform('Windows');
     const onDownload = vi.fn();
     const user = userEvent.setup();
@@ -158,12 +158,12 @@ describe('InstallableAssetRecommendation', () => {
     await user.click(screen.getByRole('button', { name: '下载' }));
     expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ assetId: 2 }));
 
-    // 排除说明点名了各类非安装资产，用户不会以为它们凭空消失
+    // Exclusion explanation explicitly names non-installable asset types so users know they did not disappear
     expect(screen.getByText(/调试符号/)).toBeInTheDocument();
     expect(screen.getByText(/其他平台\/架构/)).toBeInTheDocument();
   });
 
-  it('平台未知时并列候选，且不标成「适配当前设备」', () => {
+  it('lists candidates side by side without claiming "matches current device" when platform is unknown', () => {
     stubUnknownDevice();
     render(
       <InstallableAssetRecommendation
@@ -174,14 +174,14 @@ describe('InstallableAssetRecommendation', () => {
 
     expect(screen.getByRole('heading', { name: '可安装候选' })).toBeInTheDocument();
     expect(screen.getByText('未识别出平台')).toBeInTheDocument();
-    // 平台未知时候选来自所有平台，因此不能声称匹配当前设备
+    // When platform is unknown, candidates come from all platforms, so cannot claim to match current device
     expect(screen.queryByText('适配当前设备')).not.toBeInTheDocument();
     expect(screen.getByText('其他可选资产（1）')).toBeInTheDocument();
   });
 
-  it('架构探测未完成前不启用下载', async () => {
+  it('does not enable download before architecture detection completes', async () => {
     stubDevicePlatform('Windows');
-    // 探测一直挂起：模拟 high-entropy hints 还没回来
+    // Detection remains pending: simulate high-entropy hints not having returned yet
     vi.mocked(resolveDeviceArchitecture).mockReturnValue(new Promise(() => {}));
     const onDownload = vi.fn();
     const user = userEvent.setup();
@@ -195,7 +195,7 @@ describe('InstallableAssetRecommendation', () => {
       />,
     );
 
-    // 此时不能启用下载，否则 arm64 设备可能在探测完成前下到 x64 包
+    // Download cannot be enabled yet; otherwise an arm64 device might download an x64 package before detection finishes
     const primary = screen.getByRole('button', { name: /下载此版本/ });
     expect(primary).toBeDisabled();
     expect(screen.getByRole('button', { name: '下载' })).toBeDisabled();
@@ -205,7 +205,7 @@ describe('InstallableAssetRecommendation', () => {
     expect(onDownload).not.toHaveBeenCalled();
   });
 
-  it('架构探测结束后恢复可下载', async () => {
+  it('re-enables download once architecture detection completes', async () => {
     stubDevicePlatform('Windows');
     vi.mocked(resolveDeviceArchitecture).mockResolvedValue('arm64');
     const onDownload = vi.fn();
@@ -217,7 +217,7 @@ describe('InstallableAssetRecommendation', () => {
       />,
     );
 
-    // 探测是异步的：结算后按钮才恢复可用
+    // Detection is asynchronous: button becomes available only after settlement
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /下载此版本/ })).toBeEnabled(),
     );
@@ -225,7 +225,7 @@ describe('InstallableAssetRecommendation', () => {
     expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ assetId: 7 }));
   });
 
-  it('下载发送中或已发送时禁用对应候选按钮', async () => {
+  it('disables candidate download buttons when download is sending or sent', async () => {
     stubDevicePlatform('Windows');
     const release = makeRelease([
       asset(1, 'App-x64-setup.exe'),

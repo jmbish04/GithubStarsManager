@@ -1,91 +1,91 @@
-# GitHub Lists（星标列表）双向同步设计
+# GitHub Lists (Star Lists) Two-Way Sync Design
 
-日期：2026-08-17
-状态：设计中
+Date: 2026-08-17
+Status: In design
 
-## 目标
+## Goals
 
-在保留现有 REST 星标同步的基础上，为 GitHub 原生 Lists（星标列表）增加双向同步：
+While keeping the existing REST star sync, add two-way sync for GitHub's native Lists (star lists):
 
-1. **拉取（Pull）**：新增「同步星标仓库及 list」选项，通过 GraphQL 拉取用户的 Lists 及其包含的仓库，与本地数据合并。
-2. **锁定**：从 list 拉取到的仓库，默认锁定分类，AI 分析不会重置。
-3. **回写（Push）**：设置 → 备份恢复中新增「同步仓库分类到 GitHub list」，将本地分类写回 GitHub Lists（同名 list 覆盖）。
-4. **首次登录**：在首次拉取仓库前询问用户选择同步范围（仅星标 / 星标+list），并保存为可在设置中切换的配置。
+1. **Pull**: Add a "Sync starred repositories and lists" option that uses GraphQL to fetch the user's Lists and the repositories they contain, then merges them with local data.
+2. **Lock**: Repositories pulled from a list have their category locked by default, so AI analysis will not reset it.
+3. **Push**: Add "Sync repository categories to GitHub lists" under Settings → Backup & Restore, writing local categories back to GitHub Lists (same-name lists are overwritten).
+4. **First login**: Before the first repository pull, ask the user to choose the sync scope (stars only / stars + lists) and save it as a configuration that can be changed in Settings.
 
-## 关键决策（DEC-*，已获用户确认）
+## Key Decisions (DEC-*, confirmed by the user)
 
-1. **DEC-删除策略 = 只增不删**：同步（含 list 拉取）只做新增/更新，绝不删除本地已有仓库；list 上取消星标不会导致本地仓库消失（保持现状）。
-2. **DEC-多 list 归属 = 标签映射，非单分类覆盖**：仓库页应用分类本来就是「跟着标签走、同一仓库可属多个分类」。因此 list 拉取采用**标签（tag）映射**：list 名作为自定义标签写入仓库 `custom_tags`，仓库可同时属于多个 list（多个标签），避免"单分类覆盖"冲突。
-3. **DEC-回写同名 list = 覆盖**：将本地分类写回 GitHub list 时，同名 list 直接覆盖其成员。
-4. **DEC-锁定语义 = 只判定锁定状态**：同步时只判断 `category_locked`。已锁定的仓库不改分类；未锁定的仓库应用 list 分类并加锁。手动改分类会再次上锁（现状，除非用户手动解锁）→ 用户手动解锁过的仓库，再次同步时若未锁定，list 分类会重新应用并加锁。
-5. **DEC-首次登录选择 = 存为配置，可切换**：首次登录的选择保存为持久化设置项，可在设置中随时切换。
+1. **DEC-delete policy = add only, never delete**: Sync (including list pulls) only adds/updates and never deletes local repositories; unstarring on a list will not make the local repository disappear (status quo).
+2. **DEC-multi-list membership = tag mapping, not single-category override**: Categories applied on the repositories page already "follow tags, and one repository can belong to multiple categories". So list pulls use **tag mapping**: the list name is written as a custom tag into the repository's `custom_tags`, and a repository can belong to multiple lists (multiple tags), avoiding "single-category override" conflicts.
+3. **DEC-push same-name list = overwrite**: When writing local categories back to GitHub lists, a same-name list has its members overwritten directly.
+4. **DEC-lock semantics = only check lock state**: During sync, only `category_locked` is checked. Locked repositories keep their category; unlocked repositories get the list category applied and are then locked. Manually changing a category locks it again (status quo, unless the user unlocks it manually) → for a repository the user unlocked manually, if it is unlocked at the next sync, the list category is reapplied and the repository is locked.
+5. **DEC-first-login choice = stored as configuration, switchable**: The first-login choice is saved as a persisted setting that can be switched at any time in Settings.
 
-## 架构
+## Architecture
 
-### 数据流
+### Data Flow
 
 ```text
-Pull: GitHub Lists (GraphQL) → 仓库 + list 名标签 → 合并进 store → forceSyncToBackend
-Push: 本地分类 → 计算每个分类的成员仓库 → GitHub Lists (GraphQL) 覆盖写入
+Pull: GitHub Lists (GraphQL) → repositories + list-name tags → merge into store → forceSyncToBackend
+Push: local categories → compute member repositories per category → GitHub Lists (GraphQL) overwrite write
 ```
 
-### 新增持久化设置
+### New Persisted Setting
 
-- `syncMode`：`'stars' | 'stars-and-lists'`，默认 `'stars'`。加入 useAppStore 持久化键白名单。
-  - 首次登录若从未设置过，弹选择框；设置后写入 `syncMode`。
-  - 设置面板提供切换开关。
+- `syncMode`: `'stars' | 'stars-and-lists'`, default `'stars'`. Added to the useAppStore persisted-key allowlist.
+  - On first login, if it has never been set, show a choice dialog; after the choice, write `syncMode`.
+  - The settings panel provides a toggle switch.
 
-### 新增服务：GitHub Lists GraphQL 客户端
+### New Service: GitHub Lists GraphQL Client
 
-新建 `src/services/githubListsApi.ts`：
+Create `src/services/githubListsApi.ts`:
 
-- 底层 HTTP 走 REST 同样的模式：有后端时 `backend.postProxy` / 无后端时 `fetch('https://api.github.com/graphql')`，带 `Authorization: Bearer <token>`。复用 `githubApi.ts` 现有请求封装思路。
-- 查询：`getUserLists()` 分两阶段分页：先读取 `user(login).lists` 摘要（`first:100` 分页拉全），再通过 `node(id:)` 分页读取每个 `UserList.items`（每页 `first:100`）。两阶段均带 `after` 游标与 `pageInfo`，避免单次内联 items 的巨型响应导致 GitHub 侧超时（502/504）。
-- 覆盖写入：先查现有 lists → 同名 list 存在则 `updateUserListsForItem` 或删除重建；不存在则 `createUserList` + `updateUserListsForItem`。
-- 权限校验：GraphQL 需要 `user` scope（经典 PAT）或含 star lists 权限的 fine-grained token；权限不足时返回友好错误，提示 `gh auth refresh -h github.com -s user`。
+- The underlying HTTP follows the same pattern as REST: with a backend, `backend.postProxy`; without one, `fetch('https://api.github.com/graphql')`, with `Authorization: Bearer <token>`. Reuse the existing request-wrapper approach from `githubApi.ts`.
+- Query: `getUserLists()` paginates in two phases: first read the `user(login).lists` summary (paginate fully with `first:100`), then read each `UserList.items` page by page via `node(id:)` (`first:100` per page). Both phases carry the `after` cursor and `pageInfo`, avoiding the huge responses from inlining items in a single query, which cause GitHub-side timeouts (502/504).
+- Overwrite write: first query existing lists → if a same-name list exists, use `updateUserListsForItem` or delete and recreate; if not, `createUserList` + `updateUserListsForItem`.
+- Permission check: GraphQL requires the `user` scope (classic PAT) or a fine-grained token with star-list permissions; on insufficient permissions, return a friendly error suggesting `gh auth refresh -h github.com -s user`.
 
-### Pull 合并逻辑（复用 `handleStarSync` 模式）
+### Pull Merge Logic (reuses the `handleStarSync` pattern)
 
-- 拉取星标仓库（REST，现状）后，若 `syncMode === 'stars-and-lists'`，再拉取 lists。
-- 对每个 list：仓库加入 `custom_tags` 的该 list 名（去重）；并按 DEC-4 决定分类：
-  - 仓库 `category_locked === true` → 不改分类（跳过）。
-  - 仓库未锁定 → 设 `custom_category = list 名`（若该 list 名对应某分类）并 `category_locked = true`。
-  - 若 list 名没有对应分类，仅加标签（标签本身即可让仓库出现在匹配的分类）。
-- 合并仍遵循只增不删：`existingRepoMap` 合并，保留本地已有字段。
+- After pulling starred repositories (REST, status quo), if `syncMode === 'stars-and-lists'`, pull lists as well.
+- For each list: add the list name to the repository's `custom_tags` (deduplicated), and decide the category per DEC-4:
+  - Repository `category_locked === true` → do not change the category (skip).
+  - Repository unlocked → set `custom_category = list name` (if the list name matches a category) and `category_locked = true`.
+  - If the list name has no matching category, only add the tag (the tag alone lets the repository appear in the matching category).
+- The merge still follows add-only: merge via `existingRepoMap`, keeping existing local fields.
 
-### Push 回写逻辑（StarSyncPanel）
+### Push Write-back Logic (StarSyncPanel)
 
-- 设置 → 星标同步中新增「同步仓库分类到 GitHub list」按钮 + 确认对话框（警告：同名 list 将被覆盖）。
-- 实现：对每个分类（默认分类或自定义分类）计算 `matchesCategory` 命中的仓库 → 映射为 GitHub list 名（分类名）→ 同名 list 覆盖成员，无则创建。
-- 前置校验 token 存在；GraphQL 失败给出可操作错误提示。
+- Add a "Sync repository categories to GitHub lists" button + confirmation dialog under Settings → Star Sync (warning: same-name lists will be overwritten).
+- Implementation: for each category (default or custom), compute the repositories matched by `matchesCategory` → map to a GitHub list name (the category name) → overwrite members of the same-name list, or create it if none exists.
+- Precheck that a token exists; on GraphQL failure, give an actionable error message.
 
-### 首次登录（SyncModeChoiceModal）
+### First Login (SyncModeChoiceModal)
 
-- `SyncModeChoiceModal` 由 `App.tsx` 挂载：登录完成后，若 `syncModeConfigured === false`，弹选择框：「仅同步星标仓库」/「同步星标仓库及 list」。选择后写 `syncMode` 与 `syncModeConfigured`。
-- 之后进入主界面，同步按钮行为按 `syncMode` 执行。
+- `SyncModeChoiceModal` is mounted by `App.tsx`: after login completes, if `syncModeConfigured === false`, show a choice dialog: "Sync starred repositories only" / "Sync starred repositories and lists". After the choice, write `syncMode` and `syncModeConfigured`.
+- Afterward the main UI is entered, and the sync button behaves according to `syncMode`.
 
-### 同步按钮（SearchBar）
+### Sync Button (SearchBar)
 
-- 按钮主体：直接点击执行「按 syncMode 同步」（默认仅星标）。
-- 下拉新增第二项「同步星标仓库及 list」：提示 + 确认对话框（警告 list 拉取会给未锁定仓库应用 list 分类并加锁），确认后调用含 list 的同步。
-- 参考现有 `handleStarSync`（src/components/SearchBar.tsx:739）复用合并逻辑。
+- Main button body: clicking it directly runs "sync according to syncMode" (default: stars only).
+- The dropdown gains a second item, "Sync starred repositories and lists": a prompt + confirmation dialog (warning that the list pull applies list categories to unlocked repositories and locks them); after confirmation, call the sync that includes lists.
+- Reference the existing `handleStarSync` (src/components/SearchBar.tsx:739) and reuse its merge logic.
 
-## 约束
+## Constraints
 
-- 老用户不强制更新 token；token 权限不足时给出加权限引导，而非崩溃。
-- 不改数据结构、不要求重索引向量（`vector_indexed_at` 保留）。
-- 平滑升级/降级：新配置项缺省时行为与现状一致（仅星标）。
-- 全程中文交互（含错误提示）。
+- Existing users are not forced to update their token; when token permissions are insufficient, give guidance on adding permissions instead of crashing.
+- No data structure changes and no required re-indexing of vectors (`vector_indexed_at` is preserved).
+- Smooth upgrade/downgrade: when the new config items are absent, behavior matches the status quo (stars only).
+- All interaction (including error messages) is presented in English.
 
-## 风险 / 待验证
+## Risks / To Verify
 
-- fine-grained PAT 操作 star lists 的具体权限点未最终确认（blocker）。
-- GraphQL 分页拉取大 list 的性能（items 每页 100）。
-- 同一仓库在多个 list 时 `custom_category` 只取一个，但多标签保证多分类显示（决策 2）。
+- The exact permissions a fine-grained PAT needs to operate on star lists are not finalized (blocker).
+- Performance of paginating large lists via GraphQL (100 items per page).
+- When one repository is in multiple lists, `custom_category` takes only one, but multiple tags ensure it is displayed under multiple categories (Decision 2).
 
-## 验收
+## Acceptance
 
-1. 仅星标同步行为与现状完全一致。
-2. list 拉取后：仓库出现在对应分类、默认锁定、AI 分析不重置。
-3. 回写同名 list 被覆盖；无同名 list 则新建。
-4. 首次登录可选择并持久化；设置可切换。
+1. Stars-only sync behaves exactly as it does today.
+2. After a list pull: repositories appear in the corresponding categories, are locked by default, and AI analysis does not reset them.
+3. Push overwrites same-name lists; creates a new list if none has the same name.
+4. First login can choose and persist the setting; Settings can switch it.

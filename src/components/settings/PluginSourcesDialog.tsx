@@ -13,23 +13,24 @@ interface PluginSourcesDialogProps {
   onClose: () => void;
   t: TranslateFn;
   entries: MarketplaceSourceEntry[];
-  /** 源增删改成功后把主进程返回的最新状态交给父级（父级据此刷新插件列表）。 */
+  /** Passes the latest state returned by the main process to the parent on add/remove/edit (parent refreshes the plugin list accordingly). */
   onChanged: (state: MarketplaceState) => void;
 }
 
 interface EditingSource {
-  /** null 表示新增；否则是编辑中的源 id。 */
+  /** null indicates new entry; otherwise the source ID being edited. */
   id: string | null;
   url: string;
   name: string;
 }
 
-// 宽松预检：只拦明显的非 GitHub 地址；完整形态校验（含 tree 解析）由主进程负责。
+// Lenient pre-check: only catches obvious non-GitHub URLs; full shape validation (including tree parsing) is handled by the main process.
 const GITHUB_URL_PATTERN = /^https:\/\/github\.com\/[^\s/]+\/[^\s/]+(?:\/[^\s]+)?\/?$/i;
 
 /**
- * 插件源管理弹窗：源是 GitHub 仓库目录，增删改后主进程会立即重新遍历。
- * "查"由列表本身承担；插件的浏览在父级市场弹窗里。
+ * Plugin sources management dialog: sources are GitHub repository directories;
+ * after add/remove/update, the main process re-traverses immediately.
+ * Search is handled by the list itself; browsing plugins is handled in the parent marketplace dialog.
  */
 export const PluginSourcesDialog: React.FC<PluginSourcesDialogProps> = ({ isOpen, onClose, t, entries, onChanged }) => {
   const { confirm, toast } = useDialog();
@@ -37,7 +38,7 @@ export const PluginSourcesDialog: React.FC<PluginSourcesDialogProps> = ({ isOpen
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // 弹窗关闭时清掉未提交的表单，避免下次打开带着半截输入。
+  // Clear uncommitted form data when dialog closes to prevent stale partial input on next open.
   useEffect(() => {
     if (!isOpen) {
       setEditing(null);

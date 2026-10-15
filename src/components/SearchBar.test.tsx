@@ -85,7 +85,7 @@ const baseStoreState = () => ({
   releaseSubscriptions: new Set<number>(),
   aiConfigs: [],
   activeAIConfig: null,
-  language: 'zh',
+  language: 'en',
   setSearchFilters: vi.fn(),
   setSearchResults: vi.fn(),
   customCategories: [],
@@ -154,8 +154,8 @@ describe('SearchBar', () => {
     expect(storeState.searchFilters.query).toBe('');
 
     rerender(<SearchBar />);
-    // 排序方向按钮已从文本字形换成图标，按可访问名称定位
-    fireEvent.click(screen.getByRole('button', { name: '按降序排列' }));
+    // Sort direction button was changed from text glyph to icon; locate by accessible name
+    fireEvent.click(screen.getByRole('button', { name: 'Sort descending' }));
 
     expect(storeState.searchFilters).toMatchObject({
       query: '',
@@ -201,7 +201,7 @@ describe('SearchBar', () => {
       expect(setSearchResults).toHaveBeenLastCalledWith([
         expect.objectContaining({ name: 'nested-rain' }),
       ]);
-      expect(screen.getByText('实时搜索模式 - 匹配仓库名称')).toBeInTheDocument();
+      expect(screen.getByText('Real-time search mode - matching repository names')).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -283,7 +283,7 @@ describe('SearchBar', () => {
       fireEvent.click(suggestionItem);
 
       expect(input).toHaveValue('TypeScript');
-      expect(screen.getByText('实时搜索模式 - 匹配仓库名称')).toBeInTheDocument();
+      expect(screen.getByText('Real-time search mode - matching repository names')).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -316,10 +316,10 @@ describe('SearchBar', () => {
     mockUseAppStore.mockImplementation(((selector?: (state: typeof storeState) => unknown) => (selector ? selector(storeState) : storeState)) as unknown as typeof useAppStore);
 
     const { rerender } = render(<SearchBar />);
-    fireEvent.click(screen.getByRole('button', { name: /过滤器/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Filters/i }));
     setSearchResults.mockClear();
 
-    fireEvent.click(screen.getByRole('button', { name: '已归档' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Archived' }));
     expect(setSearchFilters).toHaveBeenCalledWith({ healthArchived: true });
 
     rerender(<SearchBar />);
@@ -328,7 +328,7 @@ describe('SearchBar', () => {
     ]);
   });
 
-  it('dispatches the global history open event from the 问答历史 button', () => {
+  it('dispatches the global history open event from the Q&A history button', () => {
     currentState = createStoreState({});
     mockUseAppStore.mockImplementation(((selector?: (state: unknown) => unknown) => (selector ? selector(currentState) : currentState)) as unknown as typeof useAppStore);
     const dispatchSpy = vi.fn();
@@ -336,7 +336,7 @@ describe('SearchBar', () => {
 
     try {
       render(<SearchBar />);
-      fireEvent.click(screen.getByRole('button', { name: '问答历史' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Chat history' }));
       expect(dispatchSpy).toHaveBeenCalledTimes(1);
     } finally {
       window.removeEventListener('gsm:open-global-chat-history', dispatchSpy);

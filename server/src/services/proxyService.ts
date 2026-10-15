@@ -19,7 +19,7 @@ export interface ProxyRequestOptions {
   timeout?: number;
   proxyConfig?: ProxyConfig | null;
   preserveRawResponse?: boolean;
-  /** 放行回环/私有网段（仅用于用户自有配置来源的 URL）。 */
+  /** Allow loopback and private IP ranges (only for URLs originating from user-configured settings). */
   allowPrivate?: boolean;
 }
 
@@ -33,14 +33,14 @@ const BLOCKED_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0', '169.
 const PRIVATE_IP_PATTERNS = [/^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./];
 
 export interface ValidateUrlOptions {
-  /** 宽松模式：放行回环地址与私有网段。仅用于「用户主动保存的自行配置」所来源的 URL
-   *  （如 AI / WebDAV / 下载目标），不应作用于任意或半可信的输入。 */
+  /** Relaxed mode: allow loopback addresses and private IP ranges. Only used for URLs originating from
+   *  explicit user-saved configurations (e.g. AI / WebDAV / download targets); must not be applied to arbitrary or semi-trusted input. */
   allowPrivate?: boolean;
 }
 
-/** 归一化 hostname：去掉 IPv6 方括号、去掉结尾点号（防 `localhost.`/`127.0.0.1.` 绕过），
- *  并把 IPv4 映射型 IPv6（如 [::ffff:169.254.169.254]）还原为对应的 IPv4 字符串，
- *  使 SSRF 过滤看到真实的目标地址。 */
+/** Normalize hostname: strip IPv6 brackets and trailing dots (preventing `localhost.`/`127.0.0.1.` bypasses),
+ *  and unwrap IPv4-mapped IPv6 (such as [::ffff:169.254.169.254]) back to the corresponding IPv4 string,
+ *  ensuring SSRF filtering inspects the true destination address. */
 function normalizeHostname(hostname: string): string {
   // Strip trailing dot first to prevent SSRF bypasses (e.g. "localhost." or "127.0.0.1.")
   const h = hostname.replace(/\.$/, '').replace(/^\[(.+)\]$/, '$1').toLowerCase();
@@ -60,7 +60,7 @@ function normalizeHostname(hostname: string): string {
   return h;
 }
 
-/** IPv6 私有/本地网段前缀：唯一本地地址 fc00::/7、链路本地 fe80::/10、组播 ff00::/8 */
+/** IPv6 private/local prefix checks: unique local fc00::/7, link-local fe80::/10, multicast ff00::/8 */
 function isPrivateOrLocalIpv6(h: string): boolean {
   if (!h.includes(':')) return false;
   return (
@@ -82,7 +82,7 @@ function isLocalOrLanHostname(h: string): boolean {
   );
 }
 
-/** 判断 hostname 是否为回环地址或私有网段（含 IPv6 私有/本地网段）。 */
+/** Determine whether a hostname is a loopback address or private subnet (including IPv6 private/local subnets). */
 export function isPrivateOrLoopback(hostname: string): boolean {
   const h = normalizeHostname(hostname);
   if (BLOCKED_HOSTS.has(h)) return true;
@@ -98,23 +98,23 @@ export function validateUrl(rawUrl: string, opts: ValidateUrlOptions = {}): void
     throw new Error(`Blocked proxy request: unsupported protocol '${parsed.protocol}'`);
   }
 
-  // 始终拦截 URL 内嵌的用户名/密码（防止凭证泄露到日志）
+  // Always block URLs with embedded username/password (prevents leaking credentials into logs)
   if (parsed.username || parsed.password) {
     throw new Error(`Blocked proxy request: URL containing credentials is not allowed`);
   }
 
-  // 归一化后可同时覆盖明文 169.254.169.254 与 [::ffff:a9fe:a9fe] 等 IPv4 映射型写法。
+  // Normalizing covers both plaintext 169.254.169.254 and IPv4-mapped formats like [::ffff:a9fe:a9fe].
   const hostname = normalizeHostname(parsed.hostname);
 
   if (opts.allowPrivate) {
-    // 宽松模式：仍死守云元数据 IMDS 地址——最高危的 SSRF 目标（云厂商密钥）。
+    // Relaxed mode: still strictly protect cloud metadata IMDS addresses — the highest-risk SSRF target (cloud provider credentials).
     if (hostname === '169.254.169.254') {
       throw new Error(`Blocked proxy request: IMDS address '169.254.169.254' is not allowed`);
     }
     return;
   }
 
-  // 严格模式（默认）：拦截回环地址与私有网段（含 IPv6 私有/本地网段及局域网主机名）。
+  // Strict mode (default): block loopback addresses and private subnets (including IPv6 private/local subnets and LAN hostnames).
   if (BLOCKED_HOSTS.has(hostname)) {
     throw new Error(`Blocked proxy request: hostname '${hostname}' is not allowed`);
   }
@@ -141,7 +141,7 @@ export async function proxyRequest(options: ProxyRequestOptions): Promise<ProxyR
       method: method.toLowerCase() as AxiosRequestConfig['method'],
       headers,
       timeout,
-      validateStatus: () => true, // 不抛出 HTTP 错误状态码
+      validateStatus: () => true, // Do not throw on HTTP error status codes
     };
     if (preserveRawResponse) {
       axiosConfig.responseType = 'text';
@@ -158,18 +158,18 @@ export async function proxyRequest(options: ProxyRequestOptions): Promise<ProxyR
       }
     }
 
-    // 配置代理
+    // Configure proxy
     if (proxyConfig?.enabled && proxyConfig.host && proxyConfig.port) {
       if (proxyConfig.type === 'socks5') {
-        // SOCKS5: axios 不原生支持，使用 socks-proxy-agent
+        // SOCKS5: axios does not natively support socks5, use socks-proxy-agent
         const { SocksProxyAgent } = await import('socks-proxy-agent');
         const socksUrl = `socks5://${proxyConfig.host}:${proxyConfig.port}`;
         const agent = new SocksProxyAgent(socksUrl);
         axiosConfig.httpAgent = agent;
         axiosConfig.httpsAgent = agent;
-        axiosConfig.proxy = false; // 禁用 axios 内置代理，使用自定义 agent
+        axiosConfig.proxy = false; // Disable axios built-in proxy and use custom agent
       } else {
-        // HTTP/HTTPS 代理
+        // HTTP/HTTPS proxy
         axiosConfig.proxy = {
           protocol: 'http',
           host: proxyConfig.host,
@@ -183,7 +183,7 @@ export async function proxyRequest(options: ProxyRequestOptions): Promise<ProxyR
         }
       }
     } else {
-      // 显式禁用代理，防止 axios 回退到环境变量 HTTP_PROXY/HTTPS_PROXY
+      // Explicitly disable proxy to prevent axios from falling back to HTTP_PROXY/HTTPS_PROXY environment variables
       axiosConfig.proxy = false;
     }
 
@@ -229,7 +229,7 @@ export async function proxyRequest(options: ProxyRequestOptions): Promise<ProxyR
         return { status: 504, headers: {}, data: { error: 'Proxy connection timeout', code: 'PROXY_TIMEOUT', details: error.message } };
       }
       if (error.response) {
-        // 请求已发出，服务器返回了错误状态码
+        // Request was sent, but the server responded with an error status code
         return {
           status: error.response.status,
           headers: {},

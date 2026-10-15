@@ -12,9 +12,9 @@ const PLUGIN_ID = 'com.githubstarsmanager.repo-info-card';
 const PAGE_ID = 'info-card';
 
 const AI_SYSTEM_LIMIT = 2000;  // bridge hard limit for ai.generate system prompt
-// bridge hard limit for ai.generate user prompt — 放宽到 160k 是为了让 README
-// 全文原样进入提示词；与 pluginPageBridge 的 user 上限必须保持一致。
-// 160k 字符在两道尺寸闸门（渲染端 1 MiB、主进程 1 MiB 字节预算）内都是安全的。
+// bridge hard limit for ai.generate user prompt — expanded to 160k so the full README
+// enters the prompt verbatim; must match the user limit in pluginPageBridge.
+// 160k characters is safely within both size gates (renderer 1 MiB and main-process 1 MiB byte budget).
 const AI_USER_LIMIT = 160_000;
 
 /* ── bridge plumbing ─────────────────────────────────────────────── */
@@ -24,7 +24,7 @@ let nextRequestId = 0;
 const pending = new Map();
 
 function request(method, args) {
-  if (!token) return Promise.reject(new Error(STR.bridgeNotReady));
+  if (!token) return Promise.reject(new Error(str.bridgeNotReady));
   const requestId = String(++nextRequestId);
   return new Promise((resolve, reject) => {
     pending.set(requestId, { resolve, reject });
@@ -48,7 +48,7 @@ window.addEventListener('message', (event) => {
   if (!handler) return;
   pending.delete(event.data.requestId);
   if (event.data.success) handler.resolve(event.data.value);
-  else handler.reject(new Error(event.data.error?.message || STR.bridgeFailed));
+  else handler.reject(new Error(event.data.error?.message || str.bridgeFailed));
 });
 
 /* ── chrome strings (page UI, not the card) ──────────────────────── */
@@ -134,18 +134,18 @@ const STR = {
 let str = STR.zh;
 
 /**
- * 格式化包含 `{key}` 占位符的国际化文案模板。
+ * Format an i18n string template containing `{key}` placeholders.
  *
- * @param {string} template 包含占位符的文案模板
- * @param {Record<string, any>} [params] 占位符键值对映射
- * @returns {string} 替换参数后的格式化文本
+ * @param {string} template Message template containing placeholders
+ * @param {Record<string, any>} [params] Placeholder key-value map
+ * @returns {string} Formatted text with replaced parameters
  */
 function fmt(template, params) {
   return template.replace(/\{(\w+)\}/g, (_, key) => String(params?.[key] ?? `{${key}}`));
 }
 
 /**
- * 将当前界面语言（中/英）的静态文本与辅助属性同步至页面所有 DOM 节点。
+ * Synchronize static text and accessibility attributes for the current UI language (zh/en) to all DOM nodes.
  */
 function applyChromeStrings() {
   document.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -164,7 +164,7 @@ function applyChromeStrings() {
     const key = el.getAttribute('data-i18n-aria-label');
     if (str[key]) el.setAttribute('aria-label', str[key]);
   });
-  // 生成进行中按钮固定显示 loading 文案，避免语言/片段状态刷新覆盖它。
+  // Keep loading copy on generate button while busy to avoid language/fragment refreshes overwriting it.
   generateButton.textContent = state.busy ? str.generatingShort
     : (state.fragment ? str.regenerate : str.generate);
   copyCodeButton.textContent = str.copyCode;
@@ -192,10 +192,10 @@ const CUSTOM_CANVAS_ID = 'custom';
 const CANVAS_MIN = 400;
 const CANVAS_MAX = 3000;
 
-// 与主程序 src/i18n/languages.ts 的 APP_LANGUAGES 保持一致：卡片语言选项
-// 覆盖 i18n 包含的全部语言，englishName 直接进入 AI 提示词的语言指令。
-// labels 是卡片上的固定文案（统计标签、规格键、页脚），随语言一起注入结构
-// 模板——否则模型面对全英文模板与英文 README 时会忽略语言指令，整卡输出英文。
+// Aligned with APP_LANGUAGES in src/i18n/languages.ts: card language options
+// cover all languages included in i18n; englishName directly enters the language directive in the AI prompt.
+// labels contains fixed card text (stat labels, spec keys, footer) injected into the structural
+// template alongside language — otherwise the model might ignore language instructions when facing an all-English template and English README.
 const CARD_LANGUAGES = [
   {
     code: 'zh', nativeName: '中文', englishName: 'Simplified Chinese',
@@ -239,8 +239,8 @@ const CARD_LANGUAGES = [
   },
 ];
 
-// 版式与画幅解耦：data-canvas 只管尺寸（--w/--h/字号/留白），data-layout
-// 决定结构规则。自定义画幅按长宽比落入 square / banner / portrait 之一。
+// Decoupled layout and canvas: data-canvas only controls dimensions (--w/--h/font-size/padding);
+// data-layout determines structural rules. Custom canvas maps to one of square / banner / portrait based on aspect ratio.
 const CARD_CSS = `
 #card{width:var(--w);height:var(--h);box-sizing:border-box;overflow:hidden;
 background:var(--bg);color:var(--ink);padding:var(--pad,36px 60px 44px);
@@ -296,7 +296,7 @@ function paletteBackground(styleId) {
 }
 
 function customCanvasRule(w, h) {
-  // 字号与留白按短边相对 1:1 画幅缩放，避免极端长宽比下标题溢出或过小。
+  // Scale font size and padding relative to 1:1 canvas by short edge to prevent titles from overflowing or shrinking on extreme aspect ratios.
   const scale = Math.min(1.2, Math.max(0.5, Math.min(w, h) / 1200));
   const titleSize = Math.round(Math.min(68, Math.max(34, 60 * (Math.min(w, h) / 1200))));
   const pad = `${Math.round(36 * scale)}px ${Math.round(60 * scale)}px ${Math.round(44 * scale)}px`;
@@ -305,8 +305,7 @@ function customCanvasRule(w, h) {
 
 function cssFor(styleId, canvas) {
   const palette = PALETTES[styleId] || PALETTES.te;
-  // 变量挂在 #card 而不是 :root：预览用 shadow DOM 渲染，:root 在 shadow tree 里
-  // 匹配不到任何元素，卡片会连同调色板一起退化成浏览器默认样式。
+  // Variables are attached to #card rather than :root: preview renders in shadow DOM where :root matches nothing, which would cause the card and palette to fall back to browser defaults.
   const customRule = canvas?.id === CUSTOM_CANVAS_ID ? customCanvasRule(canvas.w, canvas.h) : '';
   return `#card{${palette}--font:${FONT_SANS};--mono:${FONT_MONO};}\n${customRule}\n${CARD_CSS}`;
 }
@@ -322,8 +321,8 @@ function layoutForCanvas(canvasId, w, h) {
 }
 
 /* ── prompt builders (plugin owns layout; AI writes the markup) ──── */
-/* {K_*} 占位符在 buildSystemPrompt 里按所选卡片语言替换成 labels 的固定文案；
- * 模板本身的说明文字仍是英文（给模型看），卡面上的标签则始终是目标语言。 */
+/* {K_*} placeholders are replaced with fixed label text according to the selected card language in buildSystemPrompt;
+ * the template instructions remain in English for the model, while card labels always appear in the target language. */
 
 const STRUCTURES = {
   square: `<div id="card">
@@ -368,10 +367,10 @@ const STRUCTURES = {
 };
 
 /**
- * 根据语言选项获取注入 AI 提示词的目标英文语言名称。
+ * Retrieve the target English language name injected into the AI prompt based on language option.
  *
- * @param {string} [option=state.languageOption] 语言选项代码（'auto' 或语言代码）
- * @returns {string} 对应的英文语言名称（未命中时默认为 'English'）
+ * @param {string} [option=state.languageOption] Language option code ('auto' or specific language code)
+ * @returns {string} Corresponding English language name (defaults to 'English' on miss)
  */
 function cardLanguageLabel(option = state.languageOption) {
   const code = option === 'auto' ? state.language : option;
@@ -379,11 +378,11 @@ function cardLanguageLabel(option = state.languageOption) {
 }
 
 /**
- * 获取注入卡片结构模板的固定文案（统计标签、规格键、页脚）。
- * 未命中时退回英文（与 cardLanguageLabel 的回退行为一致）。
+ * Retrieve fixed copy (stat labels, spec keys, footer) injected into the card structure template.
+ * Falls back to English on miss (consistent with cardLanguageLabel fallback behavior).
  *
- * @param {string} [option=state.languageOption] 语言选项代码（'auto' 或语言代码）
- * @returns {{ stars: string, forks: string, language: string, license: string, key: string, footer: string }} 对应语言的标签文案集
+ * @param {string} [option=state.languageOption] Language option code ('auto' or specific language code)
+ * @returns {{ stars: string, forks: string, language: string, license: string, key: string, footer: string }} Set of label strings for the corresponding language
  */
 function cardLanguageLabels(option = state.languageOption) {
   const code = option === 'auto' ? state.language : option;
@@ -392,11 +391,11 @@ function cardLanguageLabels(option = state.languageOption) {
 }
 
 /**
- * 将指定版式结构模板中的 `{K_*}` 占位符替换为对应语言的固定标签。
+ * Replace `{K_*}` placeholders in the specified layout template with localized fixed labels.
  *
- * @param {'square' | 'banner' | 'portrait'} layout 画布对应的版式类型
- * @param {{ stars: string, forks: string, language: string, license: string, key: string, footer: string }} labels 本地化标签字典
- * @returns {string} 注入本地化文案后的卡片 HTML 结构骨架
+ * @param {'square' | 'banner' | 'portrait'} layout Layout variant for the canvas
+ * @param {{ stars: string, forks: string, language: string, license: string, key: string, footer: string }} labels Localized label dictionary
+ * @returns {string} Card HTML skeleton injected with localized labels
  */
 function localizedStructure(layout, labels) {
   return STRUCTURES[layout]
@@ -409,22 +408,22 @@ function localizedStructure(layout, labels) {
 }
 
 /**
- * 计算卡片实际生效的语言码（跟随界面时取宿主界面语言），用于提示词与导出文档。
+ * Resolve the effective card language code (uses host UI language when set to follow UI), used in prompts and export documents.
  *
- * @param {string} [option=state.languageOption] 语言选项代码（'auto' 或语言代码）
- * @returns {string} 实际生效的目标语言代码
+ * @param {string} [option=state.languageOption] Language option code ('auto' or specific language code)
+ * @returns {string} Effective target language code
  */
 function resolvedCardLanguage(option = state.languageOption) {
   return option === 'auto' ? state.language : option;
 }
 
 /**
- * 构建发送给模型的系统提示词，包含画幅约束、输出格式和本地化结构骨架。
+ * Build the system prompt sent to the model, containing canvas constraints, output format, and localized structural skeleton.
  *
- * @param {{ id: string, w: number, h: number }} canvas 目标画幅快照
- * @param {string} [languageOption=state.languageOption] 目标语言选项代码
- * @returns {string} 格式化且在 bridge 长度限制内的系统提示词
- * @throws {Error} 若提示词总长度超出 AI_SYSTEM_LIMIT 时抛出异常
+ * @param {{ id: string, w: number, h: number }} canvas Target canvas snapshot
+ * @param {string} [languageOption=state.languageOption] Target language option code
+ * @returns {string} Formatted system prompt bounded by bridge length limit
+ * @throws {Error} Throws when total prompt length exceeds AI_SYSTEM_LIMIT
  */
 function buildSystemPrompt(canvas, languageOption = state.languageOption) {
   const layout = layoutForCanvas(canvas.id, canvas.w, canvas.h);
@@ -450,21 +449,21 @@ ${localizedStructure(layout, cardLanguageLabels(languageOption))}`;
 /* ── README: forward the full text; the prompt limit is now the only edge ── */
 
 /**
- * 构建发送给模型的高阶用户提示词，整合任务要求、目标语言强调、用户备注、仓库事实与截断 README。
+ * Build high-level user prompt sent to model, incorporating task requirements, target language directives, user notes, repository facts, and truncated README.
  *
- * @param {Record<string, any>} repository 仓库信息对象
- * @param {string | null} readme 仓库 README 正文全文
- * @param {string} notes 用户在附加说明中输入的定制要求
- * @param {string} [languageOption=state.languageOption] 目标语言选项代码
- * @returns {{ prompt: string, readmeIncluded: boolean, truncatedReadme: boolean }} 拼接后的提示词与 README 处理状态
+ * @param {Record<string, any>} repository Repository information object
+ * @param {string | null} readme Repository README full text
+ * @param {string} notes Custom requirements entered by user in additional notes
+ * @param {string} [languageOption=state.languageOption] Target language option code
+ * @returns {{ prompt: string, readmeIncluded: boolean, truncatedReadme: boolean }} Composed prompt and README inclusion/truncation status
  */
 function buildUserPrompt(repository, readme, notes, languageOption = state.languageOption) {
   const repo = repository;
   const lines = [
     'TASK',
     'Compose ONE info card for this repository.',
-    // 语言要求在这里再强调一次：system prompt 只剩一行、且后面全是英文的
-    // README 与英文元数据，实测模型容易整体跟着英文走。
+    // Reiterate the language requirement here: the system prompt is only one line, and the subsequent
+    // README and metadata are all English, which empirically tends to pull model output toward English.
     `- Write EVERY visible string in ${cardLanguageLabel(languageOption)} (title, intro, column headings, tags, metric labels, spec keys, closer, footer). The English text below is source data to translate, not output to copy.`,
     '- Ground the card in the README text below: name the concrete capabilities, workflow, stack and limits it actually states.',
     '- Use the one-line description, topics and ai_summary only to fill gaps the README does not cover.',
@@ -502,12 +501,12 @@ function buildUserPrompt(repository, readme, notes, languageOption = state.langu
   let readmeIncluded = false;
   let truncatedReadme = false;
   if (readme) {
-    // 预留 label 与换行余量，避免拼接后越过 bridge 上限被整条拒绝。
-    // 宿主 ai.generate 正文上限已放宽到 AI_USER_LIMIT，README 全文原样传递，
-    // 不清洗、不改写、不摘要。
+    // Reserve margin for labels and newlines to prevent bridge limit rejections after concatenation.
+    // Host ai.generate text limit has expanded to AI_USER_LIMIT; the full README is passed verbatim,
+    // without stripping, rewriting, or summarizing.
     const budget = AI_USER_LIMIT - prompt.length - 64;
-    // budget 为负说明元信息本身就撑满了正文上限，README 完全放不进去——
-    // 这也必须按截断上报，否则状态栏会谎称「基于 README」。
+    // A negative budget indicates metadata alone filled the body limit, leaving no room for README —
+    // this must also be reported as truncated, otherwise the status bar would inaccurately claim "from README".
     truncatedReadme = budget <= 0 || readme.length > budget;
     if (budget > 0) {
       readmeIncluded = true;
@@ -538,13 +537,13 @@ function sanitizeFragment(raw, canvas) {
     for (const attr of [...el.attributes]) {
       const name = attr.name.toLowerCase();
       if (name.startsWith('on')) el.removeAttribute(attr.name);
-      // style 能携带 background-image 等外链资源。复制出去的单文件 HTML 没有
-      // 预览 iframe 的 CSP，打开时浏览器会请求这些地址，所以一律去掉。
+      // The style attribute can carry external resources such as background-image. Single-file
+      // HTML copied outside has no preview iframe CSP; browsers fetch these URLs on open, so strip them all.
       else if (name === 'style') el.removeAttribute(attr.name);
       else if (name === 'href' || name === 'src' || name === 'xlink:href') {
-        // DOMParser 会把 &#x0A; 解码成换行，浏览器执行 URL 前又会去掉这些空白，
-        // 所以 `java&#x0A;script:` 能绕过直接的 startsWith('javascript:') 检查。
-        // 复制出去的单文件 HTML 不受预览 iframe CSP 保护，必须在这里拦截。
+        // DOMParser decodes &#x0A; into newlines, which browsers strip before executing URLs,
+        // so `java&#x0A;script:` could bypass a direct startsWith('javascript:') check.
+        // Copied single-file HTML is not protected by the preview iframe CSP and must be intercepted here.
         const normalizedUrl = attr.value.replace(/[\t\n\r]/g, '').trim().toLowerCase();
         if (normalizedUrl.startsWith('javascript:')) el.removeAttribute(attr.name);
       }
@@ -554,8 +553,8 @@ function sanitizeFragment(raw, canvas) {
   if (!card) throw new Error(str.noCard);
   card.setAttribute('data-canvas', canvas.id);
   card.setAttribute('data-layout', layoutForCanvas(canvas.id, canvas.w, canvas.h));
-  // 只保留卡片根元素。模型常在 #card 前后夹带说明或额外节点，
-  // 整段 body 会把它们带进预览和导出的单文件 HTML。
+  // Retain only the card root element. Models often include explanations or extra nodes around #card,
+  // and using the full body would bring them into the preview and exported single-file HTML.
   return card.outerHTML;
 }
 
@@ -574,8 +573,8 @@ function escapeHtmlText(text) {
 
 function highlightAttrs(raw) {
   let out = '';
-  // 末尾的 `[\s\S]` 兜底：match(/g) 会静默跳过无法匹配的字符，导致透明
-  // textarea 里的文字在高亮层消失（如属性里手打的孤立 `=`）。
+  // Fallback `[\s\S]` at the end: match(/g) silently skips unmatched characters,
+  // causing text in transparent textareas to disappear in the highlight layer (e.g. isolated `=` typed in attributes).
   for (const token of raw.match(/\s+|[^\s=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?|[\s\S]/g) || []) {
     const attr = token.match(/^([^\s=]+)(\s*=\s*("[^"]*"|'[^']*'|[^\s"'>]+))?$/);
     if (!attr) { out += escapeHtmlText(token); continue; }
@@ -599,7 +598,7 @@ function highlightTag(raw) {
     `<span class="tok-punc">${escapeHtmlText(close)}</span>`;
 }
 
-// 输出只含转义文本与插件自己的 span，注入安全：先分词、后逐段转义。
+// Output contains only escaped text and plugin spans, ensuring injection safety: tokenize first, then escape chunk by chunk.
 function highlightHtml(source) {
   let out = '';
   for (const part of String(source).split(/(<!--[\s\S]*?-->|<![^>]*>|<[^>]*>)/g)) {
@@ -612,8 +611,8 @@ function highlightHtml(source) {
 }
 
 function assembleDocument(css, fragment, title, background) {
-  // <html lang> 描述的是「已生成卡片」的语言：用生成时快照，切换语言选项
-  // 不影响已导出文档（与 fragmentCanvas 同一原则）；未生成时退回当前选项。
+  // <html lang> describes the language of the "generated card": use the snapshot from generation time.
+  // Switching language options does not affect already-exported documents (same principle as fragmentCanvas); falls back to current option if not yet generated.
   const lang = state.fragmentLanguage ?? resolvedCardLanguage();
   return `<!doctype html>
 <html lang="${escapeHtmlText(lang)}">
@@ -679,10 +678,10 @@ function clampCanvasDimension(value) {
 }
 
 /**
- * 比较当前画幅设置与已生成卡片的画幅快照是否完全一致（含自定义画幅的长宽）。
+ * Compare current canvas settings with the generated card's canvas snapshot for exact match (including custom dimensions).
  *
- * @param {{ id: string, w: number, h: number } | null} snapshot 已生成卡片的画幅快照
- * @returns {boolean} 当前选项是否与快照一致
+ * @param {{ id: string, w: number, h: number } | null} snapshot Canvas snapshot of generated card
+ * @returns {boolean} Whether current option matches snapshot
  */
 function canvasMatchesSnapshot(snapshot) {
   if (!snapshot || state.canvasId !== snapshot.id) return false;
@@ -694,8 +693,8 @@ function canvasMatchesSnapshot(snapshot) {
 
 /* ── app state + UI wiring ───────────────────────────────────────── */
 
-const ZOOM_MIN = 0.2;   // 相对「适应窗口」的最小倍率
-const ZOOM_MAX = 6;     // 相对「适应窗口」的最大倍率
+const ZOOM_MIN = 0.2;   // Minimum zoom ratio relative to "Fit to view"
+const ZOOM_MAX = 6;     // Maximum zoom ratio relative to "Fit to view"
 const ZOOM_STEP = 1.25;
 
 const state = {
@@ -710,14 +709,14 @@ const state = {
   languageOption: 'auto',
   notes: '',
   fragment: null,
-  fragmentCanvas: null,       // 生成时的画幅快照 { id, w, h }；切画幅后旧卡片仍按它渲染
-  fragmentLanguage: null,     // 生成时的卡片语言快照；导出文档的 <html lang> 跟随它
+  fragmentCanvas: null,       // Canvas snapshot at generation time { id, w, h }; old card renders by it after switching canvas
+  fragmentLanguage: null,     // Card language snapshot at generation time; exported document <html lang> follows this
   css: null,
   docHtml: null,
-  zoom: 1,        // 相对自适应比例的倍率；1 表示「适应窗口」
-  fitScale: 1,    // 最近一次自适应算出的缩放比例
+  zoom: 1,        // Multiplier relative to fit scale; 1 represents "Fit to view"
+  fitScale: 1,    // Scale factor calculated during most recent fit
   usedReadme: false,
-  busy: false,    // AI 请求进行中：按钮 loading + 状态栏呼吸动画
+  busy: false,    // AI request in progress: button loading + status bar breathing animation
 };
 
 const $ = (id) => document.getElementById(id);
@@ -747,19 +746,20 @@ const customHInput = $('custom-h');
 const notesInput = $('opt-notes');
 
 /**
- * 更新界面底部的状态栏提示信息。
+ * Update status message in the bottom status bar.
  *
- * @param {string} message 状态文本
+ * @param {string} message Status text
  */
 function setStatus(message) { statusEl.textContent = message; }
 
 /**
- * 设置或恢复生成流程中的忙碌状态。
+ * Set or restore busy state during generation workflow.
  *
- * 生成进行中：禁用生成按钮并增加 loading 样式与文案，状态栏离开灰色弱化态并呼吸闪烁；
- * 期间禁用导出按钮，避免并发导出与重复提交产生竞态；结束后按卡片快照恢复按钮状态。
+ * While generating: disable generate button with loading style and copy; status bar leaves muted gray state and pulses.
+ * Export buttons are disabled during this time to prevent race conditions from concurrent exports and duplicate submissions.
+ * When finished, restore button state according to card snapshot.
  *
- * @param {boolean} busy 是否处于生成忙碌状态
+ * @param {boolean} busy Whether generation is in progress
  */
 function setBusy(busy) {
   state.busy = busy;
@@ -784,27 +784,27 @@ function setBusy(busy) {
 }
 
 /**
- * 根据宿主传入的主题或系统偏好设置根节点的明暗主题属性。
+ * Set dark/light theme attribute on root element based on host theme or system preference.
  *
- * @param {'dark' | 'light' | null} theme 主题名称
+ * @param {'dark' | 'light' | null} theme Theme name
  */
 function applyChromeTheme(theme) {
-  // 弹窗入口随 init context 带宿主主题；面板入口没有 theme 时退回系统偏好。
+  // Modal entry passes host theme in init context; panel entry falls back to system preference when theme is absent.
   const dark = theme === 'dark'
     || (theme !== 'light' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
   document.documentElement.dataset.chrome = dark ? 'dark' : 'light';
 }
 
 /**
- * 响应宿主下发的页面初始化消息（包含仓库元数据、README、界面语言及主题）。
+ * Respond to page initialization message from host (including repo metadata, README, UI language, and theme).
  *
- * @param {Record<string, any>} context 宿主传入的初始上下文对象
+ * @param {Record<string, any>} context Initial context object passed from host
  */
 function handleInit(context) {
   state.repository = context.repository || null;
   state.readme = typeof context.readme === 'string' && context.readme ? context.readme : null;
   const lang = String(context.language || 'zh');
-  // 卡片语言用完整的 i18n 语言码（10 种）；chrome 文案仍只有中英两套。
+  // Card language uses full i18n language codes (10 languages); chrome copy is currently only zh/en.
   state.language = CARD_LANGUAGES.some((item) => item.code === lang) ? lang : 'en';
   state.theme = context.theme === 'dark' || context.theme === 'light' ? context.theme : null;
   str = STR[lang.startsWith('zh') ? 'zh' : 'en'];
@@ -815,11 +815,11 @@ function handleInit(context) {
   customWInput.value = String(state.customWidth);
   customHInput.value = String(state.customHeight);
 
-  // README 由宿主异步补发。卡片已经生成后只刷新数据，保留当前状态提示，
-  // 避免把「已生成」覆盖成「已加载」。
+  // README is dispatched asynchronously by host. If card is already generated, only refresh data and preserve current status hint,
+  // avoiding overwriting "generated" with "loaded".
   if (state.fragment) {
-    // 卡片可能在 README 到位之前就已生成，此时提示可以重新生成以纳入 README。
-    // 另外语言可能在这里变化，画幅读数与缩放按钮的朗读文本要跟着刷新。
+    // Card might have been generated before README arrived; prompt user that regenerating will incorporate README.
+    // Also, language may change here, so canvas readings and screen reader text for zoom buttons must update.
     const { w, h } = canvasMetrics(state.fragmentCanvas);
     previewMeta.textContent = fmt(str.previewMeta, { canvas: canvasLabel(state.fragmentCanvas.id), w, h });
     updateZoomLabel();
@@ -827,7 +827,7 @@ function handleInit(context) {
     return;
   }
 
-  // 生成进行中不打断 loading 状态提示，避免将「正在生成」冲掉为「已加载」。
+  // Do not interrupt loading status prompt during generation to avoid clobbering "generating" with "loaded".
   if (state.busy) return;
 
   if (state.repository) {
@@ -894,7 +894,7 @@ function syncRadioState(grid, selectedId) {
   }
 }
 
-// Roving tabindex：方向键在卡片间移动并同步选中（与主程序主题预设网格一致）。
+// Roving tabindex: arrow keys move between cards and synchronize selection (consistent with main app theme preset grid).
 function cardGridKeydown(event) {
   const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End'];
   if (!keys.includes(event.key)) return;
@@ -935,7 +935,7 @@ function buildCanvasSwatch(w, h, dashed) {
   const swatch = el('span', 'swatch-canvas');
   swatch.setAttribute('aria-hidden', 'true');
   const frame = el('span', `swatch-frame${dashed ? ' is-dashed' : ''}`);
-  // 在 44×30 的盒子里按真实长宽比画出画布轮廓。
+  // Draw canvas outline in 44x30 box using true aspect ratio.
   const innerW = 44;
   const innerH = 30;
   let frameW = innerH * (w / h);
@@ -1021,7 +1021,7 @@ function selectStyle(id) {
   syncRadioState(styleGrid, id);
   if (state.fragment) {
     // Style only changes the plugin-owned CSS: re-skin without a new AI call.
-    // CSS 按「生成时」的画幅快照构建，避免与旧卡片的 data-canvas 脱节。
+    // Build CSS using canvas snapshot from generation time to avoid desync from old card's data-canvas.
     state.css = cssFor(state.styleId, state.fragmentCanvas);
     state.docHtml = assembleDocument(state.css, state.fragment,
       `${state.repository?.full_name || 'repository'} · info card`,
@@ -1035,8 +1035,8 @@ function selectCanvas(id) {
   state.canvasId = id;
   customWrap.hidden = id !== CUSTOM_CANVAS_ID;
   syncRadioState(canvasGrid, id);
-  // 已生成的卡片尺寸固定在生成时的画幅上。导出按快照取宽高，直接导出会
-  // 把旧卡片裁进新画布，所以切换后禁用截图导出，直到重新生成。
+  // Generated card size is fixed to the canvas at generation time. Export takes dimensions from snapshot; direct export
+  // would clip the old card into the new canvas, so screenshot export is disabled until regenerated.
   if (state.fragment) {
     const canvasMatches = canvasMatchesSnapshot(state.fragmentCanvas);
     copyImageButton.disabled = !canvasMatches;
@@ -1059,7 +1059,7 @@ function handleCustomDimensionInput(input, dimension) {
   input.value = String(clamped);
   state[dimension] = clamped;
   if (customSubLabel) customSubLabel.textContent = `${state.customWidth}×${state.customHeight}`;
-  // 已按旧自定义尺寸生成的卡片同样不能直接导出。
+  // Cards generated with previous custom dimensions also cannot be exported directly.
   if (state.canvasId === CUSTOM_CANVAS_ID && state.fragment) {
     const canvasMatches = canvasMatchesSnapshot(state.fragmentCanvas);
     copyImageButton.disabled = !canvasMatches;
@@ -1080,7 +1080,7 @@ function applyCardStyles(root, css) {
       root.adoptedStyleSheets = [cardSheet];
       for (const stale of root.querySelectorAll('style[data-card-css]')) stale.remove();
       return;
-    } catch { /* 不可用则退回 <style>（放行内联样式的环境下仍可用） */ }
+    } catch { /* Fallback to <style> if unavailable (still works where inline styles are allowed) */ }
   }
   let style = root.querySelector('style[data-card-css]');
   if (!style) {
@@ -1094,7 +1094,7 @@ function applyCardStyles(root, css) {
 function updateZoomLabel() {
   const percent = Math.round(state.fitScale * state.zoom * 100);
   zoomLevelButton.textContent = `${percent}%`;
-  // 数字对读屏只是个读数，补上它实际执行的动作。
+  // Numbers are just readings for screen readers; provide the action it actually executes.
   zoomLevelButton.setAttribute('aria-label', `${percent}% · ${str.zoomFit}`);
 }
 
@@ -1104,7 +1104,7 @@ function setZoom(value) {
 }
 
 function updatePanState() {
-  // 内容溢出时才允许拖拽平移；光标与提示随之切换。
+  // Drag-to-pan is only allowed when content overflows; cursor and hint toggle accordingly.
   const pannable = previewScroll.scrollWidth > previewScroll.clientWidth + 1
     || previewScroll.scrollHeight > previewScroll.clientHeight + 1;
   previewScroll.classList.toggle('is-pannable', pannable);
@@ -1113,20 +1113,20 @@ function updatePanState() {
 }
 
 function renderPreview() {
-  // 先取消隐藏再量尺寸：preview-wrap 处于 hidden 时 clientWidth 为 0，
-  // 会让自适应比例算成最小值。
+  // Unhide before measuring dimensions: when preview-wrap is hidden, clientWidth is 0,
+  // which would calculate the fit scale to its minimum.
   previewWrap.hidden = false;
   previewEmpty.hidden = true;
   const { w, h } = canvasMetrics(state.fragmentCanvas);
-  // 自适应比例只依赖容器尺寸，不依赖卡片，所以在 card 判空之前就算好并刷新读数，
-  // 这样即便 AI 输出缺根元素，画幅与缩放信息也不会留旧值。
+  // Fit scale depends only on container size, not card content, so compute and refresh readings before card null-check.
+  // This ensures canvas and zoom info do not retain stale values even if AI output lacks a root element.
   const availableWidth = Math.max(240, previewScroll.clientWidth - 28);
   const availableHeight = Math.max(240, previewScroll.clientHeight - 28);
   state.fitScale = Math.min(availableWidth / w, availableHeight / h, 1);
   previewMeta.textContent = fmt(str.previewMeta, { canvas: canvasLabel(state.fragmentCanvas.id), w, h });
   updateZoomLabel();
   const root = previewHost.shadowRoot || previewHost.attachShadow({ mode: 'open' });
-  // 只写卡片标记；样式走 adoptedStyleSheets，不会被 CSP 拦掉。
+  // Write only card markup; styles use adoptedStyleSheets and are not blocked by CSP.
   root.innerHTML = state.fragment;
   applyCardStyles(root, state.css);
   const card = root.getElementById('card');
@@ -1140,7 +1140,7 @@ function renderPreview() {
   updatePanState();
 }
 
-/* 拖拽画布平移：仅鼠标（触摸设备保留原生滚动），内容溢出时生效。 */
+/* Drag-to-pan canvas: mouse only (touch devices retain native scrolling), active when content overflows. */
 let panState = null;
 
 previewScroll.addEventListener('pointerdown', (event) => {
@@ -1180,7 +1180,7 @@ previewScroll.addEventListener('pointercancel', endPan);
 let previewMode = 'preview';  // 'preview' | 'code'
 
 function refreshCodeHighlight() {
-  // 末尾补一个换行，保证高亮层与 textarea 的滚动高度一致。
+  // Append trailing newline so highlight layer matches textarea scroll height.
   codeHighlight.innerHTML = `${highlightHtml(codeEditor.value)}\n`;
   codeHighlight.scrollTop = codeEditor.scrollTop;
   codeHighlight.scrollLeft = codeEditor.scrollLeft;
@@ -1197,18 +1197,18 @@ function syncPreviewMode() {
   tabCode.setAttribute('aria-selected', String(!isPreview));
   previewScroll.hidden = !isPreview;
   codeWrap.hidden = isPreview;
-  zoomGroup.hidden = !isPreview;   // 缩放只对渲染画布有意义
+  zoomGroup.hidden = !isPreview;   // Zoom only applies to rendered canvas
   if (!isPreview) syncCodeEditor();
 }
 
-// 把代码页的编辑内容净化后应用回状态；失败（缺根元素等）向上抛，
-// 由调用方决定留在代码页。只在内容真的变化时刷新编辑器与文档。
+// Sanitize edited content from code view and apply back to state; throw on failure (missing root element, etc.)
+// so caller can decide to stay on code view. Only refresh editor and document when content actually changes.
 function applyCodeEdits() {
   let next;
   try {
     next = sanitizeFragment(codeEditor.value, state.fragmentCanvas);
   } catch (error) {
-    // 手工编辑缺根元素时，不要复用「AI 输出缺少…」的文案。
+    // When manual edits lack root element, do not reuse "AI output missing..." message.
     if (error instanceof Error && error.message === str.noCard) throw new Error(str.codeInvalid);
     throw error;
   }
@@ -1230,13 +1230,13 @@ function selectPreviewTab(mode) {
       changed = applyCodeEdits();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : str.codeInvalid);
-      return;  // 代码无效：留在代码页并提示
+      return;  // Invalid code: stay on code tab and show hint
     }
     if (changed) setStatus(str.codeApplied);
   }
   previewMode = mode;
   syncPreviewMode();
-  if (mode === 'preview') renderPreview();  // 量尺寸前必须已取消隐藏
+  if (mode === 'preview') renderPreview();  // Must be unhidden before measuring dimensions
 }
 
 tabPreview.addEventListener('click', () => selectPreviewTab('preview'));
@@ -1248,10 +1248,10 @@ codeEditor.addEventListener('scroll', () => {
 });
 
 /**
- * 发起 AI 请求生成仓库信息卡。
+ * Initiate AI request to generate repo info card.
  *
- * 校验仓库上下文与忙碌锁，收集画幅与语言参数构建提示词；
- * 请求成功后按快照保存画幅与语言状态，并刷新预览与导出文档；失败时展示友好错误提示。
+ * Validates repository context and busy lock, collects canvas and language parameters to construct prompts;
+ * saves canvas and language state by snapshot upon success, refreshing preview and export document; shows friendly error on failure.
  *
  * @returns {Promise<void>}
  */
@@ -1280,7 +1280,7 @@ async function generate() {
     previewWrap.hidden = false;
     previewEmpty.hidden = true;
     if (previewMode === 'code') {
-      // 代码页激活时不能量隐藏容器的尺寸；切回预览页会重新计算自适应比例。
+      // Cannot measure hidden container dimensions when code tab is active; switching back to preview recalculates fit scale.
       syncCodeEditor();
       const { w, h } = canvasMetrics(state.fragmentCanvas);
       previewMeta.textContent = fmt(str.previewMeta, { canvas: canvasLabel(state.fragmentCanvas.id), w, h });
@@ -1301,7 +1301,7 @@ async function generate() {
 }
 
 /**
- * 将已组装的单文件 HTML 代码写入系统剪贴板。
+ * Write assembled single-file HTML code to system clipboard.
  *
  * @returns {Promise<void>}
  */
@@ -1316,7 +1316,7 @@ async function copyCode() {
 }
 
 /**
- * 将当前卡片以 2x 分辨率光栅化为 PNG 并写入系统剪贴板。
+ * Rasterize current card at 2x resolution to PNG and write to system clipboard.
  *
  * @returns {Promise<void>}
  */
@@ -1333,7 +1333,7 @@ async function copyImage() {
 }
 
 /**
- * 将当前卡片以 2x 分辨率光栅化为 PNG 并保存到用户下载路径。
+ * Rasterize current card at 2x resolution to PNG and save to user download directory.
  *
  * @returns {Promise<void>}
  */

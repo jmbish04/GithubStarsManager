@@ -504,17 +504,17 @@ export const DiscoveryView: React.FC = React.memo(() => {
   const [searchInput, setSearchInput] = useState(discoverySearchQuery);
   
   const sidebarRef = useRef<HTMLDivElement>(null);
-  // X 推文频道：关注列表设置弹窗
+  // X tweet channel: follows list settings modal
   const [tweetSettingsOpen, setTweetSettingsOpen] = useState(false);
-  // Telegram 频道：关注频道设置弹窗
+  // Telegram channel: follows channel settings modal
   const [telegramSettingsOpen, setTelegramSettingsOpen] = useState(false);
-  // 工具栏显示状态
+  // Toolbar visibility state
   const [isToolbarVisible, setIsToolbarVisible] = useState(true);
   const lastScrollY = useRef(0);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 用于在频道切换时直接读取最新滚动位置，避免订阅整个 map 导致 effect 重跑
+  // Read latest scroll position directly on channel switch to avoid effect re-runs from subscribing to whole map
   const discoveryScrollPositionsRef = useRef<Record<string, number>>({});
-  // 用于记录最近一次自动拉取的频道，防止空频道无限循环拉取
+  // Track most recent auto-fetched channel to prevent infinite auto-fetch loops on empty channels
   const autoFetchChannelRef = useRef<string | null>(null);
   const appliedTopicRef = useRef<{ topic: string | null; platform: DiscoveryPlatform } | null>(null);
 
@@ -525,16 +525,15 @@ export const DiscoveryView: React.FC = React.memo(() => {
   }, []);
   const safeDiscoveryChannels = useMemo(() => {
     if (!Array.isArray(discoveryChannels)) return [];
-    // 可用性未确定（启动探测中）先全部显示，避免 Web+后端用户的可用频道闪烁；
-    // 纯浏览器模式（无桌面壳、无后端）无法抓取 X 推文与 Telegram，落定后直接隐藏
+    // Show all channels while availability is undetermined (startup probing) to avoid flickering for Web+backend users;
+    // pure browser mode (no desktop shell, no backend) cannot scrape X tweets or Telegram, so hide once settled.
     if (!scrapeSupportSettled || scrapeSupport) return discoveryChannels.filter(Boolean);
     return discoveryChannels.filter(channel => Boolean(channel)
       && channel.id !== 'x-tweet' && channel.id !== 'telegram');
   }, [discoveryChannels, scrapeSupport, scrapeSupportSettled]);
 
-  // 抓取支持落定后（纯浏览器模式）：隐藏频道移出列表，确保仍有一个可见启用
-  // 频道（水合期间不做该决策，必要时在此恢复「趋势」），并把选中的被隐藏频
-  // 道回退到可见频道
+  // Once scraping support is settled (pure browser mode): remove hidden channels from list, ensure at least one
+  // enabled visible channel exists (recovering Trending if necessary), and fall back if selected channel was hidden.
   useEffect(() => {
     if (!scrapeSupportSettled || scrapeSupport) return;
     const visibleEnabledExists = safeDiscoveryChannels.some(ch => ch.enabled && ch.id !== 'code-search');
@@ -549,7 +548,7 @@ export const DiscoveryView: React.FC = React.memo(() => {
     }
   }, [scrapeSupport, scrapeSupportSettled, selectedDiscoveryChannel, safeDiscoveryChannels, toggleDiscoveryChannel, setSelectedDiscoveryChannel]);
 
-  // 获取当前频道的所有仓库
+  // Get all repositories for current channel
   const allRepos = useMemo(
     () => (discoveryRepos && discoveryRepos[selectedDiscoveryChannel]) || [],
     [discoveryRepos, selectedDiscoveryChannel]
@@ -557,7 +556,7 @@ export const DiscoveryView: React.FC = React.memo(() => {
 
   const currentLastRefresh = discoveryLastRefresh?.[selectedDiscoveryChannel] ?? null;
 
-  // Trending 快照（开发守则 §7）：只记 trending 频道，每天同一「周期 × 平台」保留一份
+  // Trending snapshot (§7 developer guide): only records trending channel, keeping one snapshot per "range × platform" per day
   useTrendingSnapshotCapture(
     discoveryRepos?.trending ?? [],
     selectedDiscoveryChannel === 'trending',
@@ -566,7 +565,7 @@ export const DiscoveryView: React.FC = React.memo(() => {
     discoveryLastRefresh?.trending ?? null,
   );
 
-  // 从 store 获取当前频道的总数量
+  // Get total count for current channel from store
   const currentTotalCount = discoveryTotalCount?.[selectedDiscoveryChannel] ?? 0;
 
   const currentIsLoading = discoveryIsLoading?.[selectedDiscoveryChannel] ?? false;
@@ -576,19 +575,19 @@ export const DiscoveryView: React.FC = React.memo(() => {
   const currentChannelIcon = currentChannel?.icon || 'trending';
   const currentChannelStyle = discoveryChannelStyleMap[currentChannelIcon] || discoveryChannelStyleMap.trending;
   const currentChannelIconNode = discoveryChannelIconMap[currentChannelIcon] || discoveryChannelIconMap.trending;
-  // 周刊同步/补全进度文案（工具栏与空态加载两处共用）
+  // Weekly sync/detail progress text (shared between toolbar and empty-state loader)
   const weeklyStatusText = weeklySyncStatus
     ? (weeklySyncStatus.phase === 'syncing'
       ? t('discoveryView.syncing-weekly-submissions-v1-scanned', { v1: weeklySyncStatus.current })
       : t('discoveryView.fetching-repo-details-v1-v2', { v1: weeklySyncStatus.current, v2: weeklySyncStatus.total }))
     : null;
-  // X 推文同步/补全进度文案
+  // X tweet sync/detail progress text
   const xTweetStatusText = xTweetSyncStatus
     ? (xTweetSyncStatus.phase === 'syncing'
       ? t('discoveryView.fetching-timelines-v1-v2', { v1: xTweetSyncStatus.current, v2: xTweetSyncStatus.total })
       : t('discoveryView.fetching-repo-details-v1-v2', { v1: xTweetSyncStatus.current, v2: xTweetSyncStatus.total }))
     : null;
-  // Telegram 频道同步/补全进度文案
+  // Telegram channel sync/detail progress text
   const telegramStatusText = telegramSyncStatus
     ? (telegramSyncStatus.phase === 'syncing'
       ? t('discoveryView.fetching-channel-messages-v1-v2', { v1: telegramSyncStatus.current, v2: telegramSyncStatus.total })
@@ -597,13 +596,13 @@ export const DiscoveryView: React.FC = React.memo(() => {
 
 
 
-  // 切换频道时恢复滚动位置，并自动加载空数据
+  // Restore scroll position when switching channels, and auto-fetch if empty
   useEffect(() => {
-    // 恢复当前频道的滚动位置（从 ref 读取最新值，避免订阅整个 map）
+    // Restore current channel's scroll position (read from ref to avoid subscribing to whole map)
     const savedPosition = discoveryScrollPositionsRef.current[selectedDiscoveryChannel] || 0;
     window.scrollTo({ top: savedPosition, behavior: 'auto' });
     
-    // 取消持久化后，首次打开或切换到空频道时自动加载（代码搜索走本地实时请求，不参与自动拉取）
+    // With persistence disabled, auto-fetch on first open or when switching to an empty channel (code search runs live local requests, excluded from auto-fetch)
     const hasRepos = useAppStore.getState().discoveryRepos[selectedDiscoveryChannel]?.length > 0;
     const isLoading = useAppStore.getState().discoveryIsLoading[selectedDiscoveryChannel];
     if (selectedDiscoveryChannel !== 'topic' && selectedDiscoveryChannel !== 'code-search' && selectedDiscoveryChannel !== 'search' && !hasRepos && !isLoading && autoFetchChannelRef.current !== selectedDiscoveryChannel) {
@@ -618,15 +617,15 @@ export const DiscoveryView: React.FC = React.memo(() => {
     }
   }, [selectedDiscoveryChannel, discoverySearchQuery, refreshChannel]);
 
-  // 趋势时间范围改变时刷新数据
+  // Refresh data when trending time range changes
   useEffect(() => {
     if (selectedDiscoveryChannel === 'trending' && trendingTimeRange) {
       refreshChannel('trending', 1, false);
     }
   }, [trendingTimeRange, selectedDiscoveryChannel, refreshChannel]);
 
-  // 周刊收录过滤器切换时重建列表：只在偏好值真正变化时触发（挂载/切频道不触发，
-  // 避免与空频道自动加载 effect 双重调用导致增量同步被中止重启）
+  // Rebuild list when weekly collected filter toggles: only trigger when preference actually changes
+  // (avoid triggering on mount/channel switch to prevent double-invocation with empty-channel auto-fetch)
   const prevWeeklyOnlyCollectedRef = useRef(weeklyOnlyCollected);
   useEffect(() => {
     if (prevWeeklyOnlyCollectedRef.current === weeklyOnlyCollected) return;
@@ -636,9 +635,9 @@ export const DiscoveryView: React.FC = React.memo(() => {
     }
   }, [weeklyOnlyCollected, selectedDiscoveryChannel, refreshChannel]);
 
-  // X 推文关注列表/鉴权变化时重建列表：只在集合真正变化时触发（挂载/切频道
-  // 不触发，避免与空频道自动加载 effect 双重调用导致同步被中止重启）
-  // 修订号区分"不同 Cookie 之间的切换"，布尔值做不到
+  // Rebuild list when X tweet follows/auth change: only trigger when collection actually changes
+  // (avoid triggering on mount/channel switch to prevent double-invocation with auto-fetch).
+  // Revision counter distinguishes switching between different cookies, which a boolean cannot.
   const xTweetFollowsSignature = `${xTweetFollows.map(follow => follow.handle.toLowerCase()).sort().join(',')}|${xTweetAuth !== null}|${xTweetAuthRevision ?? 0}`;
   const prevXTweetFollowsRef = useRef(xTweetFollowsSignature);
   useEffect(() => {
@@ -649,8 +648,8 @@ export const DiscoveryView: React.FC = React.memo(() => {
     }
   }, [xTweetFollowsSignature, selectedDiscoveryChannel, refreshChannel]);
 
-  // Telegram 关注列表变化时重建列表：只在关注集真正变化时触发（挂载/切频道
-  // 不触发，避免与空频道自动加载 effect 双重调用导致同步被中止重启）
+  // Rebuild list when Telegram follows change: only trigger when collection actually changes
+  // (avoid triggering on mount/channel switch to prevent double-invocation with auto-fetch)
   const telegramFollowsSignature = telegramFollows.map(follow => follow.channel.toLowerCase()).sort().join(',');
   const prevTelegramFollowsRef = useRef(telegramFollowsSignature);
   useEffect(() => {
@@ -661,7 +660,7 @@ export const DiscoveryView: React.FC = React.memo(() => {
     }
   }, [telegramFollowsSignature, selectedDiscoveryChannel, refreshChannel]);
 
-  // 主题改变时刷新数据
+  // Refresh data when topic changes
   useEffect(() => {
     if (selectedDiscoveryChannel !== 'topic' || !githubToken) return;
     const applied = appliedTopicRef.current;
@@ -683,17 +682,17 @@ export const DiscoveryView: React.FC = React.memo(() => {
     return date.toLocaleDateString();
   }, [t]);
 
-  // 处理滚动事件：保存滚动位置、控制工具栏显示、控制侧栏固定
+  // Handle scroll events: save scroll position, control toolbar visibility, manage sidebar pinning
   const handleScroll = useCallback(() => {
-    // 获取页面滚动位置（支持window滚动和元素滚动）
+    // Get scroll position (supports both window and element scrolling)
     const currentScrollY = window.scrollY || window.pageYOffset || 0;
 
-    // 控制工具栏显示/隐藏
+    // Control toolbar visibility
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
 
-    // 向上滚动或接近顶部时显示工具栏，向下滚动时隐藏
+    // Show toolbar when scrolling up or near top; hide when scrolling down
     if (currentScrollY < 50 || currentScrollY < lastScrollY.current) {
       setIsToolbarVisible(true);
     } else if (currentScrollY > lastScrollY.current + 10) {
@@ -702,13 +701,13 @@ export const DiscoveryView: React.FC = React.memo(() => {
 
     lastScrollY.current = currentScrollY;
 
-    // 滚动停止后重新显示工具栏
+    // Re-display toolbar after scrolling stops
     scrollTimeoutRef.current = setTimeout(() => {
       setIsToolbarVisible(true);
     }, 1500);
   }, []);
 
-  // 监听 window 滚动事件
+  // Listen for window scroll events
   useEffect(() => {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
@@ -817,14 +816,14 @@ export const DiscoveryView: React.FC = React.memo(() => {
         </div>
 
         <div className="flex-1 flex flex-col min-h-0 min-w-0 relative">
-          {/* 顶部工具栏 - 随滚动显示/隐藏 */}
+          {/* Top toolbar - toggles visibility on scroll */}
           <div 
             className={`flex-shrink-0 pr-2 transition-transform duration-300 ease-in-out z-10 ${
               isToolbarVisible ? 'translate-y-0' : '-translate-y-full opacity-0 pointer-events-none'
             }`}
           >
             <div className="ui-toolbar p-3.5 sm:p-4 mb-4">
-              {/* 第一行：标题和刷新按钮 */}
+              {/* First row: Title and refresh button */}
               <div className="flex items-center justify-between gap-2 mb-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${currentChannelStyle.gradient} flex items-center justify-center shadow-md ${currentChannelStyle.shadow}`}>
@@ -867,7 +866,7 @@ export const DiscoveryView: React.FC = React.memo(() => {
                 )}
               </div>
               
-              {/* 第二行：筛选和操作按钮（代码搜索频道使用自有工具条，此处隐藏仓库维度控件） */}
+              {/* Second row: Filter and action buttons (code search channel uses its own toolbar; repo-level controls hidden here) */}
               {selectedDiscoveryChannel !== 'code-search' && (
               <div className="flex items-center gap-2 flex-wrap">
                 {selectedDiscoveryChannel === 'trending' && (
@@ -1023,7 +1022,7 @@ export const DiscoveryView: React.FC = React.memo(() => {
             </div>
           </div>
 
-          {/* 内容区域 */}
+          {/* Content area */}
           <div
             ref={scrollContainerRef}
             className="flex-1 overflow-y-auto space-y-4 pr-2"
@@ -1374,15 +1373,15 @@ export const DiscoveryView: React.FC = React.memo(() => {
 
           </div>
 
-          {/* 滚动到底部按钮 */}
+          {/* Scroll to bottom button */}
           <ScrollToBottom scrollContainerRef={scrollContainerRef} />
 
-          {/* X 推文频道关注列表设置 */}
+          {/* X tweet channel follows list settings */}
           <XTweetSettingsModal
             isOpen={tweetSettingsOpen}
             onClose={() => setTweetSettingsOpen(false)} />
 
-          {/* Telegram 频道关注列表设置 */}
+          {/* Telegram channel follows list settings */}
           <TelegramSettingsModal
             isOpen={telegramSettingsOpen}
             onClose={() => setTelegramSettingsOpen(false)} />

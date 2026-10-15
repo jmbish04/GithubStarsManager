@@ -10,13 +10,16 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Heavy work runs on the Proxmox runner (guest 135, label proxmox-actions), not on
+# GitHub-hosted machines. PRs from other forks fall back to GitHub so untrusted
+# code never runs on the LAN-adjacent runner.
 jobs:
   quality:
     name: Quality gates
     # Pinned instead of `ubuntu-latest`: that label migrates to Ubuntu 26.04
     # between 2026-10-19 and 2026-11-19 (actions/runner-images#14748), which
     # would swap the toolchain (glibc, prebuilt deps) under every gate.
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -99,7 +102,7 @@ jobs:
     name: Server quality gates
     # Pinned instead of `ubuntu-latest`: that label migrates to Ubuntu 26.04
     # between 2026-10-19 and 2026-11-19 (actions/runner-images#14748).
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -137,7 +140,7 @@ jobs:
     name: Worker typecheck
     # Pinned instead of `ubuntu-latest`: that label migrates to Ubuntu 26.04
     # between 2026-10-19 and 2026-11-19 (actions/runner-images#14748).
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -164,3 +167,33 @@ jobs:
         # TypeScript build honest until tests land and join this job.
         run: npx tsc --noEmit
         working-directory: cloudflare-worker
+
+  stars-worker:
+    name: github-stars-manager Worker (typecheck + tests)
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: worker
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm install -g pnpm@10.33.2 && pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Unit tests
+        run: pnpm exec vitest run

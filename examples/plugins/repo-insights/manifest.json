@@ -16,7 +16,7 @@
     "repositoryActions": [
       {
         "id": "view-insights",
-        "title": "仓库洞察",
+        "title": "Repo Insights",
         "placement": "repository-card",
         "opensPage": "insights"
       }

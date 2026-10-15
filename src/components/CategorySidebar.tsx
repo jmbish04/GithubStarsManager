@@ -63,44 +63,44 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
   const { toast, confirm } = useDialog();
   const { forceSyncToBackend } = useCategorySyncActions();
   const t = useT('app');
-  // 仓库卡片拖拽中：驱动「全部分类」变为「取消分类」热区提示
+  // Repository card dragging in progress: turns "All Categories" into an "Uncategorize" drop hotspot
   const isRepoDragging = useRepositoryDragStore((state) => state.isDragging);
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
-  // 用于防止拖拽后触发点击的标志
+  // Flag to prevent click trigger immediately following a drop
   const justDroppedRef = useRef(false);
   const dropTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // isMobile 初始值从 window.innerWidth 同步获取（SSR安全）
+  // isMobile initial value read synchronously from window.innerWidth (SSR safe)
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth < 1024;
   });
-  // 控制文字显示的状态：等侧栏展开动效完成后再显示文字
+  // Text display state: wait until sidebar expand animation completes before showing text
   const [showText, setShowText] = useState(!isSidebarCollapsed);
 
-  // 用于存储 showText 定时器的 ref
+  // Timer ref for showText
   const showTextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 用于存储 toggleSidebar 定时器的 ref
+  // Timer ref for toggleSidebar
   const toggleSidebarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 分类列表滚动容器的 ref
+  // Ref for category list scroll container
   const categoryListRef = useRef<HTMLDivElement>(null);
-  // 滚动条显示定时器 ref
+  // Timer ref for scrollbar display
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isScrolling, setIsScrolling] = useState(false);
 
-  // 监听侧栏状态变化，同步更新文字显示状态
+  // Sync text display state with sidebar collapsed state changes
   useEffect(() => {
     if (isSidebarCollapsed) {
       setShowText(false);
     } else {
-      // 清除之前的定时器
+      // Clear existing timer
       if (showTextTimerRef.current) {
         clearTimeout(showTextTimerRef.current);
       }
-      // 侧栏展开时，延迟显示文字，使用更短的延迟让体验更流畅
+      // When expanding, delay showing text with a shorter delay for smoother experience
       showTextTimerRef.current = setTimeout(() => setShowText(true), 150);
     }
     return () => {
@@ -110,7 +110,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
     };
   }, [isSidebarCollapsed]);
 
-  // 检测屏幕尺寸
+  // Detect viewport size
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 1024);
@@ -120,36 +120,36 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // 切换侧栏折叠状态
+  // Toggle sidebar collapsed state
   const toggleSidebar = useCallback(() => {
-    // 清除之前的定时器
+    // Clear existing timer
     if (toggleSidebarTimerRef.current) {
       clearTimeout(toggleSidebarTimerRef.current);
     }
     if (isSidebarCollapsed) {
-      // 展开侧栏：先展开，再显示文字
+      // Expand sidebar: expand first, then display text
       setSidebarCollapsed(false);
-      toggleSidebarTimerRef.current = setTimeout(() => setShowText(true), 150); // 150ms 后显示文字，配合动效
+      toggleSidebarTimerRef.current = setTimeout(() => setShowText(true), 150); // Show text after 150ms to match animation
     } else {
-      // 折叠侧栏：先隐藏文字，再折叠
+      // Collapse sidebar: hide text first, then collapse
       setShowText(false);
-      toggleSidebarTimerRef.current = setTimeout(() => setSidebarCollapsed(true), 120); // 120ms 后折叠，文字先消失
+      toggleSidebarTimerRef.current = setTimeout(() => setSidebarCollapsed(true), 120); // Collapse after 120ms, text disappears first
     }
   }, [isSidebarCollapsed, setSidebarCollapsed]);
 
-  // 处理分类列表滚动事件
+  // Handle category list scroll events
   const handleCategoryScroll = useCallback(() => {
     setIsScrolling(true);
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
-    // 滚动停止 1 秒后隐藏滚动条
+    // Hide scrollbar 1s after scrolling stops
     scrollTimeoutRef.current = setTimeout(() => {
       setIsScrolling(false);
     }, 1000);
   }, []);
 
-  // 组件卸载时清理定时器
+  // Clean up timers on component unmount
   useEffect(() => {
     return () => {
       if (toggleSidebarTimerRef.current) {
@@ -164,7 +164,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
     };
   }, []);
 
-  // 键盘快捷键支持 (Ctrl/Cmd + B)
+  // Keyboard shortcut support (Ctrl/Cmd + B)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
@@ -174,7 +174,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                          active?.getAttribute('role') === 'textbox';
       if (isEditable) return;
 
-      // 移动端时键盘快捷键不执行折叠切换，避免修改持久化状态
+      // Do not toggle sidebar via keyboard shortcuts on mobile to avoid mutating persisted state
       if (isMobile) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
@@ -275,7 +275,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
     event.preventDefault();
     setDragOverCategoryId(null);
 
-    // 设置标志防止拖拽后触发点击
+    // Flag to prevent click trigger immediately following a drop
     justDroppedRef.current = true;
     if (dropTimeoutRef.current) {
       clearTimeout(dropTimeoutRef.current);
@@ -284,8 +284,8 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
       justDroppedRef.current = false;
     }, 300);
 
-    // drop 先于 dragend 派发；若当前正处于某分类视图，源卡片即将因分类变更
-    // 从列表卸载，其 React dragend 将丢失，这里显式复位拖拽状态（issue #353）
+    // drop dispatches before dragend; if currently in a filtered category view, the source card will unmount
+    // from the list due to category change, losing its React dragend. Explicitly reset drag state here (issue #353).
     useRepositoryDragStore.getState().endDrag();
 
     const repoId = event.dataTransfer.getData('application/x-gsm-repository-id');
@@ -294,13 +294,13 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
 
     const allCategoriesList = getAllCategories(customCategories, language, hiddenDefaultCategoryIds, defaultCategoryOverrides);
 
-    // 拖到「全部分类」= 取消分类：显式清空（''），与编辑弹窗清空分类的结果一致；
-    // resolveCategoryAssignment 会保留显式清空，后续 AI 重新分析不会重新归类
+    // Dropping onto "All Categories" = uncategorize: explicitly clear (''), matching edit modal clear behavior;
+    // resolveCategoryAssignment retains explicit empty string so subsequent AI re-analysis will not reassign.
     if (category.id === 'all') {
-      // 已显式清空过的仓库无需再写
+      // Skip write if repository has already been explicitly cleared
       if (repository.custom_category === '') return;
-      // 无锁定分类且 AI/默认分类均未命中时，仓库本就无归属：
-      // 写入 '' 会被 resolveCategoryAssignment 永久保留，阻止后续 AI 重新归类，故 no-op
+      // If there is no locked category and neither AI nor default category matched, repo had no assignment:
+      // writing '' would be permanently retained by resolveCategoryAssignment, blocking future AI re-categorization, so no-op
       const hasAssignedCategory = !!repository.custom_category ||
         !!(getAICategory(repository, allCategoriesList) || getDefaultCategory(repository, allCategoriesList));
       if (!hasAssignedCategory) return;
@@ -327,8 +327,8 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
     const aiCat = getAICategory(repository, allCategoriesList);
     const defaultCat = getDefaultCategory(repository, allCategoriesList);
 
-    // 使用通用函数计算应该保存的自定义分类值
-    // 如果拖拽的分类与AI/默认一致，则清除自定义标记
+    // Compute custom category value using utility function.
+    // If dropped category matches AI or default category, clear custom flag.
     const customCategoryValue = computeCustomCategory(category.name, aiCat, defaultCat);
 
     const nextRepo = {
@@ -347,7 +347,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
     }
   };
 
-  // 处理分类点击，防止拖拽后立即触发
+  // Handle category click, preventing immediate trigger after drag-and-drop
   const handleCategoryClick = (categoryId: string) => {
     if (justDroppedRef.current) {
       return;
@@ -357,7 +357,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
 
   return (
     <>
-      {/* 移动端：始终显示完整侧栏 */}
+      {/* Mobile: always display full sidebar */}
       {isMobile ? (
         <div className="w-full overflow-hidden rounded-md border border-border bg-card p-3 sm:p-4">
           <div className="flex items-center justify-between mb-4">
@@ -381,7 +381,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
               const count = getCategoryCount(category);
               const isSelected = selectedCategory === category.id;
               const isDragTarget = dragOverCategoryId === category.id;
-              // 拖拽仓库时「全部分类」变为「取消分类」拖放热区
+              // When dragging a repo, "All Categories" becomes an "Uncategorize" drop hotspot
               const isUncategorizeHotspot = category.id === 'all' && isRepoDragging;
 
               return (
@@ -448,9 +448,9 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
           </div>
         </div>
       ) : (
-        /* 桌面端：可折叠侧栏 - sticky定位，滚动时保持可见 */
+        /* Desktop: collapsible sidebar - sticky positioned, remains visible on scroll */
         <div className="relative flex shrink-0 lg:sticky lg:top-16 lg:self-start z-10">
-          {/* 侧栏容器 */}
+          {/* Sidebar container */}
           <div
               className={`linear-sidebar relative overflow-visible transition-all duration-200 ease-out ${
               isSidebarCollapsed
@@ -462,10 +462,10 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
               transitionProperty: 'width, padding, max-height',
             }}
           >
-            {/* 折叠状态：简洁视图 */}
+            {/* Collapsed state: compact view */}
             {isSidebarCollapsed ? (
               <div className="flex flex-col items-center space-y-3 max-h-[calc(100vh-12rem)] overflow-y-auto scrollbar-hide">
-                {/* 展开按钮 - 放在折叠状态的顶部 */}
+                {/* Expand button - placed at top of collapsed state */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -480,15 +480,15 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
 
                 <div className="h-px w-full bg-border" />
 
-                {/* 折叠状态下的分类图标列表 */}
+                {/* Category icon list in collapsed state */}
                 <div className="flex flex-col items-center space-y-2">
                   {(() => {
-                    // 确保选中分类在显示列表中
+                    // Ensure selected category is within displayed list
                     const selectedIndex = allCategories.findIndex(c => c.id === selectedCategory);
                     const isSelectedHidden = selectedIndex >= collapsedSidebarCategoryCount;
                     let displayCategories = allCategories.slice(0, collapsedSidebarCategoryCount);
                     if (isSelectedHidden && selectedIndex !== -1) {
-                      // 用选中分类替换最后一个
+                      // Replace last item with selected category
                       displayCategories = [...allCategories.slice(0, collapsedSidebarCategoryCount - 1), allCategories[selectedIndex]];
                     }
                     return displayCategories.map((category) => {
@@ -537,7 +537,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                   })()}
                 </div>
 
-                {/* 添加分类按钮 */}
+                {/* Add category button */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -550,9 +550,9 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                 </Button>
               </div>
             ) : (
-              /* 展开状态：完整视图 */
+              /* Expanded state: full view */
               <div>
-                {/* 头部 - 包含折叠按钮 */}
+                {/* Header - includes collapse button */}
                 <div className="flex items-center justify-between mb-4">
                   <h2
                       className={`text-base font-semibold text-card-foreground transition-all duration-200 ease-out ${
@@ -572,7 +572,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                     >
                       <Plus className="w-4 h-4" />
                     </Button>
-                    {/* 折叠按钮 - 放在标题栏右侧 */}
+                    {/* Collapse button - placed on right side of header */}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -587,7 +587,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                   </div>
                 </div>
 
-                {/* 分类列表 */}
+                {/* Category list */}
                 <div
                   ref={categoryListRef}
                   onScroll={handleCategoryScroll}
@@ -598,7 +598,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                     const count = getCategoryCount(category);
                     const isSelected = selectedCategory === category.id;
                     const isDragTarget = dragOverCategoryId === category.id;
-                    // 拖拽仓库时「全部分类」变为「取消分类」拖放热区
+                    // When dragging a repo, "All Categories" becomes an "Uncategorize" drop hotspot
                     const isUncategorizeHotspot = category.id === 'all' && isRepoDragging;
 
                     return (
@@ -650,7 +650,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                             </span>
                           </div>
 
-                          {/* 数字 badge - 正常状态显示，hover/focus-within 时隐藏 */}
+                          {/* Count badge - displayed in default state, hidden on hover/focus-within */}
                           <span
                               className={`ml-auto flex min-w-8 shrink-0 justify-center rounded-md px-2 py-0.5 text-xs transition-[color,background-color,border-color,opacity,transform] duration-200 ease-out ${
                               isDragTarget
@@ -668,7 +668,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                           </span>
                         </Button>
 
-                        {/* 操作按钮 - 绝对定位，hover/focus-within 时显示，不占位 */}
+                        {/* Action buttons - absolutely positioned, shown on hover/focus-within without taking layout space */}
                         {category.id !== 'all' && (
                           <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
                             <Button

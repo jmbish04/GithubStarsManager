@@ -80,7 +80,7 @@ describe('fetchCapture', () => {
   it('redacts and caps errorName before writing the entry', async () => {
     const impl: FetchStub = vi.fn(async () => {
       const boom = new TypeError('fetch failed');
-      // 自定义 name 是自由文本，可能夹带凭据形态的字符串
+      // A custom name is free text and may carry credential-shaped strings
       boom.name = `TokenLeak ghp_${'a'.repeat(36)}`;
       throw boom;
     });
@@ -97,8 +97,8 @@ describe('fetchCapture', () => {
   it('masks an errorName that is itself a whole-value secret token', async () => {
     const impl: FetchStub = vi.fn(async () => {
       const boom = new TypeError('fetch failed');
-      // 整值长令牌：只有整值规则（sanitizeForLog/sanitizeString）能识别，
-      // 行内脱敏 redactInline 对它无能为力
+      // Whole-value long token: only the whole-value rules (sanitizeForLog/sanitizeString) can recognize it,
+      // inline redaction redactInline can do nothing about it
       boom.name = 'A1b2C3d4E5f6G7h8I9j0K1l2';
       throw boom;
     });

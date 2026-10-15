@@ -1,42 +1,42 @@
 name: New Feature
-description: 提出新的功能建议或改进想法
+description: Suggest a new feature or an improvement
 title: "[Feature] "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        感谢你为 GithubStarsManager 提出新功能建议！
+        Thanks for suggesting a new feature for GithubStarsManager!
 
-        请尽量描述真实使用场景、当前遇到的限制，以及你希望功能如何帮助解决问题。清晰的场景会更容易评估优先级和实现方式。
+        Please describe your real-world use case, the limitations you face today, and how you hope the feature will help. A clear scenario makes it easier to assess priority and implementation.
 
   - type: textarea
     id: scenario
     attributes:
-      label: 场景描述
-      description: 请描述你在什么情况下需要这个功能，以及当前流程中遇到了什么问题或限制。
+      label: Use case
+      description: Describe when you need this feature and what problems or limitations you run into with the current workflow.
       placeholder: |
-        例如：
-        当我管理大量 Star 仓库时，希望能够按最近 Release 活跃度筛选项目，方便快速找到仍在维护的仓库。
+        For example:
+        When I manage a large number of starred repositories, I want to filter projects by recent release activity so I can quickly find ones that are still maintained.
     validations:
       required: true
 
   - type: textarea
     id: proposed-solution
     attributes:
-      label: 建议解决方案
-      description: 请描述你期望的功能表现、交互方式或实现思路。
+      label: Proposed solution
+      description: Describe the behavior, interaction, or implementation approach you expect.
       placeholder: |
-        例如：
-        在筛选栏中新增“最近 Release 时间”筛选项，支持选择最近 7 天、30 天、90 天或自定义时间范围。
+        For example:
+        Add a "Latest release date" option to the filter bar, supporting the last 7 days, 30 days, 90 days, or a custom date range.
     validations:
       required: true
 
   - type: textarea
     id: additional-context
     attributes:
-      label: 附加说明
-      description: 可以补充参考链接、截图、替代方案、相关 Issue，或任何有助于理解该功能建议的信息。
-      placeholder: "例如：相关产品的截图、类似实现的链接、补充说明等。"
+      label: Additional context
+      description: Add reference links, screenshots, alternatives, related issues, or anything that helps explain the suggestion.
+      placeholder: "For example: screenshots of related products, links to similar implementations, additional notes, etc."
     validations:
       required: false

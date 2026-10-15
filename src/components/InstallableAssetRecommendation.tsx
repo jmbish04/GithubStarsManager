@@ -13,21 +13,23 @@ import { formatFileSize } from '../utils/formatBytes';
 import { computeRpcDownloadKey } from '../hooks/useReleaseArtifactActions';
 
 /**
- * 「这台设备能装哪个资产」的内置推荐块。
+ * Built-in recommendation block for "which asset can this device install".
  *
- * 与插件提供的 `ReleasePluginRecommendations` 的关系：那个是插件能力（需要用户点击分析、
- * 结果由插件负责），这里是 Core 的确定性识别，无需插件、不联网、每次渲染即得。
- * 两者互不替代，可以同时出现——插件可以基于 Health/资产事实给出自己的主观推荐。
+ * Relationship with `ReleasePluginRecommendations` provided by plugins: That is a plugin capability
+ * (requires user click to analyze, results are provided by the plugin), whereas this is Core's
+ * deterministic recognition, requiring no plugins, no network requests, and is ready on every render.
+ * Neither replaces the other and both can appear simultaneously—plugins can provide their own subjective recommendations
+ * based on Health / asset facts.
  *
- * 明确不做的事（roadmap §5.3）：
- * - 不自动下载、不自动运行安装程序；必须用户点击。
- * - 不声称安装包安全——只说明「按文件名识别为适配当前设备」。
- * - 不隐藏其他资产：识别不出来或平台不匹配的资产仍在下方资产表中可手动下载。
+ * Explicit non-goals (roadmap §5.3):
+ * - Does not automatically download or run installers; user must click.
+ * - Does not claim installer packages are safe—only states "identified by filename as matching the current device".
+ * - Does not hide other assets: unrecognized or platform-mismatched assets can still be downloaded manually from the asset table below.
  */
 interface InstallableAssetRecommendationProps {
   release: Release;
   downloadStates?: Record<string, 'idle' | 'sending' | 'sent'>;
-  /** 复用 Release 资产表同一条下载链路（RPC / 认证下载 / 后端代理）。 */
+  /** Reuses the same download pipeline as the Release asset table (RPC / authenticated download / backend proxy). */
   onDownload: (link: ReleaseDownloadLink) => void;
 }
 
@@ -45,15 +47,15 @@ export const InstallableAssetRecommendation: React.FC<InstallableAssetRecommenda
 }) => {
   const t = useT('app');
 
-  // 平台可同步得到（Electron/Chromium 报告宿主 OS，Web 版报告浏览器所在设备）。
+  // Platform can be obtained synchronously (Electron/Chromium reports host OS, Web version reports browser device).
   const [platform] = useState<InstallablePlatform | null>(() => detectDevicePlatformSync());
   const [architecture, setArchitecture] = useState<InstallableArchitecture | undefined>(undefined);
   /**
-   * 架构探测是否已结束。
+   * Whether architecture probing has completed.
    *
-   * 必需状态：`architecture === undefined` 同时表示「还在探测」和「确实拿不到」，
-   * 两者混在一起会让首次渲染就保留全部架构并立刻启用下载按钮——在 arm64 设备上，
-   * 若 x64 资产排序更靠前，用户可能在探测完成前下到错误架构的包。
+   * Essential state: `architecture === undefined` represents both "still probing" and "genuinely unavailable",
+   * conflating the two would keep all architectures on initial render and immediately enable the download button—on arm64 devices,
+   * if x64 assets are sorted first, the user might download the wrong architecture package before probing finishes.
    */
   const [architectureSettled, setArchitectureSettled] = useState(false);
 
@@ -69,7 +71,7 @@ export const InstallableAssetRecommendation: React.FC<InstallableAssetRecommenda
     };
   }, []);
 
-  // 架构拿不到时不传 architecture —— 跳过架构过滤，并列展示候选而不是猜一个。
+  // Do not pass architecture when unavailable—skip architecture filtering and display candidates side by side rather than guessing.
   const detection = useMemo(
     () =>
       detectInstallableAssets(release.assets, {
@@ -79,7 +81,7 @@ export const InstallableAssetRecommendation: React.FC<InstallableAssetRecommenda
     [release.assets, platform, architecture],
   );
 
-  // 识别结果只带 assetId，下载仍走既有 link 模型，避免第二套下载逻辑。
+  // Detection results only carry assetId; downloads still use the existing link model to avoid a second download codepath.
   const linksByAssetId = useMemo(() => {
     const map = new Map<number, ReleaseDownloadLink>();
     for (const link of buildReleaseDownloadLinks(release)) {
@@ -96,13 +98,13 @@ export const InstallableAssetRecommendation: React.FC<InstallableAssetRecommenda
     ? downloadStates[computeRpcDownloadKey(bestLink)] ?? 'idle'
     : 'idle';
   const PlatformIcon = getPlatformIcon(best.platform);
-  // 平台未知时不要声称「适配当前设备」：此时候选是并列的全部平台，不是设备匹配结果。
+  // Do not claim "matched to current device" when platform is unknown: candidates are listed across all platforms, not matched to device.
   const platformKnown = platform !== null;
-  // 架构探测结束前禁用下载：否则可能在探测完成前下到错误架构的包。
+  // Disable download before architecture probing finishes: otherwise the wrong architecture package might be downloaded before probe completion.
   const downloadEnabled = architectureSettled;
 
   const describe = (match: typeof best) => {
-    // 平台显示名复用 platformMeta，避免再维护一份平台名表。
+    // Reuse platformMeta for platform display name, avoiding maintaining another platform name table.
     const parts = [getPlatformDisplayName(match.platform)];
     if (match.architecture) parts.push(ARCHITECTURE_LABELS[match.architecture]);
     parts.push(match.packageType);

@@ -12,7 +12,7 @@ import { filterAndSortGists } from '../../../utils/gistUtils';
 
 export type { GistCreateInput, GistUpdateInput };
 
-// GistCard 单卡分析 patch 字面量提纯（成功/失败两态）。
+// Pure patch helper for single GistCard analysis (success and failure states).
 export const applyGistAnalysisSuccess = (detail: Gist, summary: string, now: string): Gist => ({
   ...detail,
   ai_summary: summary.trim(),
@@ -35,9 +35,9 @@ export const useGistActions = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
-  // isAnalyzingGist(id) 的渲染值恒等于 store 集合值：原 GistCard 的本地 isAnalyzingLocal
-  // 与 setAnalyzingGist 同置同清，渲染上与集合值等价，故本 hook 只操作 store 集合、
-  // 不再设本地 flag（勿"修复"回双 flag 写法）。
+  // The rendered value of isAnalyzingGist(id) strictly equals the store set: the original GistCard's local
+  // isAnalyzingLocal was set and cleared in tandem with setAnalyzingGist, making it equivalent to the set.
+  // This hook therefore only manipulates the store set and avoids maintaining redundant local flags.
   const analyzingGistIds = useAppStore((s) => s.analyzingGistIds);
   const isAnalyzingGist = useCallback(
     (gistId: string) => analyzingGistIds.has(gistId),
@@ -191,8 +191,8 @@ export const useGistActions = () => {
     }
   }, [state, t, toast]);
 
-  // 单卡 AI 分析（原 GistCard.handleAnalyze）：无 Abort、无 forceSync；
-  // 重新分析覆盖确认在本 hook 内（View 只保留 stopPropagation 前置）。
+  // Single-card AI analysis (formerly GistCard.handleAnalyze): no Abort, no forceSync;
+  // re-analysis overwrite confirmation is handled inside this hook (the View only handles stopPropagation).
   const analyzeOne = useCallback(async (gist: Gist) => {
     if (!state.githubToken) {
       toast(t('useGistActions.github-token-not-found-please-login-again'), 'error');

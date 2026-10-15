@@ -14,10 +14,6 @@
 **Tired of starring everything and finding nothing?**
 
 GitHub Stars Manager automatically syncs your starred repos, uses AI to summarize and categorize them, and lets you find anything with semantic search. Track releases, filter assets, and one-click download — smarter than manual tags, simpler than GitHub.
-
-<p align="center">
-  <a href="README_zh.md"><img src="./assets/readme/sections/lang-en.svg" width="100%" alt="Current language: English. Click to open the Chinese README."></a>
-</p>
 </div>
 
 ## See it
@@ -543,7 +539,7 @@ Native [GitHub Lists](https://github.com/features/lists) (starred lists) sync bo
 
 Back up and sync your data via any standard WebDAV service:
 
-- **Jianguoyun (坚果云)**: recommended for users in China
+- **Jianguoyun (Nutstore)**: recommended for users in China
 - **Nextcloud**: self-hosted cloud storage
 - **ownCloud**: enterprise-grade option
 - **Any standard WebDAV server**
@@ -575,7 +571,7 @@ For Docker deployment see the [Backend Server](#️-backend-server-optional) sec
 ## Additional Notes
 
 1. The backend is optional but recommended for web deployment. Without it, all data is stored in your browser's localStorage — back up important data regularly.
-2. I can't write code, this app is entirely written by the AI, mainly for my personal requirement. If you have a new feature or meet a bug, I can only try to do it, but I can't guarantee it, because it depends on the AI to do it successfully.😹
+2. I don't write code; this app was created entirely using AI, primarily for my personal needs. If you request a new feature or encounter a bug, I'll do my best to address it, but I can't make guarantees since it relies on AI generation.😹
 
 ## 🤝 Contributing
 

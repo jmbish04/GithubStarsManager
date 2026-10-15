@@ -14,9 +14,9 @@ import { AssetFilter } from '../types';
 import { useDialog } from '../hooks/useDialog';
 import { Button } from './ui/button';
 
-// 图标映射。
-// 存量数据里持久化的是 lucide 图标名（见 store/schema.ts PRESET_FILTER_ICONS），
-// 渲染时按名 remap 到 Simple Icons 品牌字形；'Package'（源码预设）沿用 lucide。
+// Icon mapping.
+// Legacy persisted data contains Lucide icon names (see store/schema.ts PRESET_FILTER_ICONS);
+// when rendering, remap by name to Simple Icons brand glyphs; 'Package' (source code preset) continues to use Lucide.
 const ICON_MAP: Record<string, React.ElementType> = {
   Monitor: SiWindows,
   Apple: SiApple,
@@ -25,7 +25,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Package,
 };
 
-// 图标名称映射（基于 PRESET_FILTERS 的 id）
+// Icon name mapping (based on PRESET_FILTERS id)
 const PRESET_ICON_MAP: Record<string, string> = {
   'preset-windows': 'Monitor',
   'preset-macos': 'Apple',
@@ -59,7 +59,7 @@ export const AssetFilterManager: React.FC<AssetFilterManagerProps> = ({
   const [editingFilter, setEditingFilter] = useState<AssetFilter | undefined>();
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // 归一化 assetFilters：匹配预设标识的项设为 isPreset=true
+  // Normalize assetFilters: mark items matching preset IDs as isPreset=true
   const normalizedFilters = useMemo(() => assetFilters.map(f => {
     const isPresetId = PRESET_ICON_MAP[f.id] !== undefined;
     if (isPresetId && !f.isPreset) {
@@ -68,7 +68,7 @@ export const AssetFilterManager: React.FC<AssetFilterManagerProps> = ({
     return f;
   }), [assetFilters]);
 
-  // 分离预设筛选器和自定义筛选器
+  // Separate preset filters from custom filters
   const presetFilters = normalizedFilters.filter(f => f.isPreset);
   const customFilters = normalizedFilters.filter(f => !f.isPreset);
 
@@ -169,7 +169,7 @@ export const AssetFilterManager: React.FC<AssetFilterManagerProps> = ({
         </div>
       </div>
 
-      {/* 多过滤器组合说明：常驻可见（不藏 tooltip），解释 OR 组合与排除作用域 */}
+      {/* Multi-filter combination note: permanently visible (not hidden in a tooltip), explaining OR combinations and exclusion scopes */}
       <p className="text-xs text-muted-foreground dark:text-muted-foreground">
         {t('assetFilterManager.filter-scope-note')}
       </p>

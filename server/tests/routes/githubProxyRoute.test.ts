@@ -165,7 +165,7 @@ describe('GitHub proxy routes', () => {
     expect(res.headers['retry-after']).toBe('5');
     expect(res.headers['x-ratelimit-remaining-requests']).toBe('12');
     expect(res.headers['x-ratelimit-remaining-tokens']).toBe('900');
-    // 非限流相关头不应透传
+    // Non-rate-limit headers should not be forwarded
     expect(res.headers['x-debug-id']).toBeUndefined();
     expect(res.headers['set-cookie']).toBeUndefined();
   });

@@ -2,20 +2,22 @@ import { Router } from 'express';
 import { logger } from '../services/logger.js';
 
 /**
- * X 推文频道：服务端代抓 x.com 未登录主页 HTML，以及鉴权路径的
- * GraphQL / 静态资源代理。
- * 浏览器渲染进程受 CORS 限制无法直连 x.com，桌面端走 Electron 主进程 IPC，
- * 服务端（fullstack）部署走本路由。只抓固定的 https://x.com/<handle>，
- * handle 严格校验，不透传任意 URL。
+ * X tweet channel: server-side scraping of logged-out x.com profile HTML,
+ * as well as authenticated GraphQL and static asset proxying.
+ * Browser renderers cannot directly connect to x.com due to CORS, desktop uses
+ * Electron main process IPC, and server (fullstack) deployments use this route.
+ * Only fetches fixed https://x.com/<handle>; handle is strictly validated,
+ * and arbitrary URLs are not proxied.
  *
- * 鉴权路径（POST /api/xtweet/graphql）：用户在设置中填写自己的
- * auth_token/ct0 Cookie，本路由逐请求转发（不落库），带公共 Web Bearer 与
- * Cookie 代发 GET；仅允许 x.com 与 abs.twimg.com 两个主机名。
+ * Authenticated path (POST /api/xtweet/graphql): users enter their own
+ * auth_token/ct0 cookies in settings, which this route forwards per-request
+ * (never stored in DB), sending GET requests with public Web Bearer and cookies;
+ * only x.com and abs.twimg.com hostnames are allowed.
  */
 const X_HANDLE_PATTERN = /^[A-Za-z0-9_]{1,15}$/;
-// 鉴权代抓仅允许受控操作对应的 URL（调用方不可任意指定 x.com 路径）：
-// 首页（queryId 提取入口）、abs.twimg.com 主脚本（绝不附带 X Cookie）、
-// GraphQL UserTweets / UserByScreenName（queryId 动态，操作名固定）。
+// Authenticated proxying allows only URLs corresponding to controlled operations (callers cannot specify arbitrary x.com paths):
+// Home page (queryId extraction entry point), abs.twimg.com main script (never includes X cookies),
+// and GraphQL UserTweets / UserByScreenName (dynamic queryId, fixed operation name).
 const X_HOME_URL = 'https://x.com/home';
 const X_MAIN_JS_PATTERN = /^https:\/\/abs\.twimg\.com\/responsive-web\/client-web\/main\.[a-zA-Z0-9_-]+\.js$/;
 const X_GRAPHQL_API_PATTERN = /^https:\/\/x\.com\/i\/api\/graphql\/[A-Za-z0-9_-]+\/(UserTweets|UserByScreenName)(\?.*)?$/;
@@ -73,8 +75,8 @@ router.post('/api/xtweet/graphql', async (req, res) => {
     return;
   }
   try {
-    // GraphQL API 请求带 Bearer/CSRF 等专有头；HTML 页面与静态资源带这些头
-    // 反而被 x.com 拒 401（实测），只发 UA + Cookie
+    // GraphQL API requests send specialized headers such as Bearer/CSRF; sending these headers
+    // with HTML pages or static assets causes x.com to return 401 (verified), so only send UA + Cookie
     const isApiCall = url.startsWith('https://x.com/i/api/');
     const headers: Record<string, string> = isApiCall
       ? {
@@ -91,7 +93,7 @@ router.post('/api/xtweet/graphql', async (req, res) => {
           'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8',
           ...(url.startsWith('https://x.com/') ? { 'Cookie': `auth_token=${authToken}; ct0=${ct0}` } : {}),
         };
-    // redirect: 'error' — 拒绝跨域重定向，避免 Cookie 被转到允许域名之外
+    // redirect: 'error' — reject cross-origin redirects to prevent cookies from leaking outside allowed domains
     const response = await fetch(url, {
       headers,
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),

@@ -18,7 +18,7 @@ vi.mock('../../services/pluginMarketplaceService', () => ({
   },
 }));
 
-const t = makeT('zh', 'app');
+const t = makeT('en', 'app');
 
 const marketplaceState = (overrides: Partial<MarketplaceState> = {}): MarketplaceState => ({
   sources: [{ id: 'src-1', url: 'https://github.com/owner/repo/tree/main/plugins', addedAt: '2026-10-01T00:00:00.000Z' }],
@@ -44,7 +44,7 @@ const marketplaceState = (overrides: Partial<MarketplaceState> = {}): Marketplac
   ...overrides,
 });
 
-describe('PluginRegistrySection（入口卡片）', () => {
+describe('PluginRegistrySection (entry card)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isAvailable.mockReturnValue(true);
@@ -62,8 +62,8 @@ describe('PluginRegistrySection（入口卡片）', () => {
     const user = userEvent.setup();
     render(<PluginRegistrySection t={t} onOpenMarketplace={mocks.onOpenMarketplace} />);
 
-    await vi.waitFor(() => expect(screen.getByTestId('plugin-registry-stats')).toHaveTextContent('1 个插件源'));
-    expect(screen.getByTestId('plugin-registry-stats')).toHaveTextContent('1 个可用插件');
+    await vi.waitFor(() => expect(screen.getByTestId('plugin-registry-stats')).toHaveTextContent('1 plugin sources'));
+    expect(screen.getByTestId('plugin-registry-stats')).toHaveTextContent('1 plugins available');
 
     await user.click(screen.getByTestId('plugin-registry-open'));
     expect(mocks.onOpenMarketplace).toHaveBeenCalledOnce();

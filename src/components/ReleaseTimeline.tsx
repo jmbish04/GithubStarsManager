@@ -61,13 +61,13 @@ export const ReleaseTimeline: React.FC = () => {
   } = useReleaseTimelineActions();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
-  // 独立的展开状态：下载资产和更新日志分开控制（本地状态，不持久化）
+  // Independent expansion states: download assets and changelog controlled separately (local state, not persisted)
   const [expandedAssets, setExpandedAssets] = useState<Set<number>>(new Set());
   const [expandedReleaseNotes, setExpandedReleaseNotes] = useState<Set<number>>(new Set());
   const [fullContentReleases, setFullContentReleases] = useState<Set<number>>(new Set());
   const [isReleaseSourceSettingsOpen, setIsReleaseSourceSettingsOpen] = useState(false);
 
-  // 使用全局状态的别名，保持代码一致性
+  // Alias global state to maintain code consistency
   const viewMode = releaseViewMode;
   const selectedFilters = releaseSelectedFilters;
   const searchQuery = releaseSearchQuery;
@@ -89,8 +89,8 @@ export const ReleaseTimeline: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  // 解析激活的过滤器。预设过滤器可被编辑并持久化在 assetFilters 中，优先生效；
-  // 常量表仅兜底状态里缺失的预设 id，避免编辑被旧常量绕过。
+  // Resolve active filter. Preset filters can be edited and persisted in assetFilters with precedence;
+  // the constant table only serves as fallback for preset IDs missing from state, preventing edits from being bypassed.
   const resolveActiveFilter = useCallback((filterId: string): (Pick<AssetFilter, 'id' | 'keywords'> & Partial<AssetFilter>) | undefined =>
     assetFilters.find(filter => filter.id === filterId) ??
     PRESET_FILTERS.find(preset => preset.id === filterId),
@@ -164,8 +164,8 @@ export const ReleaseTimeline: React.FC = () => {
         size: 0,
         downloadCount: 0,
         isSourceCode: true,
-        // 源码归档没有独立的 updated_at：用 Release 有效时间做版本戳，
-        // 使 RPC 状态 key 随资源替换而变化，避免旧的"已发送 ✓"残留。
+        // Source archives have no standalone updated_at: use effective Release time as version stamp
+        // so RPC state key varies with resource replacement, preventing stale "Sent ✓" leftovers.
         updatedAt: effectiveReleaseTime(release),
       });
     }
@@ -206,13 +206,13 @@ export const ReleaseTimeline: React.FC = () => {
     [releases, resolvedReleaseSources, includePreRelease]
   );
 
-  // 未读模式下，快照当前未读 release ID，避免标记已读后立即消失
-  // 不依赖 readReleases，避免标记已读时重建快照导致列表项立即消失
+  // In unread mode, snapshot current unread release IDs so items do not immediately disappear after being marked read
+  // Does not depend on readReleases to prevent rebuilding snapshot when marking read, which would immediately remove items
   const unreadSnapshotRef = useRef<Set<number>>(new Set());
   const [snapshotVersion, setSnapshotVersion] = useState(0);
-  // 快照重建信号只看可见 release 的 ID 集合：markReleaseAsRead 会清除
-  // “资产已更新”标识并生成新的 releases 数组，但 ID 集合不变——若直接依赖
-  // releases，刚展开标记的条目会在“仅显示未读”下立即消失。
+  // Snapshot rebuild signal only monitors the set of visible release IDs: markReleaseAsRead clears
+  // the "assets updated" badge and generates a new releases array, but the ID set remains unchanged; directly depending on
+  // releases would cause newly expanded marked items to immediately disappear under "unread only".
   const subscribedReleaseKey = useMemo(() =>
     releases
       .filter(r =>
@@ -234,21 +234,21 @@ export const ReleaseTimeline: React.FC = () => {
     });
     unreadSnapshotRef.current = ids;
     setSnapshotVersion(v => v + 1);
-    // 重建时机由 subscribedReleaseKey/releaseShowMode/releaseLatestMode 决定，
-    // 见上方说明；此处刻意不依赖 releases/resolvedReleaseSources 本身。
+    // Rebuild timing is determined by subscribedReleaseKey/releaseShowMode/releaseLatestMode,
+    // see explanation above; deliberately does not depend on releases/resolvedReleaseSources directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscribedReleaseKey, releaseShowMode, releaseLatestMode]);
 
-  // 预计算每个 release 的下载链接、真实上传资产名和过滤器求值结果。
-  // 过滤器分两层生效（由 evaluateAssetFilter 一次性返回，两层共用同一份规则实现）：
-  // - Release 级：决定 Release 是否出现在列表中；
-  // - 资产级：决定卡片默认列出哪些资产——只有命中已启用过滤器关键词的资产才默认展示，
-  //   其余资产由卡片内的「显示全部」按钮按需展开；命中「始终包含」的仓库不做资产级
-  //   裁剪（该仓库的 Release 展示全部资产）。
-  // 两层共用同一套链接名匹配范围：包含关键词非空时匹配全部下载链接名（含源码归档
-  // 伪资产与正文提取链接），为空时 Release 级只匹配真实上传资产名。
-  // 源码归档伪资产的自动生成后缀由 normalizeMatchedLinkName 剥掉：否则 `zip` /
-  // `tar.gz` 会命中每个 Release 上都存在的伪资产，过滤器变相匹配所有 Release。
+  // Precompute download links, real uploaded asset names, and filter evaluation results for each release.
+  // Filters operate at two tiers (returned together by evaluateAssetFilter, sharing the same rule implementation):
+  // - Release tier: determines whether the Release appears in the list;
+  // - Asset tier: determines which assets the card lists by default - only assets matching active filter keywords
+  //   are shown by default, while remaining assets can be expanded via the card's "Show all" button; repositories matching
+  //   "always include" do not undergo asset-level pruning (Releases from that repo show all assets).
+  // Both tiers share the same link name matching scope: matches all download link names when include keywords are non-empty
+  // (including source archive pseudo-assets and extracted body links); matches only real uploaded asset names at Release tier when empty.
+  // The auto-generated suffix on source archive pseudo-assets is stripped by normalizeMatchedLinkName: otherwise `zip` /
+  // `tar.gz` would match pseudo-assets present on every Release, turning the filter into a match-all.
   const releasesWithLinks = useMemo(() => {
     return subscribedReleases.map(release => {
       const allLinks = getDownloadLinks(release);
@@ -257,8 +257,8 @@ export const ReleaseTimeline: React.FC = () => {
       );
       const lowerRealAssetNames = (release.assets ?? []).map(asset => asset.name.toLowerCase());
       const lowerRepoKey = normalizeRepoKey(release.repository.full_name);
-      // 每个已启用过滤器只求值一次：Release 级取 OR，资产索引取并集
-      // （未命中本 Release 的过滤器不贡献任何资产）
+      // Each active filter is evaluated only once: OR for Release tier, union for asset indexes
+      // (filters not matching this Release contribute no assets)
       const evaluations = selectedFilters
         .map(filterId => resolveActiveFilter(filterId))
         .filter((active): active is NonNullable<typeof active> => !!active)
@@ -271,8 +271,8 @@ export const ReleaseTimeline: React.FC = () => {
       return {
         release,
         allLinks,
-        // 无已启用过滤器时不做资产级裁剪，并复用同一数组引用，
-        // 避免卡片把「未裁剪」误判成「被过滤后仍显示全部」
+        // When no filter is active, do not prune assets and reuse the same array reference,
+        // preventing the card from misinterpreting "unpruned" as "showing all after filtering"
         matchedLinks: selectedFilters.length === 0
           ? allLinks
           : allLinks.filter((_, index) => matchedLinkIndexes.has(index)),
@@ -284,7 +284,7 @@ export const ReleaseTimeline: React.FC = () => {
   const preUnreadFilteredReleases = useMemo(() => {
     let filtered = releasesWithLinks;
 
-    // 搜索过滤
+    // Search filtering
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(({ release }) =>
@@ -296,9 +296,9 @@ export const ReleaseTimeline: React.FC = () => {
       );
     }
 
-    // 资产类型过滤 - 只显示命中任一已启用过滤器的 release（仓库排除 → 仓库包含
-    // → 资产规则，多过滤器取 OR）；命中的 Release 默认只列出命中过滤器的资产，
-    // 未命中的资产由卡片《显示全部》按钮按需展开（allLinks 一并透传给卡片）
+    // Asset type filtering - only show releases matching any active filter (repository exclude -> repository include
+    // -> asset rules, multiple filters evaluated with OR); matching Releases default to listing only matching assets,
+    // while non-matching assets can be expanded on demand via the card's "Show all" button (allLinks passed through)
     if (selectedFilters.length > 0) {
       filtered = filtered.filter(({ matchesFilters }) => matchesFilters);
     }
@@ -314,7 +314,7 @@ export const ReleaseTimeline: React.FC = () => {
       }));
   }, [releasesWithLinks, searchQuery, selectedFilters]);
 
-  // 仅最新模式过滤：每个仓库只保留最新的 release
+  // Latest-only mode filtering: retain only the latest release per repository
   const latestModeReleases = useMemo(() => {
     if (releaseLatestMode !== 'latest') return preUnreadFilteredReleases;
 
@@ -329,13 +329,13 @@ export const ReleaseTimeline: React.FC = () => {
     return Array.from(repoMap.values());
   }, [preUnreadFilteredReleases, releaseLatestMode]);
 
-  // 未读模式过滤（使用快照，标记已读后不会立即消失，刷新页面后才更新）
+  // Unread mode filtering (uses snapshot so items do not immediately disappear when marked read; updates after page refresh)
   const filteredReleases = useMemo(() => {
     if (releaseShowMode === 'unread') {
       return latestModeReleases.filter(({ release }) => unreadSnapshotRef.current.has(release.id));
     }
     return latestModeReleases;
-    // snapshotVersion 触发快照更新后重算；readReleases 不在此处以避免标记已读立即消失
+    // Recomputed when snapshotVersion triggers snapshot update; readReleases omitted here to avoid immediate disappearance upon marking read
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestModeReleases, releaseShowMode, snapshotVersion]);
 
@@ -343,7 +343,7 @@ export const ReleaseTimeline: React.FC = () => {
     return subscribedReleases.filter(r => !readReleases.has(r.id)).length;
   }, [subscribedReleases, readReleases]);
 
-  // 按仓库分组的 Release 数据
+  // Release data grouped by repository
   const repositoryGroups = useMemo(() => {
     const groups = new Map<number, {
       repository: Release['repository'];
@@ -362,14 +362,14 @@ export const ReleaseTimeline: React.FC = () => {
       }
       const group = groups.get(repoId)!;
       group.releases.push({ release, displayLinks, allLinks });
-      // 更新最新发布
+      // Update latest release
       if (new Date(release.published_at) > new Date(group.latestRelease.published_at)) {
         group.latestRelease = release;
       }
     });
 
-    // 仓库容器的更新时间应覆盖所有可见 Release 的发布时间和资产更新时间。
-    // latestRelease 仍用于展示“最新版本”标签，避免改变版本标签的语义。
+    // Repository container's updated time should cover published time and asset updated time of all visible Releases.
+    // latestRelease is still used for displaying the "latest version" badge to avoid changing its semantic meaning.
     return Array.from(groups.values())
       .map(group => ({
         ...group,
@@ -388,7 +388,7 @@ export const ReleaseTimeline: React.FC = () => {
       });
   }, [filteredReleases]);
 
-  // 根据视图模式计算分页
+  // Calculate pagination based on view mode
   const totalPages = viewMode === 'timeline'
     ? Math.ceil(filteredReleases.length / itemsPerPage)
     : Math.ceil(repositoryGroups.length / itemsPerPage);
@@ -397,7 +397,7 @@ export const ReleaseTimeline: React.FC = () => {
   const paginatedReleases = filteredReleases.slice(startIndex, startIndex + itemsPerPage);
   const paginatedRepositoryGroups = repositoryGroups.slice(startIndex, startIndex + itemsPerPage);
 
-  // 同步 currentPage 状态，确保始终在有效范围内
+  // Synchronize currentPage state to ensure it remains within valid range
   useEffect(() => {
     const maxPage = Math.max(totalPages, 1);
     if (currentPage < 1 || currentPage > maxPage) {
@@ -407,7 +407,7 @@ export const ReleaseTimeline: React.FC = () => {
 
 
 
-  // Filter handlers - 使用全局状态
+  // Filter handlers - using global state
   const handleFilterToggle = (filterId: string) => {
     toggleReleaseSelectedFilter(filterId);
     setCurrentPage(1); // Reset to first page when filtering
@@ -880,7 +880,7 @@ export const ReleaseTimeline: React.FC = () => {
             )}
           </div>
         ) : viewMode === 'timeline' ? (
-          // 按日期排序视图
+          // Date-sorted view
           paginatedReleases.map(({ release, displayLinks, allLinks }) => {
             const isUnread = isReleaseUnread(release.id);
             const isAssetsExpanded = expandedAssets.has(release.id);
@@ -911,16 +911,16 @@ export const ReleaseTimeline: React.FC = () => {
             );
           })
         ) : (
-          // 仓库分类视图
+          // Repository-categorized view
           paginatedRepositoryGroups.map(({ repository, releases, latestRelease, latestUpdatedRelease }) => {
             const isExpanded = expandedRepositories.has(repository.id);
             const hasUnread = releases.some(({ release }) => isReleaseUnread(release.id));
             const latestEffectiveTime = latestUpdatedRelease
               ? effectiveReleaseTime(latestUpdatedRelease)
               : null;
-            // 仓库分组头部的“资产已更新”与资产行共用同一事实来源（updated_asset_ids），
-            // 只要组内任一 Release 存在未清除的资产级标识就展示，避免“头部有标识、
-            // 展开后无任何资产行带标识”的不一致。
+            // The "assets updated" badge on repository group headers shares the same source of truth (updated_asset_ids) with asset rows;
+            // it is shown as long as any Release in the group has an uncleared asset-level badge, preventing the inconsistency of
+            // "header has a badge, but no asset rows show badges when expanded".
             const latestAssetsUpdated = releases.some(
               ({ release }) => shouldShowAssetsUpdatedIndicator(release)
             );
@@ -986,9 +986,9 @@ export const ReleaseTimeline: React.FC = () => {
                   className="grid transition-[grid-template-rows] duration-300 ease-in-out"
                   style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
                 >
-                  {/* collapse-hidden 用延迟 visibility 替代 hidden：hidden 的 display:none
-                      会直接打断 grid-rows 折叠/展开动画；visibility 过渡同样能把折叠内容
-                      移出 Tab 焦点序与无障碍树，但动画得以保留。 */}
+                  {/* collapse-hidden uses delayed visibility instead of hidden: display:none on hidden
+                      directly breaks grid-rows collapse/expand animations; visibility transition similarly
+                      removes collapsed content from Tab focus order and accessibility tree while preserving animation. */}
                   <div className={`overflow-hidden min-h-0 ${isExpanded ? '' : 'collapse-hidden'}`}>
                     <div className="border-t ui-divider bg-background dark:bg-card/50">
                       <div className="p-1.5 space-y-1.5">

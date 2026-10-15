@@ -81,7 +81,7 @@ describe('logger', () => {
     });
 
     it('serializes a DOMException with independent name and message fields', () => {
-      // DOMException 在部分运行时不继承 Error，序列化仍须保留 name
+      // DOMException does not extend Error in some runtimes; serialization must still preserve name
       logger.warn('net', 'request aborted', new DOMException('signal is aborted without reason', 'AbortError'));
       const data = lastEntry().data as { name?: string; message?: string };
       expect(data.name).toBe('AbortError');
@@ -103,7 +103,7 @@ describe('logger', () => {
       logger.warn('githubApi', 'API request network error', error);
       const data = lastEntry().data as { code?: string; token?: string; name?: string; message?: string };
       expect(data.code).toBe('ETIMEDOUT');
-      // 附加字段仍走字段名脱敏
+      // Extra fields still go through field-name redaction
       expect(data.token).toBe('***3456');
       expect(data.name).toBe('Error');
       expect(data.message).toBe('failed');

@@ -3,7 +3,7 @@ import { Globe, Monitor, Terminal } from 'lucide-react';
 import { SiAndroid, SiApple, SiDocker, SiIos, SiLinux } from '@icons-pack/react-simple-icons';
 import { SiWindows } from './SiWindows';
 
-/** 平台标识 → 图标组件。CLI/Web 无品牌字形，沿用 lucide 线性图标。 */
+/** Platform identifier -> icon component. CLI/Web lack brand glyphs and use lucide line icons instead. */
 export const PLATFORM_ICON_MAP: Record<string, ElementType> = {
   mac: SiApple,
   macos: SiApple,

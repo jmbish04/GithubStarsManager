@@ -33,9 +33,9 @@ const HighlightedCode: React.FC<HighlightedCodeProps> = ({ file, fetchRaw, onCon
   const language = inferGistCodeLanguage(file.filename, file.language);
   const t = useT('gists');
 
-  // 需要按需从 raw_url 拉取完整内容的场景：
-  // 1. file.truncated === true：详情 API 标记文件已截断（>1MB），content 仅是部分内容
-  // 2. 详情 API 502 降级后用列表缓存数据打开（列表 API 不返回 content，但返回 raw_url）
+  // Scenarios where full content must be fetched on demand from raw_url:
+  // 1. file.truncated === true: detail API marked file as truncated (>1MB), content is only partial
+  // 2. Opened with list cache data after detail API 502 fallback (list API does not return content, but returns raw_url)
   const needsRawFetch = (!!file.truncated || !file.content) && !!file.raw_url;
   const [rawContent, setRawContent] = useState<string | null>(null);
   const [rawError, setRawError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ const HighlightedCode: React.FC<HighlightedCodeProps> = ({ file, fetchRaw, onCon
   const [retryTick, setRetryTick] = useState(0);
   const onContentLoadedRef = useRef(onContentLoaded);
 
-  // rawContent 来自 raw_url，始终比 file.content（可能是 API 截断的部分内容）更完整。
+  // rawContent comes from raw_url and is always more complete than file.content (which may be partial content truncated by the API).
   const content = rawContent ?? file.content ?? '';
 
   useEffect(() => {
@@ -58,7 +58,7 @@ const HighlightedCode: React.FC<HighlightedCodeProps> = ({ file, fetchRaw, onCon
     setRawError(null);
     const doFetch = async () => {
       try {
-        // 无 token 时由 hook 抛出原文案错误，catch 落 rawError 后与原直写渲染一致
+        // When there is no token, the hook throws the original error text; catching to rawError matches direct rendering
         const text = await fetchRaw(file.raw_url!, controller.signal);
         if (controller.signal.aborted) return;
         setRawContent(text);
@@ -74,7 +74,7 @@ const HighlightedCode: React.FC<HighlightedCodeProps> = ({ file, fetchRaw, onCon
     doFetch();
 
     return () => controller.abort();
-    // retryTick 用于手动触发重试；file.raw_url/filename 变化时也会重新拉取。
+    // retryTick is used to manually trigger retries; also refetches when file.raw_url/filename changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needsRawFetch, file.raw_url, file.filename, retryTick, fetchRaw]);
 
@@ -153,7 +153,7 @@ export const GistDetailModal: React.FC<GistDetailModalProps> = ({ gist, isOpen, 
     ? effectiveActiveFile.content ?? ''
     : '';
 
-  // 截断文件按需拉取到的 raw 内容回写 store，避免每次重开弹窗都重新请求。
+  // Write on-demand fetched raw content for truncated files back to the store so reopening the modal doesn't re-fetch.
   const handleContentLoaded = (filename: string, content: string, rawUrl?: string) => {
     if (!gist) return;
     const cacheKey = `${gist.id}:${filename}:${rawUrl ?? ''}`;

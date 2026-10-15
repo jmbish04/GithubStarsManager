@@ -246,7 +246,7 @@ function createPluginManager({
         storage: createPluginStorage({ dataRoot: resolvedDataRoot, pluginId: validated.pluginId }),
         logger: createMirroredPluginLogger(validated.pluginId),
         catalog,
-        // 仅页面请求获得系统输出操作；Worker 侧 router 不注入，见 capabilityRouter。
+        // Only page requests receive host output operations; Worker-side routers do not inject them (see capabilityRouter).
         hostOperations,
       });
       const value = await router.handle(plugin.manifest.permissions, validated);
@@ -476,13 +476,14 @@ function createPluginManager({
       }
     },
     /**
-     * 用新版本原子替换已安装插件（更新场景，插件市场使用）。
+     * Atomically replaces an installed plugin with a new version (for update flows, used by plugin marketplace).
      *
-     * 先把旧目录整体挪进备份，装好新版后再删备份；安装失败则把旧目录原样
-     * 挪回来并恢复启用状态，不会出现"更新失败插件也没了"的中间态。新版权限
-     * 与原授权一致且原来处于启用状态时，替换后直接恢复启用；权限有变化时
-     * 保持停用，等用户走既有的权限确认流程重新启用。插件数据（存储/日志）
-     * 全程不动。
+     * Moves the old directory into backup first, then deletes the backup once the new version is installed.
+     * If installation fails, the old directory is moved back intact and its enabled state restored, avoiding
+     * an intermediate state where the update fails and the plugin is lost. If the new permissions match the
+     * previous grants and the plugin was previously enabled, it is re-enabled immediately after replacement.
+     * When permissions differ, it remains disabled pending user confirmation via the existing flow. Plugin
+     * data (storage and logs) is kept untouched throughout.
      */
     async replaceFromDirectory(sourceDirectory) {
       if (typeof sourceDirectory !== 'string' || sourceDirectory.trim() === '') {
@@ -504,7 +505,7 @@ function createPluginManager({
         const previousDirectory = path.join(resolvedRoot, existing.directoryName);
         const backupDirectory = path.join(resolvedRoot, `.replacing-${pluginId}-${process.pid}-${Date.now()}`);
         try {
-          // 已在 runLifecycle 队列内：直接停掉 Worker，不能再走 disable（会重入同一队列死锁）。
+          // Already inside the runLifecycle queue: stop the Worker directly without calling disable (which would deadlock on re-entry).
           const runtime = runtimes.get(pluginId);
           try {
             if (runtime) await runtime.deactivate();
@@ -518,19 +519,19 @@ function createPluginManager({
           const installed = this.installFromDirectory(sourceDirectory);
 
           if (!installed.success) {
-            // 回滚：清掉可能存在的半成品目录，把旧版本原样挪回来并恢复状态。
+            // Rollback: clean up any partially installed directory, restore the old version from backup, and restore state.
             try { fs.rmSync(path.join(resolvedRoot, pluginId), { recursive: true, force: true }); } catch {}
             fs.renameSync(backupDirectory, previousDirectory);
             scanCache = null;
             state.plugins[pluginId] = { ...previousState };
             saveState();
-            // 原来处于启用状态：恢复启用不只是恢复状态位，还要把 Worker 拉起来，
-            // 否则状态显示已启用而 runtimes 里没有运行时，插件全程不可用。
+            // Previously enabled: restoring enabled state requires starting the Worker as well;
+            // otherwise state shows enabled while runtimes has no runtime, leaving the plugin unusable.
             if (wasEnabled) {
               try {
                 await activatePlugin(findPlugin(pluginId));
               } catch (error) {
-                // 旧版本原地激活也失败：按既有语义记录错误并保持停用。
+                // Re-activating the old version also failed: record error and leave disabled per existing semantics.
                 recordError(pluginId, error);
               }
             }
@@ -546,16 +547,17 @@ function createPluginManager({
               saveState();
               return { success: true, pluginId, permissionsChanged: false, keptEnabled: true };
             } catch (error) {
-              // 新版本已就位但激活失败：按既有语义记录错误并保持停用，并向调用方
-              // 如实报告失败——绝不能报"成功且保持启用"。插件数据不动，plugins
-              // 列表里的 error 状态来自 recordError。
+              // New version is in place but failed activation: record error and keep disabled per existing
+              // semantics, and report failure to caller. Never report success with keptEnabled=true here.
+              // Plugin data is untouched; error status in plugins list comes from recordError.
               recordError(pluginId, error);
               return { success: false, error: safeError(error) };
             }
           }
-          // 停用场景保留与新权限一致的旧授权（enable 要求授权与当前 manifest 完全一致）；
-          // 权限变化才清空。permissionsChanged 只对原来启用的插件有意义。
-          // keptEnabled=false 让界面不会把停在"停用"的插件说成"保持启用"。
+          // When disabling, keep existing grants if identical to new permissions (enable requires grants
+          // to match manifest permissions exactly); clear only when permissions changed.
+          // permissionsChanged is only meaningful for previously enabled plugins.
+          // keptEnabled=false ensures the UI doesn't claim a disabled plugin "kept enabled".
           state.plugins[pluginId] = {
             enabled: false,
             grantedPermissions: permissionsUnchanged ? [...previousState.grantedPermissions] : [],
@@ -568,9 +570,9 @@ function createPluginManager({
             keptEnabled: false,
           };
         } catch (error) {
-          // installFromDirectory 若在 rename/commit 前同步抛错（如 mkdirSync 失败），
-          // 内部分支不会执行：这里兜底把备份目录挪回原位；原先启用中的插件还要把
-          // 运行时拉回来，否则状态位启用但实际没有 Worker。
+          // If installFromDirectory throws synchronously before rename/commit (e.g. mkdirSync failure),
+          // the inner branches won't run: safely restore backup directory to original path here.
+          // For previously enabled plugins, also restart the Worker runtime so state and runtime stay in sync.
           try {
             if (fs.existsSync(backupDirectory) && !fs.existsSync(previousDirectory)) {
               fs.renameSync(backupDirectory, previousDirectory);
@@ -585,7 +587,7 @@ function createPluginManager({
                 }
               }
             }
-          } catch { /* 恢复失败时仍报告原始异常 */ }
+          } catch { /* Report original exception if recovery fails */ }
           return { success: false, error: safeError(error, 'PLUGIN_REPLACE_FAILED') };
         }
       });

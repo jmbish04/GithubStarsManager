@@ -19,12 +19,15 @@ concurrency:
 permissions:
   contents: read
 
+# Heavy work runs on the Proxmox runner (guest 135, label proxmox-actions), not on
+# GitHub-hosted machines. PRs from other forks fall back to GitHub so untrusted
+# code never runs on the LAN-adjacent runner.
 jobs:
   verify-release-version:
     name: Verify release tag matches client version
     # Pinned instead of `ubuntu-latest`: that label migrates to Ubuntu 26.04
     # between 2026-10-19 and 2026-11-19 (actions/runner-images#14748).
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     # A checkout plus a single node script; generous headroom over any
     # realistic slowdown, and the job fails long before GitHub's 6-hour
     # default if the runner hangs.
@@ -41,7 +44,7 @@ jobs:
 
   build:
     needs: verify-release-version
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     continue-on-error: false
     # Desktop packaging legs have historically landed well under 30 minutes,
     # but macOS/Windows packaging plus the 3-attempt electron-builder retry
@@ -58,7 +61,9 @@ jobs:
         # (actions/runner-images#14748), which would silently rebuild the Linux
         # AppImage against a newer glibc. Platform steps below match with
         # startsWith(matrix.os, 'ubuntu'), so a future re-pin needs no edits.
-        os: [ubuntu-24.04, windows-latest, macos-latest]
+        # Windows and macOS builds were removed 2026-10-15: they need GitHub-hosted
+        # Windows/macOS machines, and heavy work no longer runs on GitHub.
+        os: [ubuntu-24.04]
 
     steps:
     - name: Checkout code
@@ -89,15 +94,15 @@ jobs:
           echo "Contents of dist directory:"
           ls -la dist/ | head -10
 
-          # 检查 index.html 中的路径并修复
+          # Check and fix paths in index.html
           echo "Checking and fixing asset paths in index.html..."
           if [ -f "dist/index.html" ]; then
-            # 确保所有资源路径都是相对路径
+            # Make sure all asset paths are relative
             sed -i.bak 's|href="/|href="./|g' dist/index.html
             sed -i.bak 's|src="/|src="./|g' dist/index.html
             sed -i.bak 's|href="\([^"]*\)"|href="./\1"|g' dist/index.html
             sed -i.bak 's|src="\([^"]*\)"|src="./\1"|g' dist/index.html
-            # 移除备份文件
+            # Remove backup files
             rm -f dist/index.html.bak
             echo "✓ Asset paths fixed in index.html"
           fi
@@ -108,7 +113,7 @@ jobs:
           echo "✓ Fallback index.html created from template"
         fi
 
-        # 显示最终的 index.html 内容（前几行）
+        # Show the final index.html content (first few lines)
         echo "Final index.html content (first 10 lines):"
         head -10 dist/index.html || echo "Could not read index.html"
 
@@ -310,7 +315,7 @@ jobs:
     needs: [verify-release-version, build]
     # Pinned: `ubuntu-latest` migrates to Ubuntu 26.04 between 2026-10-19 and
     # 2026-11-19 (actions/runner-images#14748).
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     # Artifact download plus one release publish; several multiples of
     # headroom over the couple of minutes this job needs in practice.
     timeout-minutes: 20

@@ -48,7 +48,7 @@ const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
   dockerfile: 'dockerfile',
 };
 
-/** 用证据文件扩展名挑高亮语言（比 highlightAuto 对文档片段更稳）。 */
+/** Picks syntax highlighting language based on evidence file extension (more reliable than highlightAuto for document excerpts). */
 const languageFromPath = (path: string): string => {
   const fileName = path.split('/').pop() ?? '';
   if (fileName.toLowerCase() === 'dockerfile') return 'dockerfile';
@@ -58,8 +58,8 @@ const languageFromPath = (path: string): string => {
 };
 
 /**
- * 回答中 file:line 引用的 Badge：悬停浮出原文切片（带语法高亮），点击跳转到
- * 固定 SHA 的 GitHub blob 对应行。非模态 HoverCard，不触发滚动锁。
+ * Badge for file:line citations in answers: hover displays the original excerpt popup (with syntax highlighting),
+ * and clicking navigates to the corresponding line in the GitHub blob pinned to the commit SHA. Non-modal HoverCard without scroll locking.
  */
 export const CitationBadge = ({ target }: CitationBadgeProps) => {
     const t = useT('chat');

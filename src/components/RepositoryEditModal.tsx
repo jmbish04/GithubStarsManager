@@ -22,26 +22,26 @@ interface RepositoryEditModalProps {
 }
 
 /**
- * 数据来源类型
- * - custom: 用户自定义内容
- * - ai: AI生成的内容
- * - original: GitHub原始内容
- * - mixed: 混合来源（仅用于标签）
- * - none: 无内容（用户明确清空）
+ * Data source types:
+ * - custom: User-customized content
+ * - ai: AI-generated content
+ * - original: Original GitHub content
+ * - mixed: Mixed sources (tags only)
+ * - none: No content (explicitly cleared by user)
  */
 type DataSource = 'custom' | 'ai' | 'original' | 'mixed' | 'none';
 
 /**
- * 编辑意图类型 - 明确用户的操作意图
- * - keep-custom: 保持/保存为自定义内容
- * - reset-to-ai: 重置为AI内容（清除自定义）
- * - reset-to-original: 重置为原始内容（清除自定义）
- * - clear: 清空内容（保存为明确空值，显示为空）
+ * Edit intent type - clarifies the user's intended action:
+ * - keep-custom: Retain/save as custom content
+ * - reset-to-ai: Reset to AI content (clears custom content)
+ * - reset-to-original: Reset to original content (clears custom content)
+ * - clear: Clear content (saved as an explicit empty value, displayed as empty)
  */
 type EditIntentType = 'keep-custom' | 'reset-to-ai' | 'reset-to-original' | 'clear';
 
 /**
- * 编辑意图状态 - 跟踪用户对描述、标签和分类的操作意图
+ * Edit intent state - tracks user intent across description, tags, and category
  */
 interface EditIntent {
   description: EditIntentType;
@@ -50,7 +50,7 @@ interface EditIntent {
 }
 
 /**
- * 来源信息显示
+ * Source information display
  */
 interface SourceInfo {
   description: DataSource;
@@ -81,7 +81,7 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   });
   const [newTag, setNewTag] = useState('');
 
-  // 记录初始值，用于检测是否有修改
+  // Record initial values to detect modifications
   const initialDataRef = useRef({
     description: '',
     tags: [] as string[],
@@ -90,8 +90,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   });
 
   /**
-   * 编辑意图状态 - 核心改进
-   * 用于明确用户的操作意图，决定保存时的行为
+   * Edit intent state - key improvement
+   * Clarifies user intent to determine save behavior
    */
   const [editIntent, setEditIntent] = useState<EditIntent>({
     description: 'keep-custom',
@@ -108,14 +108,14 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
 
   const allCategories = useMemo(() => getAllCategories(customCategories, language, hiddenDefaultCategoryIds, defaultCategoryOverrides), [customCategories, language, hiddenDefaultCategoryIds, defaultCategoryOverrides]);
 
-  // 获取仓库当前所属的分类
+  // Get repository's current category
   const getCurrentCategory = useCallback((repo: Repository) => {
-    // 如果有自定义分类，直接返回
+    // If there is a custom category, return it directly
     if (repo.custom_category) {
       return repo.custom_category;
     }
 
-    // 否则根据AI标签或其他信息推断当前分类
+    // Otherwise infer current category from AI tags or other information
     const aiCat = getAICategory(repo, allCategories);
     if (aiCat) {
       return aiCat;
@@ -129,11 +129,11 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
     return '';
   }, [allCategories]);
 
-  // 确定数据来源（基于实际显示的内容，而非存储的值）
+  // Determine data source (based on actual displayed content, not stored value)
   const determineSource = useCallback((repo: Repository): SourceInfo => {
-    // 描述来源：基于显示优先级判断实际显示的内容来源
-    // 优先级: custom_description(非undefined) > ai_summary > description
-    // custom_description === '' 表示用户明确清空，来源为 'none'
+    // Description source: determine source based on display priority
+    // Priority: custom_description (not undefined) > ai_summary > description
+    // custom_description === '' indicates user explicitly cleared it, source is 'none'
     let descSource: DataSource;
     if (repo.custom_description !== undefined && repo.custom_description !== null) {
       if (repo.custom_description.trim() !== '') {
@@ -149,16 +149,16 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
       descSource = 'none';
     }
 
-    // 标签来源：基于显示优先级判断实际显示的内容来源
-    // 优先级: custom_tags(非空数组) > custom_tags(空数组=明确清空) > ai_tags > topics
+    // Tag source: determine source based on display priority
+    // Priority: custom_tags (non-empty array) > custom_tags (empty array = explicitly cleared) > ai_tags > topics
     let tagsSource: DataSource;
-    // 检查是否有自定义标签：区分 undefined（无自定义）和 []（明确清空）
+    // Check if there are custom tags: distinguish between undefined (no custom) and [] (explicitly cleared)
     if (repo.custom_tags !== undefined) {
-      // custom_tags 是数组（可能是空数组或包含标签）
+      // custom_tags is an array (may be empty or contain tags)
       if (repo.custom_tags.length > 0) {
         tagsSource = 'custom';
       } else {
-        // 空数组表示用户明确清空了标签
+        // Empty array indicates user explicitly cleared tags
         tagsSource = 'none';
       }
     } else if (repo.ai_tags && repo.ai_tags.length > 0) {
@@ -169,7 +169,7 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
       tagsSource = 'none';
     }
 
-    // 分类来源
+    // Category source
     let categorySource: DataSource;
     if (repo.custom_category && repo.custom_category.trim() !== '') {
       categorySource = 'custom';
@@ -185,12 +185,12 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   }, [allCategories]);
 
   /**
-   * 获取当前实际显示的内容（与 RepositoryCard 显示逻辑保持一致）
+   * Get effective displayed content (consistent with RepositoryCard display logic)
    */
   const getEffectiveDisplayContent = useCallback((repo: Repository) => {
-    // 描述：优先级 custom_description(非undefined) > ai_summary > description
-    // custom_description === '' 表示用户明确清空，表单中显示为空
-    // custom_description === undefined 表示无自定义，回退到AI/原始
+    // Description: priority custom_description (not undefined) > ai_summary > description
+    // custom_description === '' indicates explicitly cleared, displayed as empty in form
+    // custom_description === undefined indicates no custom, fallback to AI/original
     let effectiveDescription = '';
     if (repo.custom_description !== undefined && repo.custom_description !== null) {
       effectiveDescription = repo.custom_description;
@@ -200,11 +200,11 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
       effectiveDescription = repo.description;
     }
 
-    // 标签：优先级 custom_tags(非空数组) > custom_tags(空数组=明确清空) > ai_tags > topics
+    // Tags: priority custom_tags (non-empty array) > custom_tags (empty array = explicitly cleared) > ai_tags > topics
     let effectiveTags: string[] = [];
-    // 检查是否有自定义标签：区分 undefined（无自定义）和 []（明确清空）
+    // Check if there are custom tags: distinguish between undefined (no custom) and [] (explicitly cleared)
     if (repo.custom_tags !== undefined) {
-      // custom_tags 是数组（可能是空数组或包含标签）
+      // custom_tags is an array (may be empty or contain tags)
       effectiveTags = repo.custom_tags;
     } else if (repo.ai_tags && repo.ai_tags.length > 0) {
       effectiveTags = repo.ai_tags;
@@ -216,8 +216,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   }, []);
 
   /**
-   * 初始化表单数据
-   * 当模态框打开时，根据仓库当前状态初始化表单
+   * Initialize form data
+   * When modal opens, initialize form based on repository's current state
    */
   useEffect(() => {
     if (!repository || !isOpen) {
@@ -233,12 +233,12 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
     const currentCategory = getCurrentCategory(repository);
       const source = determineSource(repository);
 
-      // 获取当前实际显示的内容
+      // Get effective displayed content
       const { effectiveDescription, effectiveTags } = getEffectiveDisplayContent(repository);
 
       /**
-       * 确定初始编辑意图
-       * 基于实际显示的内容来源决定意图
+       * Determine initial edit intent
+       * Decide intent based on source of displayed content
        */
       const initialIntent: EditIntent = {
         description: source.description === 'custom' ? 'keep-custom' :
@@ -254,7 +254,7 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
       setEditIntent(initialIntent);
       initialEditIntentRef.current = { ...initialIntent };
 
-      // 表单初始值 - 使用实际显示的内容初始化
+      // Initial form values - initialize with actual displayed content
       const initialData = {
         description: effectiveDescription,
         tags: effectiveTags,
@@ -267,56 +267,56 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   }, [repository, isOpen, allCategories, determineSource, getEffectiveDisplayContent, getCurrentCategory]);
 
   /**
-   * 保存处理 - 根据编辑意图决定如何保存
-   * 核心改进：明确区分"保存自定义"、"重置为某来源"、"清除"三种操作
-   * 确保保存后的数据与UI显示逻辑一致
+   * Save handler - decide how to save based on edit intent
+   * Core improvement: clearly distinguish between "save custom", "reset to source", and "clear"
+   * Ensures saved data matches UI display logic
    */
   const handleSave = async () => {
     // Initialization maps the legacy “none” value to an empty category, and save validation rejects it.
     if (!repository || formData.category.trim().toLowerCase() === 'none') return;
 
-    // 构建更新对象
+    // Build update object
     const updatedRepo = { ...repository };
 
     /**
-     * 描述字段处理逻辑
-     * 目标：确保保存后 RepositoryCard 的显示逻辑能正确显示用户期望的内容
+     * Description field handling logic
+     * Goal: ensure display logic in RepositoryCard correctly displays what the user expects after saving
      */
     switch (editIntent.description) {
       case 'reset-to-ai':
-        // 重置为AI总结：清除自定义描述，让显示逻辑回退到AI
+        // Reset to AI summary: clear custom description, let display logic fall back to AI
         updatedRepo.custom_description = undefined;
         break;
 
       case 'reset-to-original':
-        // 重置为原始描述：清除自定义描述，让显示逻辑回退到原始
+        // Reset to original description: clear custom description, let display logic fall back to original
         updatedRepo.custom_description = undefined;
         break;
 
       case 'clear':
-        // 清空描述：保存空字符串表示用户明确清空
-        // undefined 表示无自定义（回退到AI/原始），'' 表示明确清空
+        // Clear description: save empty string to indicate explicit clearing by user
+        // undefined indicates no customization (falls back to AI/original), '' indicates explicitly cleared
         updatedRepo.custom_description = '';
         break;
 
       case 'keep-custom':
       default: {
-        // 保持自定义：检查内容是否与原始来源一致
+        // Keep custom: check if content matches original source
         const descTrimmed = (formData.description || '').trim();
 
-        // 如果内容为空，视为清除
+        // If content is empty, treat as cleared
         if (descTrimmed === '') {
           updatedRepo.custom_description = '';
         }
-        // 如果与AI总结一致，清除自定义描述（让显示逻辑回退到AI）
+        // If it matches AI summary, clear custom description (let display logic fall back to AI)
         else if (descTrimmed === (repository.ai_summary || '').trim()) {
           updatedRepo.custom_description = undefined;
         }
-        // 如果与原始描述一致，清除自定义描述（让显示逻辑回退到原始）
+        // If it matches original description, clear custom description (let display logic fall back to original)
         else if (descTrimmed === (repository.description || '').trim()) {
           updatedRepo.custom_description = undefined;
         }
-        // 否则保存为自定义
+        // Otherwise save as custom
         else {
           updatedRepo.custom_description = descTrimmed;
         }
@@ -325,45 +325,45 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
     }
 
     /**
-     * 标签字段处理逻辑
-     * 目标：确保保存后 RepositoryCard 的显示逻辑能正确显示用户期望的标签
+     * Tag field handling logic
+     * Goal: ensure display logic in RepositoryCard correctly displays tags expected by user after saving
      */
     switch (editIntent.tags) {
       case 'reset-to-ai':
-        // 重置为AI标签：清除自定义标签
+        // Reset to AI tags: clear custom tags
         updatedRepo.custom_tags = undefined;
         break;
 
       case 'reset-to-original':
-        // 重置为Topics：清除自定义标签
+        // Reset to topics: clear custom tags
         updatedRepo.custom_tags = undefined;
         break;
 
       case 'clear':
-        // 清空标签：保存空数组作为明确清空的标记
+        // Clear tags: save empty array as explicit clear marker
         updatedRepo.custom_tags = [];
         break;
 
       case 'keep-custom':
       default: {
-        // 保持自定义：检查标签是否与原始来源一致
+        // Keep custom: check if tags match original source
         const aiTags = repository.ai_tags || [];
         const topics = repository.topics || [];
         const currentTags = formData.tags;
 
-        // 如果标签数组为空，保存为空数组（明确清空）
+        // If tags array is empty, save as empty array (explicitly cleared)
         if (currentTags.length === 0) {
           updatedRepo.custom_tags = [];
         }
-        // 如果与AI标签完全一致，清除自定义标签
+        // If exactly matching AI tags, clear custom tags
         else if (JSON.stringify([...currentTags].sort()) === JSON.stringify([...aiTags].sort())) {
           updatedRepo.custom_tags = undefined;
         }
-        // 如果与Topics完全一致，清除自定义标签
+        // If exactly matching topics, clear custom tags
         else if (JSON.stringify([...currentTags].sort()) === JSON.stringify([...topics].sort())) {
           updatedRepo.custom_tags = undefined;
         }
-        // 否则保存为自定义
+        // Otherwise save as custom
         else {
           updatedRepo.custom_tags = currentTags;
         }
@@ -372,23 +372,23 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
     }
 
     /**
-     * 分类字段处理逻辑
+     * Category field handling logic
      * 
-     * 核心逻辑：
-     * - 自定义状态显示：只看是否与AI/默认一致（在 RepositoryCard 中判断）
-     * - 分类锁定：独立设置，锁定时需要保存分类值
+     * Core logic:
+     * - Custom status display: only checks whether it matches AI/default (determined in RepositoryCard)
+     * - Category lock: independent setting; save category value when locked
      */
     const aiCat = getAICategory(repository, allCategories);
     const defaultCat = getDefaultCategory(repository, allCategories);
     const currentCat = formData.category;
 
-    // 锁定是独立设置
+    // Lock is an independent setting
     if (formData.categoryLocked && currentCat) {
-      // 用户锁定分类：保存分类值以便锁定生效
+      // User locked category: save category value so lock takes effect
       updatedRepo.custom_category = currentCat;
       updatedRepo.category_locked = true;
     } else {
-      // 用户未锁定分类：使用通用函数计算，与AI/默认一致时清除自定义标记
+      // User did not lock category: calculate using generic function; clear custom flag if matching AI/default
       updatedRepo.custom_category = computeCustomCategory(currentCat, aiCat, defaultCat);
 
       if (updatedRepo.custom_category === undefined || updatedRepo.custom_category === '') {
@@ -398,7 +398,7 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
       }
     }
 
-    // 更新编辑时间
+    // Update edit timestamp
     updatedRepo.last_edited = new Date().toISOString();
 
     updateRepository(updatedRepo);
@@ -418,8 +418,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   };
 
   /**
-   * 添加标签
-   * 用户手动修改标签时，设置编辑意图为 'keep-custom'
+   * Add tag
+   * When user manually modifies tags, set edit intent to 'keep-custom'
    */
   const handleAddTag = () => {
     if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
@@ -428,21 +428,21 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
         tags: [...prev.tags, newTag.trim()]
       }));
       setNewTag('');
-      // 用户手动编辑，意图变为保持自定义
+      // User edited manually, intent becomes keep-custom
       setEditIntent(prev => ({ ...prev, tags: 'keep-custom' }));
     }
   };
 
   /**
-   * 移除标签
-   * 用户手动修改标签时，设置编辑意图为 'keep-custom'
+   * Remove tag
+   * When user manually modifies tags, set edit intent to 'keep-custom'
    */
   const handleRemoveTag = (tagToRemove: string) => {
     setFormData(prev => ({
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove)
     }));
-    // 用户手动编辑，意图变为保持自定义
+    // User edited manually, intent becomes keep-custom
     setEditIntent(prev => ({ ...prev, tags: 'keep-custom' }));
   };
 
@@ -456,8 +456,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   const t = useT('repositories');
 
   /**
-   * 检测是否有修改
-   * 同时考虑表单值变化和编辑意图变化
+   * Detect whether there are changes
+   * Considers both form value changes and edit intent changes
    */
   const hasChanges = useMemo(() => {
     const formChanged = formData.description !== initialDataRef.current.description ||
@@ -465,8 +465,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
            formData.category !== initialDataRef.current.category ||
            formData.categoryLocked !== initialDataRef.current.categoryLocked;
 
-    // 与初始意图对比，而非与 'keep-custom' 对比
-    // 初始意图可能是 'reset-to-ai' 等，只有当意图实际发生变化时才算有修改
+    // Compare with initial intent, not just 'keep-custom'
+    // Initial intent might be 'reset-to-ai', etc.; counts as changed only when intent actually changed
     const intentChanged = editIntent.description !== initialEditIntentRef.current.description ||
                           editIntent.tags !== initialEditIntentRef.current.tags ||
                           editIntent.category !== initialEditIntentRef.current.category;
@@ -475,8 +475,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   }, [formData, editIntent]);
 
   /**
-   * 计算保存后的自定义状态
-   * 根据当前表单值和原始值对比，判断哪些字段会被标记为【自定义】
+   * Compute custom status after saving
+   * Compares current form values against original values to determine which fields will be marked [custom]
    */
   const customStatus = useMemo(() => {
     if (!repository) return { description: false, tags: false, category: false };
@@ -507,8 +507,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   }, [formData, repository, allCategories, editIntent]);
 
   /**
-   * 重置为AI总结
-   * 设置编辑意图为 'reset-to-ai'，保存时会清除 custom_description
+   * Reset to AI summary
+   * Sets edit intent to 'reset-to-ai'; saving will clear custom_description
    */
   const resetToAI = () => {
     if (!repository) return;
@@ -519,8 +519,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   };
 
   /**
-   * 重置为原始描述
-   * 设置编辑意图为 'reset-to-original'，保存时会清除 custom_description
+   * Reset to original description
+   * Sets edit intent to 'reset-to-original'; saving will clear custom_description
    */
   const resetToOriginal = () => {
     if (!repository) return;
@@ -531,8 +531,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   };
 
   /**
-   * 清除自定义描述
-   * 设置编辑意图为 'clear'，保存时会保存空字符串标记
+   * Clear custom description
+   * Sets edit intent to 'clear'; saving will store an empty string marker
    */
   const clearDescription = () => {
     setFormData(prev => ({ ...prev, description: '' }));
@@ -540,8 +540,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   };
 
   /**
-   * 重置标签为AI标签
-   * 设置编辑意图为 'reset-to-ai'，保存时会清除 custom_tags
+   * Reset tags to AI tags
+   * Sets edit intent to 'reset-to-ai'; saving will clear custom_tags
    */
   const resetTagsToAI = () => {
     if (!repository) return;
@@ -552,8 +552,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   };
 
   /**
-   * 重置标签为Topics
-   * 设置编辑意图为 'reset-to-original'，保存时会清除 custom_tags
+   * Reset tags to topics
+   * Sets edit intent to 'reset-to-original'; saving will clear custom_tags
    */
   const resetTagsToTopics = () => {
     if (!repository) return;
@@ -564,8 +564,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   };
 
   /**
-   * 清除自定义标签
-   * 设置编辑意图为 'clear'，保存时会保存空数组
+   * Clear custom tags
+   * Sets edit intent to 'clear'; saving will store an empty array
    */
   const clearTags = () => {
     setFormData(prev => ({ ...prev, tags: [] }));
@@ -573,8 +573,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   };
 
   /**
-   * 重置分类为AI推断的分类
-   * 设置编辑意图为 'reset-to-ai'，保存时会清除 custom_category
+   * Reset category to AI-inferred category
+   * Sets edit intent to 'reset-to-ai'; saving will clear custom_category
    */
   const resetCategoryToAI = () => {
     if (!repository) return;
@@ -586,8 +586,8 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   };
 
   /**
-   * 重置分类为默认分类（基于仓库信息匹配）
-   * 设置编辑意图为 'reset-to-original'，保存时会清除 custom_category
+   * Reset category to default category (matched based on repo metadata)
+   * Sets edit intent to 'reset-to-original'; saving will clear custom_category
    */
   const resetCategoryToDefault = () => {
     if (!repository) return;
@@ -599,15 +599,15 @@ export const RepositoryEditModal: React.FC<RepositoryEditModalProps> = ({
   };
 
   /**
-   * 清除自定义分类
-   * 设置编辑意图为 'clear'，保存时会保存空值
+   * Clear custom category
+   * Sets edit intent to 'clear'; saving will store an empty value
    */
   const clearCategory = () => {
     setFormData(prev => ({ ...prev, category: '', categoryLocked: false }));
     setEditIntent(prev => ({ ...prev, category: 'clear' }));
   };
 
-  // 处理关闭 - 直接关闭，不再二次确认
+  // Handle close - close directly without secondary confirmation
   const handleCloseWithConfirm = () => {
     handleClose();
   };

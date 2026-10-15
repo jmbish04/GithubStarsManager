@@ -43,9 +43,9 @@ async function expandPanel() {
   }
 }
 
-// 文案经 useT 取词，测试环境默认语言为 zh（见 src/test/setup.ts），因此断言中文。
+// Copy is retrieved via useT; test environment defaults to language 'zh' (see src/test/setup.ts), hence Chinese assertions.
 describe('RepositoryHealthPanel', () => {
-  it('默认折叠，点击标题后展开事实', async () => {
+  it('defaults to collapsed, expands facts after clicking the header', async () => {
     render(<RepositoryHealthPanel repository={makeRepo()} releases={[release]} language="zh" />);
 
     const trigger = screen.getByRole('button', { name: /仓库概况/ });
@@ -57,7 +57,7 @@ describe('RepositoryHealthPanel', () => {
     expect(screen.getByText('活跃度')).toBeVisible();
   });
 
-  it('相对时间跟随 language 使用对应 date-fns locale', async () => {
+  it('formats relative time using the date-fns locale corresponding to language', async () => {
     render(
       <RepositoryHealthPanel
         repository={makeRepo({ created_at: '2020-09-17T00:00:00.000Z' })}
@@ -67,11 +67,11 @@ describe('RepositoryHealthPanel', () => {
     );
 
     await expandPanel();
-    // language 只驱动 date-fns；ja locale 用「約N年前」，可与中文「约N年前」区分。
+    // language only drives date-fns; ja locale uses "約N年前", distinct from Chinese "约N年前".
     expect(screen.getByText(/約\d+(\.\d+)?年前/)).toBeInTheDocument();
   });
 
-  it('按固定四个分组展示事实', async () => {
+  it('displays facts across four fixed groups', async () => {
     render(<RepositoryHealthPanel repository={makeRepo()} releases={[release]} language="zh" />);
     await expandPanel();
 
@@ -80,7 +80,7 @@ describe('RepositoryHealthPanel', () => {
     }
   });
 
-  it('明确说明不含健康总分', async () => {
+  it('explicitly states it does not contain an aggregate health score', async () => {
     render(<RepositoryHealthPanel repository={makeRepo()} releases={[release]} language="zh" />);
     await expandPanel();
 
@@ -90,7 +90,7 @@ describe('RepositoryHealthPanel', () => {
     expect(screen.queryByText(/健康评分|健康分数/)).not.toBeInTheDocument();
   });
 
-  it('把保守观测当中性信息展示', async () => {
+  it('displays conservative observations as neutral information', async () => {
     render(
       <RepositoryHealthPanel
         repository={makeRepo({ archived: true, pushed_at: '2020-01-01T00:00:00.000Z' })}
@@ -99,26 +99,26 @@ describe('RepositoryHealthPanel', () => {
       />,
     );
 
-    // 折叠态仍展示中性观测徽章
+    // Collapsed state still shows neutral observation badges
     expect(screen.getByText('近 12 个月无推送')).toBeInTheDocument();
     expect(screen.queryByText(/不健康|已废弃/)).not.toBeInTheDocument();
 
     await expandPanel();
-    // 「已归档」同时出现在观测徽章与维护分组的事实行里
+    // "Archived" appears in both observation badges and maintenance group fact rows
     expect(screen.getAllByText('已归档').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('未知事实显示为「未知」而不是猜测', async () => {
+  it('displays unknown facts as "Unknown" rather than guessing', async () => {
     render(<RepositoryHealthPanel repository={makeRepo()} releases={[release]} language="zh" />);
     await expandPanel();
 
-    // 贡献者属于需要联网补全的事实，本地没有数据
+    // Contributors require network fetch to populate; no local data available
     const contributorsRow = screen.getByText('贡献者').closest('div');
     expect(contributorsRow).not.toBeNull();
     expect(within(contributorsRow as HTMLElement).getByText('未知')).toBeInTheDocument();
   });
 
-  it('没有 Release 数据时不报「无 Release」', async () => {
+  it('does not report "No releases" when Release data is absent', async () => {
     render(
       <RepositoryHealthPanel
         repository={makeRepo({ has_fetched_releases: true })}
@@ -129,11 +129,11 @@ describe('RepositoryHealthPanel', () => {
     await expandPanel();
 
     expect(screen.queryByText('无 Release')).not.toBeInTheDocument();
-    // 与 Release 无关的事实仍然展示
+    // Facts unrelated to Release are still displayed
     expect(screen.getByText('Stars')).toBeInTheDocument();
   });
 
-  it('拿到 Release 数据后正常报告 Release 事实', async () => {
+  it('reports Release facts normally after obtaining Release data', async () => {
     render(
       <RepositoryHealthPanel
         repository={makeRepo({ has_fetched_releases: true })}

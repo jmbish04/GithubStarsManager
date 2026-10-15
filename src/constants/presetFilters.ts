@@ -1,6 +1,6 @@
 /**
- * 预设资源筛选器常量
- * 用于 ReleaseTimeline 和 AssetFilterManager 组件
+ * Preset asset filter constants
+ * Used by ReleaseTimeline and AssetFilterManager components
  */
 
 export interface PresetFilter {

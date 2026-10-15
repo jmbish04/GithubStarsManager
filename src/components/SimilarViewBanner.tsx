@@ -15,7 +15,8 @@ interface SimilarViewBannerProps {
 }
 
 /**
- * 相似仓库视图顶部横幅：展示当前锚点仓库名，并提供"重置"按钮回到查找相似之前的状态。
+ * Similar repository view top banner: displays the current anchor repository name
+ * and provides a "Reset" button to return to the state prior to finding similar repositories.
  */
 export const SimilarViewBanner: React.FC<SimilarViewBannerProps> = ({
   anchorRepoName,

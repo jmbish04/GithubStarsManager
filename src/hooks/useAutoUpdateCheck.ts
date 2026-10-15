@@ -3,7 +3,7 @@ import { UpdateService } from '../services/updateService';
 import { useAppStore } from '../store/useAppStore';
 import { useShallow } from 'zustand/react/shallow';
 
-// 用于应用启动时自动检查更新的 Hook
+// Hook for checking for updates automatically on application startup
 export const useAutoUpdateCheck = () => {
   const { setUpdateNotification } = useAppStore(useShallow((state) => ({
     setUpdateNotification: state.setUpdateNotification,
@@ -16,7 +16,7 @@ export const useAutoUpdateCheck = () => {
         if (result.hasUpdate && result.latestVersion) {
           console.log('New version available:', result.latestVersion.number);
 
-          // 设置全局更新通知
+          // Set global update notification
           setUpdateNotification({
             version: result.latestVersion.number,
             releaseDate: result.latestVersion.releaseDate,
@@ -30,7 +30,7 @@ export const useAutoUpdateCheck = () => {
       }
     };
 
-    // 延迟3秒后检查更新，避免影响应用启动速度
+    // Delay check by 3 seconds to avoid impacting application startup performance
     const timer = setTimeout(checkUpdatesOnStartup, 3000);
     return () => clearTimeout(timer);
   }, [setUpdateNotification]);

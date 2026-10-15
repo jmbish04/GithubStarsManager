@@ -44,11 +44,11 @@ import { makeT } from '../../i18n/useT';
 import { AppearancePanel } from './AppearancePanel';
 import { GeneralPanel } from './GeneralPanel';
 
-const t = makeT('zh', 'app');
+const t = makeT('en', 'app');
 
 beforeEach(() => {
   vi.clearAllMocks();
-    Object.assign(mocks.state, { language: 'zh', setLanguage: vi.fn(), user: null });
+    Object.assign(mocks.state, { language: 'en', setLanguage: vi.fn(), user: null });
 });
 
 describe('AppearancePanel language settings', () => {
@@ -72,17 +72,17 @@ describe('GeneralPanel desktop section', () => {
   it('hides the desktop section on web (no Electron bridge)', () => {
     mocks.isSupported.mockReturnValue(false);
     render(<GeneralPanel t={t} />);
-    expect(screen.queryByText('桌面选项')).toBeNull();
-    expect(screen.queryByLabelText('开机自动启动')).toBeNull();
+    expect(screen.queryByText('Desktop')).toBeNull();
+    expect(screen.queryByLabelText('Launch at startup')).toBeNull();
   });
 
   it('shows auto-launch and tray toggles in the Electron client', async () => {
     mocks.isSupported.mockReturnValue(true);
     mocks.getPrefs.mockResolvedValue({ autoLaunch: false, closeToTray: true, minimizeToTray: true });
     render(<GeneralPanel t={t} />);
-    expect(await screen.findByText('桌面选项')).toBeTruthy();
-    expect(screen.getByLabelText('开机自动启动')).toBeTruthy();
-    expect(screen.getByLabelText('关闭时最小化到托盘')).toBeTruthy();
-    expect(screen.getByLabelText('最小化时隐藏到托盘')).toBeTruthy();
+    expect(await screen.findByText('Desktop')).toBeTruthy();
+    expect(screen.getByLabelText('Launch at startup')).toBeTruthy();
+    expect(screen.getByLabelText('Minimize to tray on close')).toBeTruthy();
+    expect(screen.getByLabelText('Hide to tray on minimize')).toBeTruthy();
   });
 });

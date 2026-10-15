@@ -6,7 +6,7 @@ import type { Repository } from '../types';
 import type { RepositoryChatSession } from '../types/repositoryChat';
 
 vi.mock('../store/useAppStore', () => ({
-  useAppStore: (selector: (state: { language: 'zh' }) => unknown) => selector({ language: 'zh' }),
+  useAppStore: (selector: (state: { language: 'en' }) => unknown) => selector({ language: 'en' }),
 }));
 
 const createRepository = (id: number, fullName: string): Repository => ({
@@ -34,59 +34,60 @@ describe('GlobalChatHistorySheet', () => {
     Object.defineProperty(window, 'indexedDB', { configurable: true, value: undefined });
   });
 
-  it('按更新时间倒序列出跨仓会话', async () => {
+  it('lists cross-repository sessions in reverse chronological order', async () => {
     await repositoryChatStorage.saveSession(createSession('older', 1, 'owner/repo-one', '2026-08-24T00:00:00.000Z'));
     await repositoryChatStorage.saveSession(createSession('newer', 2, 'owner/repo-two', '2026-08-26T00:00:00.000Z'));
 
     render(<GlobalChatHistorySheet isOpen repositories={repositories} onClose={() => {}} onSelectSession={() => {}} />);
 
-    const items = await screen.findAllByTitle(/进入 owner\//);
-    expect(screen.getByRole('heading', { name: '问答历史 (2)' })).toBeInTheDocument();
+    const items = await screen.findAllByTitle(/Open conversation in owner\//);
+    expect(screen.getByRole('heading', { name: 'Chat history (2)' })).toBeInTheDocument();
     expect(items.map((item) => item.textContent)).toEqual([
       expect.stringContaining('title-newer'),
       expect.stringContaining('title-older'),
     ]);
   });
 
-  it('按标题或仓库名过滤并进入对应仓库会话', async () => {
+  it('filters by title or repo name and navigates to the session', async () => {
     await repositoryChatStorage.saveSession(createSession('s1', 1, 'owner/repo-one', '2026-08-24T00:00:00.000Z'));
     await repositoryChatStorage.saveSession(createSession('s2', 2, 'owner/repo-two', '2026-08-26T00:00:00.000Z'));
     const onSelectSession = vi.fn();
 
     render(<GlobalChatHistorySheet isOpen repositories={repositories} onClose={() => {}} onSelectSession={onSelectSession} />);
-    await screen.findByTitle('进入 owner/repo-one 的会话');
+    await screen.findByTitle('Open conversation in owner/repo-one');
 
-    fireEvent.change(screen.getByLabelText('搜索问答历史'), { target: { value: 'repo-two' } });
-    expect(screen.queryByTitle('进入 owner/repo-one 的会话')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Search chat history'), { target: { value: 'repo-two' } });
+    expect(screen.queryByTitle('Open conversation in owner/repo-one')).toBeNull();
 
-    fireEvent.click(screen.getByTitle('进入 owner/repo-two 的会话'));
+    fireEvent.click(screen.getByTitle('Open conversation in owner/repo-two'));
     expect(onSelectSession).toHaveBeenCalledWith(repositories[1], 's2');
   });
 
-  it('删除会话后从列表移除', async () => {    await repositoryChatStorage.saveSession(createSession('doomed', 1, 'owner/repo-one', '2026-08-26T00:00:00.000Z'));
+  it('removes session from list after deletion', async () => {
+    await repositoryChatStorage.saveSession(createSession('doomed', 1, 'owner/repo-one', '2026-08-26T00:00:00.000Z'));
 
     render(<GlobalChatHistorySheet isOpen repositories={repositories} onClose={() => {}} onSelectSession={() => {}} />);
-    await screen.findByTitle('进入 owner/repo-one 的会话');
+    await screen.findByTitle('Open conversation in owner/repo-one');
 
-    const item = screen.getByTitle('进入 owner/repo-one 的会话').closest('li') as HTMLElement;
-    fireEvent.click(within(item).getByRole('button', { name: /删除会话/ }));
-    fireEvent.click(screen.getByRole('button', { name: '删除会话' }));
+    const item = screen.getByTitle('Open conversation in owner/repo-one').closest('li') as HTMLElement;
+    fireEvent.click(within(item).getByRole('button', { name: /Delete conversation/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete conversation' }));
 
-    expect(await screen.findByText('还没有保存的问答会话。')).toBeTruthy();
+    expect(await screen.findByText('No saved conversations yet.')).toBeTruthy();
   });
 
-  it('读取失败时显示错误与重试，恢复后可重载', async () => {
+  it('shows error and retry button on load failure, and reloads after recovery', async () => {
     const listSpy = vi.spyOn(repositoryChatStorage, 'listRecentSessions');
     listSpy.mockRejectedValueOnce(new Error('IndexedDB unavailable'));
 
     render(<GlobalChatHistorySheet isOpen repositories={repositories} onClose={() => {}} onSelectSession={() => {}} />);
-    expect(await screen.findByText('历史加载失败，请重试。')).toBeTruthy();
+    expect(await screen.findByText('Failed to load history. Please retry.')).toBeTruthy();
 
     listSpy.mockResolvedValueOnce([createSession('recovered', 1, 'owner/repo-one', '2026-08-26T00:00:00.000Z')]);
-    const retryButtons = await screen.findAllByRole('button', { name: '重试' });
+    const retryButtons = await screen.findAllByRole('button', { name: 'Retry' });
     fireEvent.click(retryButtons[0]);
 
-    expect(await screen.findByTitle('进入 owner/repo-one 的会话')).toBeTruthy();
+    expect(await screen.findByTitle('Open conversation in owner/repo-one')).toBeTruthy();
     listSpy.mockRestore();
   });
 });

@@ -8,8 +8,8 @@ import { probeXTweetSource } from '../../../services/xTweetService';
 import { useAppStore } from '../../../store/useAppStore';
 
 /**
- * X 推文频道"测试连接"的编排 hook：真实抓取一位博主主页并解析，
- * 返回可展示的结果（推文数/仓库链接数或错误）。View 不直接触达服务。
+ * Orchestration hook for X tweet channel "Test Connection": fetches and parses a creator's profile page,
+ * returning displayable results (tweet count / repo link count or error). Views do not directly access services.
  */
 export const useXTweetProbe = () => {
   const [isProbing, setIsProbing] = useState(false);
@@ -24,7 +24,7 @@ export const useXTweetProbe = () => {
       const result = await probeXTweetSource(handle, undefined, auth);
       setProbeResult(result.ok
         ? `OK|${result.tweetCount ?? 0}|${result.repoCount ?? 0}`
-        : `FAIL|${result.error ?? '未知错误'}`);
+        : `FAIL|${result.error ?? 'Unknown error'}`);
     } catch (error) {
       setProbeResult(`FAIL|${error instanceof Error ? error.message : String(error)}`);
     } finally {

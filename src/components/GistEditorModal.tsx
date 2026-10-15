@@ -32,7 +32,7 @@ const generateFileId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  // 非安全上下文或旧浏览器降级
+  // Fallback for non-secure contexts or legacy browsers
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 };
 

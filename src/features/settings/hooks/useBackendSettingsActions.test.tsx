@@ -37,7 +37,7 @@ vi.mock('../../../hooks/useDialog', () => ({
 }));
 
 const storeState = {
-  language: 'zh',
+  language: 'en',
   repositories: [],
   releases: [],
   aiConfigs: [],
@@ -62,7 +62,7 @@ const storeState = {
 
 const mockUseAppStore = vi.mocked(useAppStore);
 
-describe('useBackendSettingsActions 后端地址配置', () => {
+describe('useBackendSettingsActions backend URL configuration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storeState.backendApiSecret = null;
@@ -76,12 +76,12 @@ describe('useBackendSettingsActions 后端地址配置', () => {
 
   const render = () => renderHook(() => useBackendSettingsActions());
 
-  it('urlInput 预填记住的后端地址并自动去掉 /api', () => {
+  it('pre-fills urlInput with remembered backend address and automatically strips /api', () => {
     const { result } = render();
     expect(result.current.urlInput).toBe('https://stored.example');
   });
 
-  it('无效地址直接提示，不向该地址发起探测也不提交密钥', async () => {
+  it('shows an error for invalid URL without probing or saving the secret', async () => {
     const { result } = render();
     act(() => result.current.setUrlInput('http://127.example.com'));
 
@@ -89,12 +89,12 @@ describe('useBackendSettingsActions 后端地址配置', () => {
       await result.current.testConnection();
     });
 
-    expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('后端地址无效'), 'error');
+    expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('Invalid backend URL'), 'error');
     expect(mocks.backendInit.mock.calls.every((call) => call[0] === undefined)).toBe(true);
     expect(mocks.setBackendApiSecret).not.toHaveBeenCalled();
   });
 
-  it('有效地址按输入探测，成功后记住并提示连接成功', async () => {
+  it('probes a valid address, remembers it on success, and shows a success toast', async () => {
     const { result } = render();
     act(() => {
       result.current.setUrlInput('https://new.example.com');
@@ -109,10 +109,10 @@ describe('useBackendSettingsActions 后端地址配置', () => {
     expect(mocks.setBackendApiSecret).toHaveBeenCalledWith('secret-1');
     expect(mocks.backendVerifyAuth).toHaveBeenCalledOnce();
     expect(mocks.backendRememberActiveUrl).toHaveBeenCalledOnce();
-    expect(mocks.toast).toHaveBeenCalledWith('后端连接成功！', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('Backend connection successful!', 'success');
   });
 
-  it('认证失败时恢复先前的后端连接且不记住候选地址', async () => {
+  it('restores previous backend connection and does not remember candidate address on auth failure', async () => {
     const { result } = render();
     act(() => {
       result.current.setUrlInput('https://new.example.com');
@@ -124,12 +124,12 @@ describe('useBackendSettingsActions 后端地址配置', () => {
       await result.current.testConnection();
     });
 
-    expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('后端连接失败'), 'error');
+    expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('Backend connection failed'), 'error');
     expect(mocks.backendInit).toHaveBeenLastCalledWith('https://stored.example/api');
     expect(mocks.backendRememberActiveUrl).not.toHaveBeenCalled();
   });
 
-  it('地址留空时保持自动探测（不指定 preferredUrl）', async () => {
+  it('retains auto-detection when address is left blank (no preferredUrl)', async () => {
     const { result } = render();
     act(() => result.current.setUrlInput('  '));
 
@@ -138,6 +138,6 @@ describe('useBackendSettingsActions 后端地址配置', () => {
     });
 
     expect(mocks.backendInit.mock.calls.every((call) => call[0] === undefined)).toBe(true);
-    expect(mocks.toast).toHaveBeenCalledWith('后端连接成功！', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('Backend connection successful!', 'success');
   });
 });

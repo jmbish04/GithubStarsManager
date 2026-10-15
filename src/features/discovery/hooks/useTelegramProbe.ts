@@ -7,8 +7,8 @@ import { useCallback, useState } from 'react';
 import { probeTelegramSource } from '../../../services/telegramService';
 
 /**
- * Telegram 频道"测试连接"的编排 hook：真实抓取一个频道最新页并解析，
- * 返回可展示的结果（消息数/仓库链接数或错误）。View 不直接触达服务。
+ * Orchestration hook for Telegram channel "Test Connection": fetches and parses the latest page of a channel,
+ * returning displayable results (message count / repo link count or error). Views do not directly access services.
  */
 export const useTelegramProbe = () => {
   const [isProbing, setIsProbing] = useState(false);
@@ -22,7 +22,7 @@ export const useTelegramProbe = () => {
       const result = await probeTelegramSource(channel);
       setProbeResult(result.ok
         ? `OK|${result.messageCount ?? 0}|${result.repoCount ?? 0}`
-        : `FAIL|${result.error ?? '未知错误'}`);
+        : `FAIL|${result.error ?? 'Unknown error'}`);
     } catch (error) {
       setProbeResult(`FAIL|${error instanceof Error ? error.message : String(error)}`);
     } finally {

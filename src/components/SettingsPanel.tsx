@@ -64,7 +64,7 @@ interface SettingsPanelProps {
   isModal?: boolean;
 }
 
-// 移动端标签导航组件
+// Mobile tab navigation component
 interface MobileTabNavProps {
   tabs: SettingsTabItem[];
   activeTab: SettingsTab;
@@ -79,7 +79,7 @@ const MobileTabNav: React.FC<MobileTabNavProps> = ({ tabs, activeTab, onTabChang
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // 使用 requestAnimationFrame 更新指示器，避免闪烁
+  // Update indicator using requestAnimationFrame to prevent flickering
   const updateIndicator = useCallback(() => {
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
@@ -88,7 +88,7 @@ const MobileTabNav: React.FC<MobileTabNavProps> = ({ tabs, activeTab, onTabChang
     rafRef.current = requestAnimationFrame(() => {
       const activeButton = tabRefs.current.get(activeTab);
       if (activeButton && scrollContainerRef.current) {
-        // 使用 offsetLeft 代替 getBoundingClientRect，避免重排导致的闪烁
+        // Use offsetLeft instead of getBoundingClientRect to avoid reflow-induced flickering
         const container = scrollContainerRef.current;
         const translateX = activeButton.offsetLeft - container.scrollLeft;
         const width = activeButton.offsetWidth;
@@ -98,7 +98,7 @@ const MobileTabNav: React.FC<MobileTabNavProps> = ({ tabs, activeTab, onTabChang
     });
   }, [activeTab]);
 
-  // 滚动到活动标签
+  // Scroll to active tab
   const scrollToActiveTab = useCallback(() => {
     const activeButton = tabRefs.current.get(activeTab);
     if (activeButton && scrollContainerRef.current) {
@@ -112,23 +112,23 @@ const MobileTabNav: React.FC<MobileTabNavProps> = ({ tabs, activeTab, onTabChang
     }
   }, [activeTab]);
 
-  // 分离 useEffect：初始化和标签切换时更新指示器
+  // Separate useEffect: update indicator on initialization and tab change
   useEffect(() => {
-    // 初始计算
+    // Initial calculation
     updateIndicator();
   }, [updateIndicator]);
 
-  // 标签切换时先滚动再更新指示器
+  // Scroll first then update indicator on tab change
   useEffect(() => {
     scrollToActiveTab();
-    // 延迟更新指示器，等待滚动完成
+    // Delay indicator update until scrolling completes
     const timer = setTimeout(() => {
       updateIndicator();
     }, 350);
     return () => clearTimeout(timer);
   }, [activeTab, scrollToActiveTab, updateIndicator]);
 
-  // 处理滚动状态 - 使用 ref 避免重新创建函数
+  // Handle scroll state - use ref to avoid recreating functions
   const handleScroll = useCallback(() => {
     if (!isScrollingRef.current) {
       isScrollingRef.current = true;
@@ -159,7 +159,7 @@ const MobileTabNav: React.FC<MobileTabNavProps> = ({ tabs, activeTab, onTabChang
     <div 
       className="relative w-full border-b border-border dark:border-border bg-background/95 dark:bg-card/95 backdrop-blur-sm"
     >
-      {/* 滚动容器 */}
+      {/* Scroll container */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
@@ -207,7 +207,7 @@ const MobileTabNav: React.FC<MobileTabNavProps> = ({ tabs, activeTab, onTabChang
         ))}
       </div>
       
-      {/* 底部活动指示器 */}
+      {/* Bottom active indicator */}
       <div
         className="absolute bottom-0 h-0.5 bg-primary rounded-full transition-all duration-200 ease-out will-change-transform"
         style={{
@@ -216,7 +216,7 @@ const MobileTabNav: React.FC<MobileTabNavProps> = ({ tabs, activeTab, onTabChang
         }}
       />
       
-      {/* 左右渐变遮罩 */}
+      {/* Left and right gradient masks */}
       <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-background/95 dark:from-card/95 to-transparent pointer-events-none md:hidden" />
       <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-background/95 dark:from-card/95 to-transparent pointer-events-none md:hidden" />
     </div>
@@ -249,8 +249,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   };
 
-  // 处理标签切换，添加过渡动画
-  // 动画顺序：1.淡出当前内容 2.切换标签 3.淡入新内容
+  // Handle tab change, adding transition animation
+  // Animation sequence: 1. Fade out current content 2. Switch tab 3. Fade in new content
   const handleTabChange = useCallback((tabId: SettingsTab) => {
     if (tabId === activeTab || isTransitioning) return;
 
@@ -273,7 +273,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }, 100);
   }, [activeTab, isTransitioning]);
 
-  // 清理定时器
+  // Clean up timers
   useEffect(() => {
     return () => {
       if (tabChangeTimeoutRef.current) {
@@ -474,7 +474,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   if (!isOpen && !isModal) return null;
 
-  // 模态框模式
+  // Modal mode
   if (isModal) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -534,7 +534,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     );
   }
 
-  // 独立页面模式（兼容原有代码）
+  // Standalone page mode (legacy compatibility)
   return (
     <div className="mx-auto max-w-6xl">
       <div className="flex items-center space-x-3 mb-6">
@@ -545,7 +545,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* 桌面端侧边栏 */}
+        {/* Desktop sidebar */}
         <div className="hidden lg:block w-64 flex-shrink-0 lg:sticky lg:top-4 lg:self-start">
           <div className="ui-panel overflow-hidden rounded-md">
             <nav className="p-2 space-y-1" role="tablist" aria-label={t('settingsPanel.settings-tabs')}>
@@ -574,7 +574,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </div>
         </div>
 
-        {/* 移动端标签导航 */}
+        {/* Mobile tab navigation */}
         <div className="lg:hidden -mx-4 sm:-mx-6">
           <MobileTabNav
             tabs={tabs}
@@ -583,7 +583,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           />
         </div>
 
-        {/* 内容区域 */}
+        {/* Content area */}
         <div className="flex-1 min-w-0">
           <div className="ui-panel rounded-md p-4 sm:p-6">
             {renderTabContent()}

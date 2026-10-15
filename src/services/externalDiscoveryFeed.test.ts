@@ -108,7 +108,7 @@ describe('external discovery feed', () => {
     }) } as unknown as GitHubApiService;
     await expect(loadExternalDiscoveryFeed('https://example.com/feed.json', 'external:one', api, 'json', controller.signal))
       .rejects.toThrow();
-    // 第一批 5 个并发请求已发出；中止后不再进入第二批
+    // The first batch of 5 concurrent requests has been sent; after aborting, the second batch is not entered
     expect(api.getRepositoryDetails).toHaveBeenCalledTimes(5);
   });
 });

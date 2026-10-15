@@ -13,9 +13,9 @@ for (const [network, prefix] of [
   ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
 ]) blocked.addSubnet(network, prefix, 'ipv4');
 
-// node:https 既不经 undici 也不经 Chromium session，netTap/webRequest 均无法
-// 覆盖；这里提供模块级记录钩子，由 main.js 注入 diagLog.record（纯旁路，
-// 钩子自身的异常必须被吞掉，绝不影响搜索请求）。
+// node:https goes through neither undici nor Chromium session, so netTap/webRequest
+// cannot capture it. We expose a module-level logging hook injected by main.js with
+// diagLog.record (side-effect free; any hook errors must be caught so search is never broken).
 let networkRecorder = null;
 
 function setNetworkRecorder(recorder) {

@@ -27,10 +27,10 @@ const getChannelRequestSignature = (state: ReturnType<typeof selectDiscoveryView
     case 'trending': return JSON.stringify([...common, state.trendingTimeRange]);
     case 'topic': return JSON.stringify([...common, state.discoverySelectedTopic]);
     case 'search': return JSON.stringify([...common, state.discoverySearchQuery, state.discoveryLanguage, state.discoverySortBy, state.discoverySortOrder]);
-    // 周刊过滤为客户端行为，但签名纳入 weeklyOnlyCollected 以便切换过滤器时重跑入口重建切片
+    // Weekly filtering is client-side behavior, but weeklyOnlyCollected is included in the signature so changing filters triggers rebuilding the slice
     case 'weekly': return JSON.stringify([...common, state.weeklyOnlyCollected]);
-    // 关注列表/鉴权变化会改变抓取范围，纳入签名作废旧请求
-    // （修订号区分"不同 Cookie 之间的切换"，布尔值做不到）
+    // Changes to follow lists or auth change the fetch scope; include them in the signature to invalidate stale requests
+    // (A revision number distinguishes between switches across different cookies, which a boolean cannot do)
     case 'x-tweet': return JSON.stringify([...common, state.xTweetFollows, state.xTweetAuth !== null, state.xTweetAuthRevision]);
     case 'telegram': return JSON.stringify([...common, state.telegramFollows]);
     default: return JSON.stringify(common);
@@ -60,14 +60,14 @@ export const useDiscoveryActions = (scrollContainerRef: RefObject<HTMLDivElement
   useEffect(() => {
     setIsAnalyzing(false);
     setAnalysisProgress({ current: 0, total: 0 });
-    // 账号切换后旧会话的周刊/推文/频道同步进度不再属于当前页面，直接清空
+    // Clear sync progress from previous session for weekly/tweet/channel after account switch
     useAppStore.getState().setWeeklySyncStatus(null);
     useAppStore.getState().setXTweetSyncStatus(null);
     useAppStore.getState().setTelegramSyncStatus(null);
     return () => {
       optimizerRef.current?.abort();
       optimizerRef.current = null;
-      // 账号切换/卸载时中止外部频道仍在途的 GitHub 详情请求
+      // Abort in-flight GitHub details requests for external channels when switching accounts or unmounting
       for (const controller of Object.values(channelRequestControllersRef.current)) controller?.abort();
       channelRequestControllersRef.current = {};
     };
@@ -75,7 +75,7 @@ export const useDiscoveryActions = (scrollContainerRef: RefObject<HTMLDivElement
   const t = useT('discovery');
   const tRef = useRef(t);
   useEffect(() => {
-    // 提交完成后同步引用，避免渲染期副作用
+    // Synchronize reference after commit to avoid render-phase side effects
     tRef.current = t;
   }, [t]);
 
@@ -107,7 +107,7 @@ export const useDiscoveryActions = (scrollContainerRef: RefObject<HTMLDivElement
       const api = createGitHubApiService(currentState.githubToken);
       let result: PaginatedDiscoveryRepositories;
       if (isExternalDiscoveryChannelId(channelId)) {
-        // 新请求取代旧请求时中止旧请求仍在途的 GitHub 详情请求
+        // When a new request supersedes the old one, abort any in-flight GitHub details requests from the old request
         channelRequestControllersRef.current[channelId]?.abort();
         externalFeedController = new AbortController();
         channelRequestControllersRef.current[channelId] = externalFeedController;
@@ -136,14 +136,14 @@ export const useDiscoveryActions = (scrollContainerRef: RefObject<HTMLDivElement
             : { repos: [], hasMore: false, nextPageIndex: page + 1, totalCount: 0 };
           break;
         case 'weekly':
-          // 新请求开始即清掉旧状态：缓存命中时 syncWeeklyChannel 不会回调 onStatus，
-          // 不清会残留上一轮的进度文案
+          // Clear old status as soon as a new request starts: syncWeeklyChannel will not call onStatus on cache hits,
+          // so without clearing, progress text from the previous run would linger
           useAppStore.getState().setWeeklySyncStatus(null);
           result = await syncWeeklyChannel(
             api,
             page,
             currentState.weeklyOnlyCollected,
-            // 只有当前请求有权写进度，避免切换账号/过滤器后旧任务覆盖新页面的状态
+            // Only the current request has permission to update progress, preventing stale tasks from overwriting status after switching accounts or filters
             (status) => {
               if (isCurrentRequest()) {
                 useAppStore.getState().setWeeklySyncStatus(status);
@@ -201,8 +201,8 @@ export const useDiscoveryActions = (scrollContainerRef: RefObject<HTMLDivElement
           analysis_error: analysis.analysis_error,
         } : newRepo;
       });
-      // x-tweet/telegram 每页返回累积前缀切片（服务按页整体重建窗口），加载
-      // 更多时用替换语义写入，否则加深拉取新增的卡片落进已消费窗口内永远补不到
+      // x-tweet/telegram returns cumulative prefix slices per page (the service reconstructs the window on each page).
+      // Write with replacement semantics when loading more, otherwise newly fetched cards falling into the consumed window would never be populated
       const replacesOnAppend = channelId === 'x-tweet' || channelId === 'telegram';
       if (append && !replacesOnAppend) currentState.appendDiscoveryRepos(channelId, mergedRepos);
       else currentState.setDiscoveryRepos(channelId, mergedRepos);

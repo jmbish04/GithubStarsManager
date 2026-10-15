@@ -5,10 +5,10 @@ import { GitHubListsApiService } from './githubListsApi';
 import { shouldBypassBackend } from './routeMode';
 
 /**
- * 决定新建的 service 是否应附加后端代理。
- * 仅在后端可用、且当前 routeMode 不为 'browser' 时返回 true。
- * 构造时读取一次 routeMode；切换 routeMode 后已存在的 service 不会热重路由，
- * 新建的 service 才会按当前偏好决定。
+  * Decides whether a newly created service should attach the backend proxy.
+  * Returns true only when the backend is available and the current routeMode is not 'browser'.
+  * routeMode is read once at construction; existing services are not re-routed on the fly after routeMode changes,
+  * only newly created services follow the current preference.
  */
 function shouldAttachBackend(): boolean {
   return backend.backendUrl != null && !shouldBypassBackend();
@@ -16,10 +16,10 @@ function shouldAttachBackend(): boolean {
 
 export interface CreateGitHubApiServiceOptions {
   /**
-   * 即使后端可用也直连 api.github.com。
-   * 用于"身兼两职"的取数助手：在 browser 模式/无后端时是主路径，
-   * 在后端请求失败后又是兜底路径——兜底再走刚失败的后端会失去意义
-   * （与 githubListsApi 的 sticky 直连回退惯例一致）。
+      * Connect directly to api.github.com even when the backend is available.
+      * For fetch helpers that "wear two hats": the primary path in browser mode / with no backend,
+      * and the fallback path after a backend request fails — falling back through the backend that just failed would be pointless
+      * (consistent with the sticky direct-connect fallback convention in githubListsApi).
    */
   direct?: boolean;
 }

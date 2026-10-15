@@ -18,7 +18,7 @@ export interface McpReleaseEvidence {
 export function buildRepoEvidence(
   repo: McpRepository,
   latestRelease: McpReleaseEvidence | null,
-  /** 该仓库已缓存的 Release；不传表示调用方没有这项数据，Release 相关事实为 null（未知）。 */
+  /** Cached releases for this repository; omitting indicates the caller lacks this data, making release-related facts null (unknown). */
   releases?: readonly HealthReleaseInput[],
 ): {
   repository: Record<string, unknown>;
@@ -43,9 +43,9 @@ export function buildRepoEvidence(
       ? 'failed'
       : 'analyzed'
     : 'not_analyzed';
-  // Repository Health 客观事实：与 UI / Electron MCP 同源（见 repoHealth.ts）。
+  // Repository Health objective facts: shares the same source as UI / Electron MCP (see repoHealth.ts).
   const health = deriveRepositoryHealthFacts(repo, releases);
-  // 后端 schema 不存储 GitHub 原生状态字段，此时保持 null 并声明限制，而不是断言「未归档」。
+  // The backend schema does not store native GitHub status fields; keep null and declare a limitation instead of asserting "not archived".
   const hasArchivedFlag = typeof repo.archived === 'boolean';
 
   return {
@@ -87,11 +87,11 @@ export function buildRepoEvidence(
         ],
       },
       limitations: [
-        // 只有确实拿不到该事实时才声明限制；本地已有就不再谎称不可用。
+        // Only declare a limitation when the fact is genuinely unavailable; do not claim unavailable if already present locally.
         ...(hasArchivedFlag ? [] : ['archived is not stored locally']),
         'health facts cover the stored repository record and locally cached releases only',
-        // 与 Electron 侧保持同一句：每仓最多使用 500 条本地缓存的 Release，
-        // release_count / releases_per_year 均按该上限内的集合计算。
+        // Kept in sync with Electron: uses at most 500 locally cached releases per repo;
+        // release_count and releases_per_year are computed on the set within this limit.
         'health facts use at most 500 locally cached releases per repository',
         'contributors, closed issues, security policy, CI and README presence require extra GitHub requests and are not stored locally',
         'release evidence is limited to locally cached releases',
