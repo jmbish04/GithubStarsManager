@@ -23,12 +23,15 @@ env:
   # Compatibility alias used by the existing docker-compose.yml and direct users.
   LEGACY_IMAGE_NAME: ${{ github.repository_owner }}/github-stars-manager-server
 
+# Heavy work runs on the Proxmox runner (guest 135, label proxmox-actions), not on
+# GitHub-hosted machines. PRs from other forks fall back to GitHub so untrusted
+# code never runs on the LAN-adjacent runner.
 jobs:
   validate:
     if: github.event_name == 'pull_request'
     # Pinned: `ubuntu-latest` migrates to Ubuntu 26.04 between 2026-10-19 and
     # 2026-11-19 (actions/runner-images#14748).
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     # Warm-cache runs land around a minute; a lockfile change re-runs npm ci
     # for both platforms (~3-4 minutes based on the sibling fullstack job).
     # The arm64 npm ci under QEMU emulation stalls occasionally; the timeout
@@ -76,7 +79,7 @@ jobs:
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     # Pinned: `ubuntu-latest` migrates to Ubuntu 26.04 between 2026-10-19 and
     # 2026-11-19 (actions/runner-images#14748).
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
     # Avoid an unbounded blocked cache or registry operation.
     timeout-minutes: 30
     permissions:
