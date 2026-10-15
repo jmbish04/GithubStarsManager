@@ -5,7 +5,7 @@ import { parseJsonAnswer } from "../src/lib/guardian";
 import { splitFullName } from "../src/lib/github";
 import { buildQueries, discoveryScore } from "../src/services/discovery";
 import { reciprocalRankFusion, repoEmbeddingText, stripMarkdown } from "../src/services/repos";
-import { decideAutoResearch, exportMarkdown, normalizeCriterion, sanitizeAgentPlans } from "../src/services/research";
+import { closestCandidates, decideAutoResearch, exportMarkdown, normalizeCriterion, sanitizeAgentPlans } from "../src/services/research";
 
 describe("auth", () => {
   it("compares secrets exactly, including length", () => {
@@ -93,6 +93,16 @@ describe("search", () => {
 });
 
 describe("research", () => {
+  it("narrows candidates by similarity, so a famous generalist cannot push out a close match", () => {
+    const rows = [
+      { id: 1, similarity: 0.42, stars: 120_000 }, // open-webui-like generalist
+      { id: 2, similarity: 0.81, stars: 5_833 }, // cloudflare/agents-like match
+      { id: 3, similarity: 0.55, stars: 90_000 },
+      { id: 4, similarity: 0.81, stars: 9_000 },
+    ];
+    expect(closestCandidates(rows, 2).map((r) => r.id)).toEqual([4, 2]);
+  });
+
   it("normalizes criteria so whitespace and case do not create duplicate runs", () => {
     expect(normalizeCriterion("  Vector   Search\nOn Workers ")).toBe("vector search on workers");
   });

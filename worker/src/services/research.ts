@@ -7,7 +7,7 @@
  * Every model call goes through core-guardian (lib/guardian.ts). The number of
  * model calls per run is capped by RESEARCH_MAX_LLM_CALLS.
  */
-import { and, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
 import type { Db } from "../db/client";
 import { maestroExports, maestroProjectScans, repositories, researchAgents, researchFindings, researchRuns } from "../db/schema";
@@ -273,6 +273,28 @@ export async function previouslyFound(db: Db, ctx: RunContext): Promise<Set<numb
   return new Set(rows.map((r) => r.repoId));
 }
 
+/** Keep the `max` closest candidates; ties go to more stars. Pure, so it is unit-tested. */
+export function closestCandidates<T extends { id: number; similarity: number; stars: number }>(rows: T[], max: number): T[] {
+  return [...rows].sort((a, b) => b.similarity - a.similarity || b.stars - a.stars).slice(0, max);
+}
+
+/** Upper bound on candidates embedded per run (metadata-only, so cheap: ~6 guardian calls). */
+const MAX_CANDIDATES_EMBEDDED = 300;
+
+async function similarities(db: Db, ids: number[], literal: string) {
+  const rows = await db
+    .select({ id: repositories.id, stars: repositories.stargazersCount, similarity: sql<number>`1 - (${repositories.embedding} <=> ${literal}::vector)` })
+    .from(repositories)
+    .where(and(inArray(repositories.id, ids), isNotNull(repositories.embedding)));
+  return rows.map((r) => ({ ...r, similarity: Number(r.similarity) }));
+}
+
+/**
+ * Narrow candidates by MEANING, not popularity: embed every candidate from its
+ * metadata, keep the RESEARCH_MAX_CANDIDATES closest to the criterion, then fetch
+ * READMEs for those only and re-embed with the richer text. Ranking by stars
+ * first let 100,000-star generalists push out the 5,000-star exact match.
+ */
 export async function rankCandidates(
   env: Env,
   db: Db,
@@ -284,32 +306,28 @@ export async function rankCandidates(
   for (const c of candidates) if (!exclude.has(c.repoId) && !byRepo.has(c.repoId)) byRepo.set(c.repoId, c.agentId);
   if (byRepo.size === 0) return 0;
 
-  const max = Number(env.RESEARCH_MAX_CANDIDATES);
-  const rows = await db
-    .select({ id: repositories.id, fullName: repositories.fullName, readme: repositories.readmeExcerpt })
-    .from(repositories)
-    .where(inArray(repositories.id, [...byRepo.keys()]))
-    .orderBy(desc(repositories.stargazersCount))
-    .limit(max);
-
-  const gh = await octokit(env);
-  for (const row of rows.filter((r) => r.readme === null)) {
-    await setReadme(db, row.id, (await getReadme(gh, row.fullName, 4000)) ?? "");
-  }
-  const ids = rows.map((r) => r.id);
-  await embedPending(env, db, { ids, limit: ids.length });
-
+  const all = [...byRepo.keys()].slice(0, MAX_CANDIDATES_EMBEDDED);
+  await embedPending(env, db, { ids: all, limit: all.length });
   const [criterionVector] = await embed(env, [`${ctx.criterion}\n${ctx.targetInfrastructure ?? ""}`.trim()], "embed research criterion");
   const literal = `[${criterionVector.join(",")}]`;
-  const scored = await db
-    .select({ id: repositories.id, similarity: sql<number>`1 - (${repositories.embedding} <=> ${literal}::vector)` })
-    .from(repositories)
-    .where(and(inArray(repositories.id, ids), isNotNull(repositories.embedding)));
+  const shortlist = closestCandidates(await similarities(db, all, literal), Number(env.RESEARCH_MAX_CANDIDATES));
+  const ids = shortlist.map((r) => r.id);
 
+  const missing = await db
+    .select({ id: repositories.id, fullName: repositories.fullName })
+    .from(repositories)
+    .where(and(inArray(repositories.id, ids), isNull(repositories.readmeExcerpt)));
+  const gh = await octokit(env);
+  for (const row of missing) {
+    await setReadme(db, row.id, (await getReadme(gh, row.fullName, 4000)) ?? "");
+  }
+  await embedPending(env, db, { ids, limit: ids.length });
+
+  const scored = await similarities(db, ids, literal);
   if (scored.length) {
     await db
       .insert(researchFindings)
-      .values(scored.map((s) => ({ runId: ctx.runId, repoId: s.id, agentId: byRepo.get(s.id) ?? null, similarity: Number(s.similarity) })))
+      .values(scored.map((s) => ({ runId: ctx.runId, repoId: s.id, agentId: byRepo.get(s.id) ?? null, similarity: s.similarity })))
       .onConflictDoNothing({ target: [researchFindings.runId, researchFindings.repoId] });
   }
   return scored.length;
