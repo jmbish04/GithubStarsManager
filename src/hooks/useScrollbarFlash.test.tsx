@@ -44,7 +44,7 @@ describe('useScrollbarFlash', () => {
     act(() => {
       vi.advanceTimersByTime(500);
     });
-    // 距最后一次滚动仅 500ms，若定时器叠加此处已提前回落。
+    // Only 500ms since the last scroll; if timers stacked, it would have reset prematurely here.
     expect(result.current.isScrolling).toBe(true);
 
     act(() => {
@@ -66,13 +66,13 @@ describe('useScrollbarFlash', () => {
 
     rerender({ active: false });
     expect(result.current.isScrolling).toBe(false);
-    // 挂起的定时器已被清除，而不是留着迟后触发。
+    // Pending timer has been cleared rather than left to fire late.
     expect(vi.getTimerCount()).toBe(0);
 
     act(() => {
       vi.advanceTimersByTime(700);
     });
-    // 不会在关闭后再次置位。
+    // Will not be set again after closing.
     expect(result.current.isScrolling).toBe(false);
 
     rerender({ active: true });
@@ -92,7 +92,7 @@ describe('useScrollbarFlash', () => {
     expect(vi.getTimerCount()).toBe(1);
 
     unmount();
-    // 卸载即清定时器：不残留会在卸载后触发 setState 的句柄。
+    // Timer is cleared upon unmount: no lingering handle to trigger setState after unmount.
     expect(vi.getTimerCount()).toBe(0);
 
     expect(() => {

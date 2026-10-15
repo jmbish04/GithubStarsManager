@@ -879,8 +879,8 @@ describe('useSearchActions pure helpers', () => {
   });
 
   it('assigns each local record to at most one incoming repository', () => {
-    // 两条输入都只能靠名称兜底命中同一条本地记录时，必须一对一：
-    // 第二条视为新增，不得复制本地记录的 AI 数据。
+    // When two incoming items can only match the same local record via name fallback, matching must be 1-to-1:
+    // the second item is treated as new and must not duplicate the local record's AI data.
     const storeRepos = [
       baseRepo({ id: 1_700_000_000_100, full_name: 'owner/legacy', ai_summary: 'AI 摘要' }),
     ];
@@ -898,8 +898,8 @@ describe('useSearchActions pure helpers', () => {
   });
 
   it('counts a full_name-matched legacy repo as existing, not new', () => {
-    // 回归：计数若只按 id 匹配，被 full_name 兜底救回的存量仓库会被误报为
-    // 「发现 N 个新仓库」。此处锁定与合并一致的口径。
+    // Regression: if count only matched by id, existing repositories rescued by full_name fallback would be falsely reported
+    // as "Found N new repositories". Lock the count criteria here to match merge.
     const storeRepos = [
       baseRepo({ id: 1_700_000_000_123, full_name: 'owner/legacy', ai_summary: 'AI 摘要' }),
       baseRepo({ id: 2, full_name: 'owner/unchanged' }),
@@ -916,10 +916,10 @@ describe('useSearchActions pure helpers', () => {
   });
 
   it('does not let a renamed repo and a name-reusing repo share one local record', () => {
-    // 回归（CodeRabbit）：GitHub 允许新仓库复用刚改完名的旧仓库名。
-    // 本地 { id: 1, owner/old }，输入含改名的 { id: 1, owner/new } 与
-    // 复用旧名的 { id: 2, owner/old }。单遍匹配会让两条输入都命中同一条本地
-    // 记录 → 产出两条 id:1，并把旧仓库的 AI 字段复制到新仓库上。
+    // Regression (CodeRabbit): GitHub allows a new repository to reuse the old name of a freshly renamed repository.
+    // Local { id: 1, owner/old }, input contains renamed { id: 1, owner/new } and name-reusing { id: 2, owner/old }.
+    // A single-pass match would cause both inputs to match the same local record -> producing two id:1 records and
+    // copying the old repository's AI fields onto the new repository.
     const storeRepos = [
       baseRepo({
         id: 1,
@@ -935,19 +935,19 @@ describe('useSearchActions pure helpers', () => {
 
     const merged = mergeStarredRepositories(newRepos, storeRepos);
 
-    // id 必须唯一，不能出现两条 id:1
+    // id must be unique; two id:1 records must not appear
     expect(merged.map(repo => repo.id)).toEqual([1, 2]);
-    // 改名的仓库沿用本地 AI 数据（id 匹配）
+    // Renamed repository retains local AI data (id match)
     expect(merged[0]).toMatchObject({
       full_name: 'owner/new',
       ai_summary: '旧仓库的 AI 摘要',
       custom_category: '工具',
     });
-    // 复用旧名的新仓库是真正的新增，不得继承旧仓库的 AI 数据与分类
+    // New repository reusing old name is genuinely new; must not inherit old repository's AI data and category
     expect(merged[1]).toMatchObject({ id: 2, full_name: 'owner/old' });
     expect(merged[1].ai_summary).toBeUndefined();
     expect(merged[1].custom_category).toBeUndefined();
-    // 计数应为 1（复用旧名的新仓库）
+    // Count should be 1 (the new repository reusing the old name)
     expect(countNewStarredRepositories(newRepos, storeRepos)).toBe(1);
   });
 
@@ -961,7 +961,7 @@ describe('useSearchActions pure helpers', () => {
     const forward = mergeStarredRepositories([renamed, reuse], storeRepos);
     const reversed = mergeStarredRepositories([reuse, renamed], storeRepos);
 
-    // 无论输入顺序如何，按 id 对齐后的结果必须一致
+    // Regardless of input order, alignment results by id must remain consistent
     const byId = (list: Repository[]) => new Map(list.map(r => [r.id, r]));
     const f = byId(forward);
     const r = byId(reversed);
@@ -970,7 +970,7 @@ describe('useSearchActions pure helpers', () => {
     expect(f.get(1)?.ai_summary).toBe('旧仓库的 AI 摘要');
     expect(r.get(1)?.full_name).toBe('owner/new');
     expect(r.get(1)?.ai_summary).toBe('旧仓库的 AI 摘要');
-    // 两条路径下复用旧名的仓库都不应拿到旧仓库的 AI 数据
+    // Under both paths, the repository reusing the old name must not receive the old repository's AI data
     expect(f.get(2)?.ai_summary).toBeUndefined();
     expect(r.get(2)?.ai_summary).toBeUndefined();
     expect(countNewStarredRepositories([reuse, renamed], storeRepos)).toBe(1);
@@ -1006,10 +1006,10 @@ describe('useSearchActions pure helpers', () => {
     ];
     const { repositories: mapped, appliedTagsCount } = applyListsToRepositories(repositories, lists, categoryByLowerName);
 
-    // 预存在锁定：仅追加标签，不改分类/锁定
+    // Pre-existing lock: only append tag, do not modify category/lock
     expect(mapped[0]).toMatchObject({ custom_tags: ['Web Apps'], custom_category: 'Web Apps', category_locked: true });
     expect(mapped[0].last_edited).toBeUndefined();
-    // 正常仓库：第一个 list 命中分类 → 设分类并加锁；第二个 list 时仓库已被锁定 → 仅追加标签
+    // Normal repository: first list matches category -> set category and lock; by second list, repository is locked -> only append tag
     expect(mapped[1]).toMatchObject({ custom_tags: ['Web Apps', 'Second List'], custom_category: 'Web Apps', category_locked: true });
     expect(mapped[1].last_edited).toEqual(expect.any(String));
     expect(appliedTagsCount).toEqual({ 'Web Apps': 2, 'Second List': 1 });

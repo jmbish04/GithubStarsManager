@@ -1180,7 +1180,7 @@ previewScroll.addEventListener('pointercancel', endPan);
 let previewMode = 'preview';  // 'preview' | 'code'
 
 function refreshCodeHighlight() {
-  // 末尾补一个换行，保证高亮层与 textarea 的滚动高度一致。
+  // Append trailing newline so highlight layer matches textarea scroll height.
   codeHighlight.innerHTML = `${highlightHtml(codeEditor.value)}\n`;
   codeHighlight.scrollTop = codeEditor.scrollTop;
   codeHighlight.scrollLeft = codeEditor.scrollLeft;
@@ -1197,18 +1197,18 @@ function syncPreviewMode() {
   tabCode.setAttribute('aria-selected', String(!isPreview));
   previewScroll.hidden = !isPreview;
   codeWrap.hidden = isPreview;
-  zoomGroup.hidden = !isPreview;   // 缩放只对渲染画布有意义
+  zoomGroup.hidden = !isPreview;   // Zoom only applies to rendered canvas
   if (!isPreview) syncCodeEditor();
 }
 
-// 把代码页的编辑内容净化后应用回状态；失败（缺根元素等）向上抛，
-// 由调用方决定留在代码页。只在内容真的变化时刷新编辑器与文档。
+// Sanitize edited content from code view and apply back to state; throw on failure (missing root element, etc.)
+// so caller can decide to stay on code view. Only refresh editor and document when content actually changes.
 function applyCodeEdits() {
   let next;
   try {
     next = sanitizeFragment(codeEditor.value, state.fragmentCanvas);
   } catch (error) {
-    // 手工编辑缺根元素时，不要复用「AI 输出缺少…」的文案。
+    // When manual edits lack root element, do not reuse "AI output missing..." message.
     if (error instanceof Error && error.message === str.noCard) throw new Error(str.codeInvalid);
     throw error;
   }
@@ -1230,13 +1230,13 @@ function selectPreviewTab(mode) {
       changed = applyCodeEdits();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : str.codeInvalid);
-      return;  // 代码无效：留在代码页并提示
+      return;  // Invalid code: stay on code tab and show hint
     }
     if (changed) setStatus(str.codeApplied);
   }
   previewMode = mode;
   syncPreviewMode();
-  if (mode === 'preview') renderPreview();  // 量尺寸前必须已取消隐藏
+  if (mode === 'preview') renderPreview();  // Must be unhidden before measuring dimensions
 }
 
 tabPreview.addEventListener('click', () => selectPreviewTab('preview'));
@@ -1248,10 +1248,10 @@ codeEditor.addEventListener('scroll', () => {
 });
 
 /**
- * 发起 AI 请求生成仓库信息卡。
+ * Initiate AI request to generate repo info card.
  *
- * 校验仓库上下文与忙碌锁，收集画幅与语言参数构建提示词；
- * 请求成功后按快照保存画幅与语言状态，并刷新预览与导出文档；失败时展示友好错误提示。
+ * Validates repository context and busy lock, collects canvas and language parameters to construct prompts;
+ * saves canvas and language state by snapshot upon success, refreshing preview and export document; shows friendly error on failure.
  *
  * @returns {Promise<void>}
  */
@@ -1280,7 +1280,7 @@ async function generate() {
     previewWrap.hidden = false;
     previewEmpty.hidden = true;
     if (previewMode === 'code') {
-      // 代码页激活时不能量隐藏容器的尺寸；切回预览页会重新计算自适应比例。
+      // Cannot measure hidden container dimensions when code tab is active; switching back to preview recalculates fit scale.
       syncCodeEditor();
       const { w, h } = canvasMetrics(state.fragmentCanvas);
       previewMeta.textContent = fmt(str.previewMeta, { canvas: canvasLabel(state.fragmentCanvas.id), w, h });
@@ -1301,7 +1301,7 @@ async function generate() {
 }
 
 /**
- * 将已组装的单文件 HTML 代码写入系统剪贴板。
+ * Write assembled single-file HTML code to system clipboard.
  *
  * @returns {Promise<void>}
  */
@@ -1316,7 +1316,7 @@ async function copyCode() {
 }
 
 /**
- * 将当前卡片以 2x 分辨率光栅化为 PNG 并写入系统剪贴板。
+ * Rasterize current card at 2x resolution to PNG and write to system clipboard.
  *
  * @returns {Promise<void>}
  */
@@ -1333,7 +1333,7 @@ async function copyImage() {
 }
 
 /**
- * 将当前卡片以 2x 分辨率光栅化为 PNG 并保存到用户下载路径。
+ * Rasterize current card at 2x resolution to PNG and save to user download directory.
  *
  * @returns {Promise<void>}
  */
