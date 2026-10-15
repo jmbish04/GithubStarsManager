@@ -76,6 +76,13 @@ app.openAPIRegistry.registerComponent("securitySchemes", "bearer", { type: "http
 app.get("/scalar", Scalar({ url: "/openapi.json", pageTitle: "GitHub Stars Manager API" }));
 app.get("/swagger", swaggerUI({ url: "/openapi.json" }));
 
+/** Any failed critical check is unhealthy; any other failure is degraded. Unit-tested. */
+export function healthVerdict(checks: Array<{ ok: boolean; severity: "critical" | "degraded" }>): "ok" | "degraded" | "unhealthy" {
+  const failed = checks.filter((check) => !check.ok);
+  if (failed.some((check) => check.severity === "critical")) return "unhealthy";
+  return failed.length ? "degraded" : "ok";
+}
+
 // ── Health: reads and writes every dependency; any critical failure fails the verdict ──
 app.get("/health", async (c) => {
   const checks: Record<string, { ok: boolean; severity: "critical" | "degraded"; detail: string; ms: number }> = {};
@@ -114,8 +121,7 @@ app.get("/health", async (c) => {
   } finally {
     c.executionCtx.waitUntil(close());
   }
-  const failed = Object.entries(checks).filter(([, check]) => !check.ok);
-  const status = failed.some(([, check]) => check.severity === "critical") ? "unhealthy" : failed.length ? "degraded" : "ok";
+  const status = healthVerdict(Object.values(checks));
   return c.json({ status, checks }, status === "unhealthy" ? 503 : 200);
 });
 

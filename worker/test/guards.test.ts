@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { publicErrorMessage } from "../src/app";
+import { healthVerdict, publicErrorMessage } from "../src/app";
 import { UPSERT_CHUNK, upsertGitHubRepos } from "../src/services/repos";
 import { shouldClearMissingStars } from "../src/services/stars";
 
@@ -38,5 +38,14 @@ describe("error responses", () => {
     expect(message).toBe("Database error: MAX_PARAMETERS_EXCEEDED: Max number of parameters (65534) exceeded");
     expect(message).not.toContain("secret-row-data");
     expect(publicErrorMessage(new Error("x".repeat(5_000)))).toHaveLength(500);
+  });
+});
+
+describe("health verdict", () => {
+  it("a down critical dependency fails the verdict; a down optional one degrades it", () => {
+    const ok = { ok: true, severity: "critical" as const };
+    expect(healthVerdict([ok, { ok: true, severity: "degraded" }])).toBe("ok");
+    expect(healthVerdict([ok, { ok: false, severity: "degraded" }])).toBe("degraded");
+    expect(healthVerdict([{ ok: false, severity: "critical" }, { ok: true, severity: "degraded" }])).toBe("unhealthy");
   });
 });
