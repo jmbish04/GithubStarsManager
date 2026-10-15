@@ -1,12 +1,12 @@
-/* Repo Insights — 仓库洞察插件页面（V1.4 opensPage 弹窗 + V1.5 network.request）。
+/* Repo Insights — Repository Insights Plugin Page (V1.4 opensPage modal + V1.5 network.request).
  *
- * 宿主弹窗通过 `plugin-page:init` 下发 `context = { repository, readme, language, theme }`；
- * 其余数据一律走受权限约束的桥：
- *  - `network.request`：宿主代理的 GitHub API 只读 GET（`network:api.github.com` 权限，
- *    宿主用用户自己的 Token 附加认证，页面拿不到 Token 本身）；
- *  - `storage.get/set`：按数据集缓存指标结果（TTL 6–72 小时），先画缓存再后台刷新；
- *  - `repositories.search`：从「设置 → 插件 → 打开页面」进入时选择仓库。
- * 图表使用随插件打包的 Chart.js（本地文件，页面 CSP 禁止 CDN）。
+ * The host modal sends `context = { repository, readme, language, theme }` via `plugin-page:init`;
+ * all other data goes through permission-restricted bridges:
+ *  - `network.request`: read-only GET requests to the GitHub API proxied by the host (`network:api.github.com` permission,
+ *    authenticated by the host using the user's own token; the page itself cannot access the token);
+ *  - `storage.get/set`: caches metric results per dataset (TTL 6–72 hours), rendering cached data first then refreshing in the background;
+ *  - `repositories.search`: selects a repository when entering from "Settings → Plugins → Open Page".
+ * Charts use Chart.js bundled with the plugin (local file; page CSP blocks CDNs).
  */
 (() => {
   'use strict';
@@ -15,10 +15,10 @@
   const PAGE_ID = 'insights';
 
   const HOUR = 3600_000;
-  // storage 桥单个值上限 64 KiB：releases / 周级统计都已裁剪到最小字段。
+  // Single-value storage bridge limit is 64 KiB: releases / weekly statistics are trimmed to minimal fields.
   const CACHE_SCHEMA = 'v1';
 
-  /* ── 文案 ─────────────────────────────────────────────────────────── */
+  /* ── Strings ───────────────────────────────────────────────────────── */
 
   const STR = {
     zh: {
@@ -43,37 +43,37 @@
       minutes: '{n} 分钟',
       hours: '{n} 小时',
       days: '{n} 天',
-      // 头部与 KPI
+      // Header & KPIs
       stars: '星标', forks: '复刻', issues: '开放 Issue', watchers: '关注者',
       license: '许可证', created: '创建于', archived: '已归档',
       healthLabel: '仓库健康度',
       healthFromLocal: '由提交、发布与元数据估算',
-      // 提交活动
+      // Commit activity
       commitsTitle: '提交活动',
       commitsHint: '最近 52 周每周提交数（默认分支）',
       commitsLast4: '近 4 周提交',
       commitsDelta: '较前 4 周',
       commitsActiveWeeks: '活跃周',
       commitsOf8: '{n} / 8',
-      // 代码变更
+      // Code churn
       churnTitle: '代码变更',
       churnHint: '每周新增 / 删除行数（绿=新增，红=删除）',
       churnAdditions: '新增行',
       churnDeletions: '删除行',
       churnNone: '该仓库暂无代码变更统计。',
-      // 语言
+      // Languages
       languagesTitle: '语言分布',
       languagesHint: '按代码字节数',
       languagesOther: '其他',
       languagesCount: '{n} 种语言',
-      // 贡献者
+      // Contributors
       contributorsTitle: '主要贡献者',
       contributorsHint: '历史提交数前 12 名',
       contributorsTop1: 'Top 1 占比',
       contributorsTop3: 'Top 3 占比',
       contributorsSample: '占比按前 12 名样本内计算',
       contributorsCommits: '{n} 次提交',
-      // 发布
+      // Releases
       releasesTitle: '发布节奏',
       releasesHint: '基于最近发布的 Release 统计',
       releasesYear: '近 1 年发布',
@@ -83,7 +83,7 @@
       releasesNone: '该仓库没有已发布的 Release。',
       releasesPerMonth: '月度发布数',
       prerelease: '预发布',
-      // 社区健康
+      // Community health
       communityTitle: '社区健康',
       communityHint: 'GitHub 社区标准档案',
       communityScore: '社区标准完成度',
@@ -91,7 +91,7 @@
       sigConduct: '行为准则', sigIssue: 'Issue 模板', sigPr: 'PR 模板',
       sigOn: '已提供', sigOff: '未提供',
       communityUnavailable: '无法获取社区档案。',
-      // 安全公告
+      // Security advisories
       advisoriesTitle: '安全公告',
       advisoriesHint: '已发布的 GHSA 安全公告',
       advisoriesNone: '没有已发布的安全公告。',
@@ -139,7 +139,7 @@
       aiCancelled: '已取消。',
       aiNotConfigured: '未配置 AI Provider（设置 → AI），无法生成分析。',
       aiFailed: 'AI 请求失败：{message}',
-      // 星标历史
+      // Star history
       starsTitle: '星标趋势',
       starsHint: '每周新增星标与累计曲线',
       starsLast4: '近 4 周新增',
@@ -148,7 +148,7 @@
       starsUnavailable: '该仓库暂不支持星标历史查询。',
       weeklyNew: '周新增',
       cumulative: '累计',
-      // 图表与脚注
+      // Charts & footer
       footer: '数据来源：GitHub REST API（经宿主代理的只读请求，认证使用你的 GitHub Token，页面本身无法读取）· 结果缓存在本地插件存储，6–72 小时后标记过期并后台刷新。',
       week: '{m}-{d} 周',
     },
@@ -283,7 +283,7 @@
     });
   };
 
-  /* ── 桥 ───────────────────────────────────────────────────────────── */
+  /* ── Bridges ──────────────────────────────────────────────────────── */
 
   let token = null;
   let nextRequestId = 0;
@@ -317,16 +317,16 @@
     else handler.reject(Object.assign(new Error(event.data.error?.message || str.bridgeFailed), { code: event.data.error?.code }));
   });
 
-  /* ── 工具 ─────────────────────────────────────────────────────────── */
+  /* ── Utilities ────────────────────────────────────────────────────── */
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
-  /** 整数千分位格式化；非有限值显示为占位符。 */
+  /** Formats an integer with thousands separators; displays placeholder for non-finite values. */
   const int = (value) => (typeof value === 'number' && Number.isFinite(value) ? Math.round(value).toLocaleString() : '–');
   const $ = (id) => document.getElementById(id);
 
-  /** 把缓存时间戳格式化为“N 分钟/小时/天前”的人类可读文案。 */
+  /** Formats cache timestamp into human-readable text like "N minutes/hours/days ago". */
   function ageText(fetchedAt) {
     const minutes = Math.max(0, Math.round((Date.now() - fetchedAt) / 60000));
     if (minutes < 1) return str.justNow;
@@ -335,7 +335,7 @@
     return fmt(str.days, { n: Math.round(minutes / (60 * 24)) });
   }
 
-  /** 相对时间文案：天/周/月/年自动进位。 */
+  /** Relative time text: automatically carries over from days/weeks/months/years. */
   function relativeDays(days) {
     if (days <= 0) return str.relToday;
     if (days === 1) return str.relYesterday;
@@ -344,14 +344,14 @@
     return fmt(str.relYears, { n: (Math.round((days / 365.25) * 10) / 10) });
   }
 
-  /** 时长文案（不带“前”）：仓库年龄等。 */
+  /** Duration text (without "ago"): repository age, etc. */
   function durationDays(days) {
     if (days < 45) return fmt(str.durDays, { n: days });
     if (days < 365) return fmt(str.durMonths, { n: Math.round(days / 30) });
     return fmt(str.durYears, { n: Math.round((days / 365.25) * 10) / 10 });
   }
 
-  /** ISO 时间字符串 → YYYY-MM-DD；不可解析时显示占位符。 */
+  /** ISO timestamp string → YYYY-MM-DD; displays placeholder when unparseable. */
   function shortDate(iso) {
     const time = Date.parse(iso);
     return Number.isFinite(time)
@@ -359,14 +359,14 @@
       : '–';
   }
 
-  /* ── 仓库健康事实：镜像宿主 repositoryHealth 的推导口径 ─────────────── */
+  /* ── Repository Health Facts: mirroring host repositoryHealth logic ── */
 
   const PRERELEASE_TOKENS = new Set([
     'alpha', 'beta', 'rc', 'pre', 'prerelease', 'preview', 'dev', 'devel',
     'next', 'canary', 'snapshot', 'nightly', 'insider', 'unstable',
   ]);
 
-  /** 与宿主一致：先信 GitHub 的 prerelease 标记，再按 tag 词元兜底。 */
+  /** Consistent with host: trust GitHub's prerelease flag first, fallback to tag tokens. */
   function isPrereleaseRelease(release) {
     if (release.prerelease === true) return true;
     const tag = (release.tag_name ?? '').toLowerCase();
@@ -374,25 +374,25 @@
     return tag.split(/[^a-z0-9]+/).filter(Boolean).some((token) => PRERELEASE_TOKENS.has(token.replace(/\d+$/, '')));
   }
 
-  /** 把可能缺失/非数的计数收敛为非负整数（缺省 0）。 */
+  /** Coerces potentially missing/non-numeric counts into non-negative integers (default 0). */
   const toCountValue = (value) => {
     const count = Number(value);
     return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
   };
-  /** 把时间字符串解析为 epoch 毫秒；缺失或不可解析返回 null。 */
+  /** Parses time string into epoch milliseconds; returns null if missing or unparseable. */
   const toTimestampValue = (value) => {
     const timestamp = Date.parse(value ?? '');
     return Number.isFinite(timestamp) ? timestamp : null;
   };
 
-  /* ── Chart.js 主题 ────────────────────────────────────────────────── */
+  /* ── Chart.js Themes ──────────────────────────────────────────────── */
 
   const charts = new Map();
-  // 每个画布当前挂起的 resize RAF id：同一画布连续重绘时用于取消旧回调。
+  // Pending resize RAF ID for each canvas: used to cancel prior callbacks during rapid re-renders.
   const chartRafs = new Map();
   let chartSeq = 0;
 
-  /** 从当前 CSS 变量读取 Chart.js 主题色（跟随深浅主题）。 */
+  /** Reads Chart.js theme colors from current CSS variables (adapts to light/dark themes). */
   function chartTheme() {
     const style = getComputedStyle(document.body);
     return {
@@ -402,28 +402,28 @@
     };
   }
 
-  /** 按 canvasId 重建 Chart.js 实例（先销毁旧实例，避免泄漏），并注入统一主题。 */
+  /** Recreates Chart.js instance by canvasId (destroys previous instance to prevent leaks) and injects theme. */
   function drawChart(canvasId, config) {
     if (typeof Chart === 'undefined') return;
     const theme = chartTheme();
     Chart.defaults.color = theme.tx2;
     Chart.defaults.borderColor = theme.grid;
     Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-    // 竞态：同一画布被连续重绘两次（缓存先画 + 网络刷新再画；或窗口最小化/
-    // 被遮挡时 RAF 冻结、恢复后积压回调同帧触发）时，第一次排下的 resize RAF
-    // 尚未执行，第二次已经 destroy 了第一个实例（destroy 会置 chart.canvas = null）。
-    // 旧 RAF 随后执行 chart.resize()，Chart.js 内部会读
-    // canvas.ownerDocument.defaultView，从而抛出
-    // “Cannot read properties of null (reading 'ownerDocument')”，
-    // 且同帧多个过期回调会在同一毫秒连续报错。故每画布只保留最新的一个
-    // RAF，重绘前先取消旧回调。
+    // Race condition: when a canvas is redrawn twice in rapid succession (cached paint + network refresh;
+    // or when window is minimized/occluded and RAF is frozen, causing queued callbacks to fire in the same frame),
+    // the first scheduled resize RAF has not run yet while the second draw has already destroyed the first instance
+    // (destroy sets chart.canvas = null). The old RAF then calls chart.resize(), causing Chart.js to read
+    // canvas.ownerDocument.defaultView and throw:
+    // "Cannot read properties of null (reading 'ownerDocument')",
+    // and multiple stale callbacks in the same frame would error simultaneously. Therefore, keep only the latest RAF
+    // per canvas and cancel previous callbacks before redrawing.
     const previousRaf = chartRafs.get(canvasId);
     if (previousRaf !== undefined) cancelAnimationFrame(previousRaf);
     charts.get(canvasId)?.destroy();
     const canvas = $(canvasId);
     if (!canvas) {
-      // 画布已不存在（例如面板关闭后 paint 仍被调用）：只销毁旧实例并返回，
-      // 不能 new Chart(null) 创建坏实例（其 RAF resize 同样会崩溃）。
+      // Canvas no longer exists (e.g. paint called after modal closed): destroy old instance and return;
+      // avoid creating an invalid instance via new Chart(null) whose resize RAF would crash.
       charts.delete(canvasId);
       return;
     }
@@ -444,18 +444,18 @@
     charts.set(canvasId, chart);
     const rafId = requestAnimationFrame(() => {
       chartRafs.delete(canvasId);
-      // 回调执行时再次校验：本实例仍是该画布的当前实例、且画布尚在
-      //（destroy 后 chart.canvas === null），防御任何残余竞态。
+      // Verify again in callback: instance is still current for this canvas and canvas still exists
+      // (chart.canvas === null after destroy), guarding against lingering race conditions.
       if (charts.get(canvasId) === chart && chart.canvas) chart.resize();
     });
     chartRafs.set(canvasId, rafId);
   }
 
-  /* ── 指标缓存与并发队列 ───────────────────────────────────────────── */
+  /* ── Metric Cache & Concurrency Queue ──────────────────────────────── */
 
-  // pluginStorage 单键上限 128 字符；owner/repo 全长可达 ~140，故对 repoKey 取
-  // FNV-1a 32 位哈希（base36）作键。仅作缓存命名空间，不承载安全语义。
-  /** FNV-1a 32 位哈希的 base36 形式，用作缓存键的仓库命名空间。 */
+  // pluginStorage single key limit is 128 characters; full owner/repo can reach ~140,
+  // so use FNV-1a 32-bit hash (base36) of repoKey as key. Used only for cache namespacing, no security semantics.
+  /** Base36 representation of FNV-1a 32-bit hash, used as repository cache namespace. */
   const hash36 = (value) => {
     let hash = 0x811c9dc5;
     for (let i = 0; i < value.length; i += 1) {
@@ -464,46 +464,46 @@
     }
     return hash.toString(36);
   };
-  /** 缓存键：账号隔离由条目内 acct 字段承担，键内含仓库哈希与数据集 id。 */
+  /** Cache key: account isolation handled by entry acct field; includes repo hash and dataset ID. */
   const cacheKey = (repoKey, metricId) => `ins:${CACHE_SCHEMA}:${hash36(repoKey)}:${metricId}`;
 
-  /** 读缓存；账号标签不一致的条目视为脏数据并删除（切账号不留存旧数据）。 */
+  /** Reads cache; entries with mismatched account tags are treated as dirty and deleted. */
   async function readCache(repoKey, metricId) {
     try {
       const entry = await request('storage.get', { key: cacheKey(repoKey, metricId) });
       if (!entry || typeof entry !== 'object' || !Number.isFinite(entry.fetchedAt)) return null;
-      // 账号尚未确认（init 未到）：不绘制任何缓存，避免先展示其他账号的数据。
+      // Account not yet confirmed (init pending): do not paint cache to avoid showing data from another account.
       if (!state.acct) return null;
-      // 账号不匹配（条目无标签或标签不同）：脏缓存，删除并忽略。
+      // Account mismatch (entry lacks tag or tag differs): dirty cache, delete and ignore.
       if (entry.acct !== state.acct) {
         void request('storage.delete', { key: cacheKey(repoKey, metricId) }).catch(() => {});
         return null;
       }
       return entry;
-    } catch { /* 缓存读取失败按无缓存处理 */ }
+    } catch { /* Treat cache read errors as cache misses */ }
     return null;
   }
 
-  /** 写缓存；私有仓库与账号未知时绝不落盘，超限/配额失败静默放弃。 */
+  /** Writes cache; never persisted for private or unconfirmed repositories; fails silently on quota exceeded. */
   function writeCache(repoKey, metricId, payload, ttl) {
-    // 只有仓库详情明确确认公开（private === false）后才允许写缓存。
+    // Only allow writing cache after repository is explicitly confirmed public (private === false).
     if (state.privateRepo !== false || !state.acct) return;
     const entry = { fetchedAt: Date.now(), ttl, acct: state.acct, payload };
-    // 单值上限 64 KiB，写入失败（超限/配额）静默放弃缓存。
+    // Single-value limit is 64 KiB; silently discard cache on write failure (quota/size limit).
     request('storage.set', { key: cacheKey(repoKey, metricId), value: entry }).catch(() => {});
   }
 
   const CACHED_METRIC_IDS = ['repo', 'commitActivity', 'codeFrequency', 'contributors', 'languages',
     'releases', 'pulls', 'ownerProfile', 'community', 'advisories', 'starHistory'];
 
-  /** 清空该仓库的全部缓存条目（私有仓库标记或账号切换时用）。 */
+  /** Clears all cache entries for this repository (used on private repo flag or account switch). */
   function purgeRepoCache(repoKey) {
     for (const metricId of CACHED_METRIC_IDS) {
       void request('storage.delete', { key: cacheKey(repoKey, metricId) }).catch(() => {});
     }
   }
 
-  /** 创建定并发任务队列：FIFO、上限内立即执行、异常不阻塞后续任务。 */
+  /** Creates a bounded concurrency task queue: FIFO, executes immediately within limit, errors do not block queue. */
   function createQueue(limit) {
     const waiting = [];
     let active = 0;
@@ -522,16 +522,16 @@
     });
   }
 
-  /** 经 network.request 桥取一个端点；202/204 返回 { status, body: null }。
-   *  absolute 为 true 时 pathSuffix 本身就是完整路径（如 /users/{login}）。 */
+  /** Fetches an endpoint via network.request bridge; 202/204 returns { status, body: null }.
+   *  When absolute is true, pathSuffix itself is the complete path (e.g. /users/{login}). */
   async function fetchMetric(owner, repo, pathSuffix, query, absolute = false) {
     const value = await request('network.request', {
       host: 'api.github.com',
       path: absolute ? pathSuffix : `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}${pathSuffix}`,
       query: query ?? {},
     });
-    // 响应里的账号标签只用于校验：与 init 下发的身份不一致说明账号已切换，
-    // 清掉缓存并以新标签继续（正常路径下两者一致）。
+    // Account tag in response is used only for verification: mismatch with init identity indicates account switch;
+    // clear cache and continue with new tag (both match in normal paths).
     if (value && typeof value === 'object' && typeof value.acct === 'string') {
       if (state.acct && state.acct !== value.acct) {
         purgeRepoCache(state.repoKey);
@@ -540,11 +540,11 @@
         state.acct = value.acct;
       }
     }
-    // 宿主把 403/404 等归一为 success:false；202/204 是 success:true + body:null。
+    // Host normalizes 403/404 etc. to success:false; 202/204 is success:true + body:null.
     return value;
   }
 
-  /* ── 状态 ─────────────────────────────────────────────────────────── */
+  /* ── State ─────────────────────────────────────────────────────────── */
 
   const state = {
     repository: null,
@@ -555,14 +555,14 @@
     meta: new Map(),      // metricId → { stale: boolean }
     runSeq: 0,
     queue: createQueue(6),
-    // GitHub 身份标签（宿主随 init 与响应下发，页面拿不到 Token）；缓存按账号隔离。
+    // GitHub identity tag (sent by host in init & response; page cannot access token); cache isolated per account.
     acct: null,
-    // 仓库可见性三态：null=未确认 / true=私有 / false=已确认公开。
-    // 未确认或私有时不写缓存：避免本地缓存跨 GitHub 账号留存非公开数据。
+    // Tri-state repository visibility: null=unconfirmed / true=private / false=confirmed public.
+    // Do not write cache when unconfirmed or private: prevents local cache from persisting non-public data across accounts.
     privateRepo: null,
   };
 
-  /* ── 渲染：头部与 KPI ─────────────────────────────────────────────── */
+  /* ── Rendering: Header & KPIs ─────────────────────────────────────── */
 
   function renderHeader() {
     const r = state.repository;
@@ -575,7 +575,7 @@
     $('head').hidden = false;
   }
 
-  /** 渲染 KPI 行：星标/复刻/开放 Issue/关注者/许可证/创建时间（快照与实时详情合并）。 */
+  /** Renders KPI row: stars/forks/open issues/watchers/license/creation date (merges snapshot and live details). */
   function renderKpis() {
     const r = state.repository;
     const live = state.data.get('repo') || {};
@@ -597,11 +597,11 @@
     $('kpis').hidden = false;
   }
 
-  /* ── 健康分 ───────────────────────────────────────────────────────── */
+  /* ── Health Score ─────────────────────────────────────────────────── */
 
   const RING_CIRCUMFERENCE = 2 * Math.PI * 34;
 
-  /** 仓库健康度 0–100 评分：维护活跃 40% + 热度 30% + 质量 30%，附各子分数供雷达使用。 */
+  /** Repository health 0–100 score: maintenance 40% + popularity 30% + quality 30%, with subscores for radar. */
   function computeHealthScore() {
     const r = { ...state.repository, ...(state.data.get('repo') || {}) };
     const releases = state.data.get('releases');
@@ -609,7 +609,7 @@
     const clamp = (v) => Math.max(0, Math.min(100, v));
     const now = Date.now();
 
-    // 维护活跃度（40%）
+    // Maintenance activity (40%)
     let maintenance = 50;
     if (r.archived) maintenance -= 45;
     const pushedDays = r.pushed_at ? (now - Date.parse(r.pushed_at)) / 86400000 : Infinity;
@@ -630,14 +630,14 @@
       if (last8 > 0) maintenance += 10;
     }
 
-    // 热度（30%）
+    // Popularity (30%)
     const log = (v) => Math.log10(Math.max(1, v));
     const stars = r.stargazers_count ?? 0;
     const forks = r.forks_count ?? 0;
     const watchers = r.subscribers_count ?? 0;
     const popularity = Math.min(60, log(stars) * 15) + Math.min(25, log(forks) * 8) + Math.min(15, log(watchers) * 5);
 
-    // 质量（30%）
+    // Quality (30%)
     let quality = 35;
     if (r.license) quality += 15;
     if (Array.isArray(r.topics) && r.topics.length > 0) quality += 15;
@@ -655,7 +655,7 @@
     return { overall, grade, parts };
   }
 
-  /** 渲染健康分圆环与等级，并联动健康度雷达。 */
+  /** Renders health score ring and grade, and updates health radar. */
   function renderHealth() {
     const { overall, grade } = computeHealthScore();
     $('ring-value').setAttribute('stroke-dasharray', `${(overall / 100) * RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`);
@@ -669,7 +669,7 @@
     renderRadar();
   }
 
-  /* ── 区块渲染 ─────────────────────────────────────────────────────── */
+  /* ── Section Rendering ────────────────────────────────────────────── */
 
   function setState(cardId, message, kind) {
     const stateEl = $(cardId).querySelector('.state');
@@ -677,17 +677,17 @@
     stateEl.className = `state${kind ? ` ${kind}` : ''}`;
   }
 
-  /** 加载中状态：文案 + 旋转指示（纯 CSS，见 style.css 的 .state.loading）。 */
+  /** Loading state: text + spinner (pure CSS, see .state.loading in style.css). */
   function setLoading(cardId, message) {
     setState(cardId, message, 'loading');
   }
 
-  /** 显示/隐藏卡片内的图表画布区。 */
+  /** Shows or hides chart canvas area in a card. */
   function showChart(cardId, visible) {
     $(cardId).querySelector('.ch').hidden = !visible;
   }
 
-  /** 填充或清空卡片的 chips 行。 */
+  /** Populates or clears chips row in a card. */
   function showChips(cardId, chipsHtml) {
     const chips = $(cardId).querySelector('.chips');
     if (!chips) return;
@@ -695,13 +695,13 @@
     chips.hidden = !chipsHtml;
   }
 
-  /** 把 commit_activity 的周时间戳格式化为图表横轴标签。 */
+  /** Formats commit_activity weekly timestamp as chart X-axis label. */
   function weekLabel(tsSeconds) {
     const date = new Date(tsSeconds * 1000);
     return fmt(str.week, { m: date.getUTCMonth() + 1, d: date.getUTCDate() });
   }
 
-  /** 渲染 52 周提交柱状图与近 4 周/活跃周摘要 chips。 */
+  /** Renders 52-week commit bar chart and recent 4-week / active weeks summary chips. */
   function renderCommits(payload, meta) {
     if (!Array.isArray(payload) || payload.length === 0) return false;
     state.data.set('commitActivity', payload);
@@ -734,7 +734,7 @@
     return true;
   }
 
-  /** 渲染每周新增/删除行数的双向柱状图（GitHub 的 deletions 为负数，直接画在零线下方）。 */
+  /** Renders bi-directional bar chart for weekly additions/deletions (GitHub deletions are negative, drawn below zero line). */
   function renderChurn(payload) {
     if (!Array.isArray(payload)) return false;
     if (payload.length === 0) {
@@ -751,7 +751,7 @@
         labels: weeks.map((w) => weekLabel(w[0])),
         datasets: [
           { label: str.churnAdditions, data: weeks.map((w) => w[1] || 0), backgroundColor: 'rgba(47, 191, 127, .6)', borderRadius: 2 },
-          // GitHub 的 deletions 本身是负数，柱子直接画在零线下方。
+          // GitHub deletions are already negative numbers, bars are drawn directly below zero line.
           { label: str.churnDeletions, data: weeks.map((w) => w[2] || 0), backgroundColor: 'rgba(255, 93, 115, .6)', borderRadius: 2 },
         ],
       },
@@ -769,7 +769,7 @@
 
   const LANGUAGE_PALETTE = ['#4f8ff7', '#9a6bff', '#2fbf7f', '#ffb454', '#ff5d73', '#5ec8ff', '#c084fc', '#86efac', '#8a93a8'];
 
-  /** 渲染语言分布环形图（Top 8 + 其他），并标注语言种数。 */
+  /** Renders language distribution doughnut chart (Top 8 + Other) and total language count. */
   function renderLanguages(payload) {
     if (!payload || typeof payload !== 'object') return false;
     const entries = Object.entries(payload).sort((a, b) => b[1] - a[1]);
@@ -803,7 +803,7 @@
     return true;
   }
 
-  /** 仅存储贡献者样本并触发维护者容器渲染（贡献者不再有独立图表卡）。 */
+  /** Stores contributor sample and triggers maintainers container render (contributors have no standalone chart card). */
   function renderContributors(payload) {
     if (!Array.isArray(payload) || payload.length === 0) return false;
     const top = payload.slice(0, 12).filter((c) => c.login);
@@ -813,7 +813,7 @@
     return true;
   }
 
-  /** 裁剪并存储所有者资料，触发维护者容器渲染。 */
+  /** Trims and stores owner profile, triggering maintainers container render. */
   function paintOwnerProfile(payload) {
     if (!payload || typeof payload !== 'object' || !payload.login) return false;
     state.data.set('ownerProfile', {
@@ -832,7 +832,7 @@
     return true;
   }
 
-  /** 裁剪已合并 PR（按合并时间降序取前 15）供 AI 提示词使用。 */
+  /** Trims merged PRs (top 15 sorted by merge time desc) for AI prompt usage. */
   function paintPulls(payload) {
     if (!Array.isArray(payload)) return false;
     const merged = payload
@@ -845,7 +845,7 @@
   }
 
 
-  /** 渲染发布节奏：摘要 chips、月度发布柱状图与最近 5 条列表；保留最近 15 条截断日志供 AI 使用。 */
+  /** Renders release cadence: summary chips, monthly release bar chart, and recent 5 releases; retains top 15 truncated notes for AI. */
   function renderReleases(payload) {
     if (!Array.isArray(payload)) return false;
     const published = payload
@@ -853,7 +853,7 @@
       .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at));
     state.data.set('releases', published.map((r, index) => ({
       tag_name: r.tag_name, name: r.name, published_at: r.published_at, prerelease: Boolean(r.prerelease),
-      // 最近 15 条保留截断后的更新日志，供 AI 动态分析使用（缓存单值 64 KiB 上限内）。
+      // Keep truncated release notes for top 15 releases for AI activity analysis (within 64 KiB single-value cache limit).
       ...(index < 15 ? { body: String(r.body ?? '').slice(0, 1200) } : {}),
     })));
     if (published.length === 0) {
@@ -867,7 +867,7 @@
     }
     const now = Date.now();
     const inYear = published.filter((r) => now - Date.parse(r.published_at) < 365 * 86400000);
-    // per_page=100 封顶时，取到的样本不足以给出精确计数，展示 100+。
+    // When capped at per_page=100, sampled items cannot give exact count; show 100+.
     const releasesCapped = published.length >= 100;
     const recent = published.slice(0, 12);
     const avgDays = recent.length >= 2
@@ -877,7 +877,7 @@
       <span class="chip">${esc(str.releasesYear)}<b>${releasesCapped ? fmt(str.valCountCapped, { n: int(inYear.length) }) : int(inYear.length)}</b></span>
       ${avgDays != null ? `<span class="chip">${esc(str.releasesInterval)}<b>${fmt(str.releasesDays, { n: avgDays })}</b></span>` : ''}
       <span class="chip">${esc(str.releasesLatest)}<b>${esc(published[0].tag_name)}</b></span>`);
-    // 月度发布数（近 12 个月）
+    // Monthly release count (last 12 months)
     const months = [];
     const cursor = new Date();
     cursor.setUTCDate(1);
@@ -917,7 +917,7 @@
     ['code_of_conduct', 'sigConduct'], ['issue_template', 'sigIssue'], ['pull_request_template', 'sigPr'],
   ];
 
-  /** 渲染社区健康百分比与六项标准文件信号徽章。 */
+  /** Renders community health percentage and 6 standard file signal badges. */
   function renderCommunity(payload) {
     if (!payload || typeof payload !== 'object' || typeof payload.health_percentage !== 'number') return false;
     state.data.set('community', payload);
@@ -934,10 +934,10 @@
     return true;
   }
 
-  /** 渲染已发布安全公告：仅保留有 published_at 的条目，按严重程度计数并列出最近 8 条。 */
+  /** Renders published security advisories: keeps only entries with published_at, counts by severity, and lists recent 8. */
   function renderAdvisories(payload) {
     if (!Array.isArray(payload)) return false;
-    // 只展示已发布的公告：非发布态（草稿/triage）条目没有 published_at。
+    // Show only published advisories: unpublished items (draft/triage) lack published_at.
     const publishedAdvisories = payload
       .filter((a) => typeof a.published_at === 'string')
       .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at));
@@ -968,7 +968,7 @@
   }
 
 
-  /* ── 健康度雷达：总分之外的维度分解（未知维度自动省略） ── */
+  /* ── Health Radar: Dimension breakdown beyond overall score (omits unknown dimensions) ── */
 
   function deriveRadarAxes() {
     const health = computeHealthScore();
@@ -981,7 +981,7 @@
       { label: str.axisPopularity, value: health.parts.popularity },
       { label: str.axisQuality, value: health.parts.quality },
     ];
-    // 发布节奏：最新发布新鲜度（60%）与发布频率（40%）合成。
+    // Release cadence: composite of latest release recency (60%) and frequency (40%).
     const releasesKnown = Array.isArray(releases);
     if (releasesKnown) {
       const now = Date.now();
@@ -1005,7 +1005,7 @@
     return axes;
   }
 
-  /** 渲染健康度雷达图（维度随可用数据动态增减）。 */
+  /** Renders health radar chart (dimensions dynamically adapt to available data). */
   function renderRadar() {
     const axes = deriveRadarAxes();
     const theme = chartTheme();
@@ -1039,9 +1039,9 @@
     $('card-radar').hidden = false;
   }
 
-  /* ── 维护者与贡献者容器 + 巴士因子 ── */
+  /* ── Maintainers & Contributors Container + Bus Factor ───────────── */
 
-  /** 巴士因子：样本内累计提交达到 50% 所需的最少贡献者人数。 */
+  /** Bus factor: minimum contributors needed to reach 50% cumulative commits in sample. */
   function computeBusFactor(contribs) {
     if (!Array.isArray(contribs) || contribs.length === 0) return null;
     const total = contribs.reduce((sum, c) => sum + (c.contributions || 0), 0);
@@ -1060,19 +1060,19 @@
     };
   }
 
-  /** 把占比量化到 5% 步长，映射到静态宽度类（CSP 禁内联样式）。 */
+  /** Quantizes share to 5% steps, mapped to static width classes (CSP blocks inline styles). */
   function quantizeShare(percent) {
     return Math.max(5, Math.round(percent / 5) * 5);
   }
 
-  /** 渲染维护者容器：左栏所有者资料与巴士因子，右栏贡献者概要列表。 */
+  /** Renders maintainers container: left column owner profile and bus factor, right column contributor summary list. */
   function renderMaintainers() {
     const card = $('card-maintainers');
     const r = { ...state.repository, ...(state.data.get('repo') || {}) };
     const owner = String(r.full_name ?? '').split('/')[0] ?? '';
     const profile = state.data.get('ownerProfile');
 
-    // 左子面板：所有者资料
+    // Left sub-panel: owner profile
     $('maint-owner-title').textContent = str.ownerPanelTitle;
     if (owner) {
       let hash = 0;
@@ -1096,7 +1096,7 @@
       $('owner-facts').innerHTML = facts.length > 0
         ? facts.map(([key, value]) => `<div class="fact-row"><dt>${esc(str[key])}</dt><dd>${value}</dd></div>`).join('')
         : `<div class="fact-row"><dd class="unknown">${esc(str.ownerUnavailable)}</dd></div>`;
-      // 巴士因子与所有者同栏：回答「谁在维护、维护集中度如何」。
+      // Bus factor displayed alongside owner: shows who maintains and maintenance concentration.
       const contribs = state.data.get('contributors');
       const box = $('busfactor-box');
       const bus = computeBusFactor(contribs);
@@ -1117,7 +1117,7 @@
       }
     }
 
-    // 右子面板：贡献者概要列表（全部 12 名样本）
+    // Right sub-panel: contributor summary list (all 12 sample contributors)
     $('maint-contrib-title').textContent = str.contribPanelTitle;
     const contribs = state.data.get('contributors');
     const list = $('contrib-list');
@@ -1141,9 +1141,9 @@
     card.hidden = false;
   }
 
-  /* ── AI 近期动态分析 ── */
+  /* ── AI Recent Activity Analysis ─────────────────────────────────── */
 
-  /** 行内语法：**粗体**、__粗体__、*斜体*、_斜体_、~~删除线~~、`代码`、[文本](https://链接)。输入必须已转义。 */
+  /** Inline syntax: **bold**, __bold__, *italic*, _italic_, ~~strikethrough~~, `code`, [text](https://link). Input must be escaped. */
   function renderInlineMarkdown(escaped) {
     return escaped
       .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
@@ -1156,9 +1156,9 @@
   }
 
   /**
-   * 受限 Markdown → HTML：支持标题（#..######）、代码块（```）、引用块（>）、
-   * 无序/有序列表、粗体、斜体、删除线、行内代码与 https 链接。
-   * 先转义再解析，杜绝 XSS 注入。
+   * Restricted Markdown → HTML: supports headings (#..######), code blocks (```), blockquotes (>),
+   * unordered/ordered lists, bold, italic, strikethrough, inline code, and https links.
+   * Escapes first before parsing to eliminate XSS injection.
    */
   function renderMarkdown(text) {
     const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
@@ -1192,7 +1192,7 @@
       const line = raw.trimEnd();
       if (!line.trim()) { closeList(); continue; }
 
-      // 标题（支持 # 到 ######），内联样式同步格式化
+      // Headings (supports # to ######), inline formatted styles
       const heading = line.match(/^(#{1,6})\s+(.*)$/);
       if (heading) {
         closeList();
@@ -1200,7 +1200,7 @@
         continue;
       }
 
-      // 整行粗体分节标题（如 **1. 新增功能** 或 **1. 新增功能：** 或 1. **新增功能** 或 一、 **新增功能**）
+      // Full-line bold section titles (e.g. **1. Features** or **1. Features:** or 1. **Features** or Chinese section numbering)
       const pureBold = line.match(/^\s*\*\*(.+?)\*\*(?:[:：]?)\s*$/);
       const numberedBold = line.match(/^\s*((?:\d+[.)]|[（(]?[一二三四五六七八九十]+[、.）)]?)\s*)\*\*(.+?)\*\*(?:[:：]?)\s*$/);
       if (pureBold || numberedBold) {
@@ -1212,14 +1212,14 @@
         continue;
       }
 
-      // 分割线
+      // Horizontal rule
       if (/^(?:---+|\*\*\*+|___+)\s*$/.test(line)) {
         closeList();
         html.push('<hr class="md-hr">');
         continue;
       }
 
-      // 引用块 >
+      // Blockquote >
       const quote = line.match(/^>\s*(.*)$/);
       if (quote) {
         closeList();
@@ -1227,7 +1227,7 @@
         continue;
       }
 
-      // 列表项：无序（-*•）或有序（1. 1)）
+      // List items: unordered (-*•) or ordered (1. 1))
       const bullet = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
       if (bullet) {
         const ordered = /^\s*\d+[.)]/.test(line);
@@ -1293,7 +1293,7 @@ ${release.body}`);
     return lines.join('\n').slice(0, 100_000);
   }
 
-  /** 请求 AI 生成分节要点分析；经宿主逐次确认，未配置 Provider/用户取消均有对应文案。 */
+  /** Requests AI-generated sectioned summary; host confirms each time, handles unconfigured provider or user cancellation. */
   async function generateAiBriefing() {
     if (!token) return;
     const button = $('ai-generate');
@@ -1355,7 +1355,7 @@ ${release.body}`);
     return true;
   }
 
-  /* ── 仓库健康事实卡片（口径对齐宿主 Release 侧栏面板） ─────────────── */
+  /* ── Repository Health Facts Card (aligned with host Release sidebar panel) ── */
 
   const FACT_LABEL_KEYS = {
     pushedAt: 'factPushedAt', latestCommitAt: 'factLatestCommitAt', hasReleases: 'factHasReleases',
@@ -1367,7 +1367,7 @@ ${release.body}`);
     releasesPerYear: 'factReleasesPerYear', latestStable: 'factLatestStable',
   };
 
-  // 按阅读优先级分组：先「更新情况」（最相关），再「关注热度」，最后「仓库特征」。
+  // Grouped by reading priority: "Updates" (most relevant) first, then "Attention", finally "Traits".
   const FACT_GROUPS = [
     { key: 'factsGroupUpdates', facts: ['latestCommitAt', 'pushedAt', 'latestReleaseAt', 'latestStable', 'releaseCount', 'releasesPerYear'] },
     { key: 'factsGroupAttention', facts: ['stars', 'forks', 'openIssues', 'closedIssues'] },
@@ -1376,7 +1376,7 @@ ${release.body}`);
 
   const MS_PER_DAY = 86_400_000;
 
-  /** commit_activity 最后一个非零日 ≈ 最近一次提交（stats 有分钟级缓存时滞）。 */
+  /** Last non-zero day in commit_activity ≈ most recent commit (stats have minute-level cache lag). */
   function latestCommitFromWeeks(commits) {
     if (!Array.isArray(commits) || commits.length === 0) return undefined;
     for (let i = commits.length - 1; i >= 0; i -= 1) {
@@ -1386,13 +1386,13 @@ ${release.body}`);
         if ((week.days[day] || 0) > 0) return new Date((week.week + day * 86_400) * 1000).toISOString();
       }
     }
-    return null; // 数据已知：52 周窗口内没有提交
+    return null; // Data known: no commits within 52-week window
   }
 
-  /** 推导“仓库体检”事实快照：三态事实 + 保守信号 + 摘要所需的时间量。 */
+  /** Derives "Repository Health Check" facts snapshot: tri-state facts + conservative signals + duration metrics. */
   function deriveHealthFacts() {
     const r = { ...state.repository, ...(state.data.get('repo') || {}) };
-    const releases = state.data.get('releases'); // 已过滤 draft、按发布时间降序
+    const releases = state.data.get('releases'); // Filtered non-draft, sorted desc by published_at
     const community = state.data.get('community');
     const commits = state.data.get('commitActivity');
     const contributors = state.data.get('contributors');
@@ -1410,7 +1410,7 @@ ${release.body}`);
     const daysSinceCommit = latestCommitTs === null ? undefined : Math.max(0, Math.floor((now - latestCommitTs) / MS_PER_DAY));
     const releasesKnown = Array.isArray(releases);
     const releaseCount = releasesKnown ? releases.length : undefined;
-    // 三态：undefined = 未知，null = 已知且为空；与宿主 readFactValue 的语义一致。
+    // Tri-state: undefined = unknown, null = known and empty; matches host readFactValue semantics.
     const facts = {
       pushedAt: { kind: 'date', value: pushedTs === null ? undefined : new Date(pushedTs).toISOString() },
       latestCommitAt: { kind: 'date', value: latestCommitFromWeeks(commits) },
@@ -1441,7 +1441,7 @@ ${release.body}`);
       },
       latestStable: { kind: 'text', value: !releasesKnown ? undefined : (releases.find((x) => !isPrereleaseRelease(x))?.tag_name ?? null) },
     };
-    // 保守观测，顺序固定（archived → disabled → no-releases → no-recent-activity）。
+    // Conservative observations in fixed order (archived → disabled → no-releases → no-recent-activity).
     const signals = [];
     if (facts.archived.value === true) signals.push('sigArchived');
     if (facts.disabled.value === true) signals.push('sigDisabled');
@@ -1450,7 +1450,7 @@ ${release.body}`);
     return { facts, signals, ageDays, daysSincePush, daysSinceCommit, contributors };
   }
 
-  /** 事实值的三态格式化：未知/无/是/否/计数/时长/日期。 */
+  /** Tri-state fact value formatting: unknown/none/yes/no/count/duration/date. */
   function formatFactValue(fact) {
     if (fact.value === undefined) return { text: str.valUnknown, unknown: true };
     if (fact.value === null) return { text: str.valNone, unknown: true };
@@ -1470,12 +1470,12 @@ ${release.body}`);
     }
   }
 
-  /** 渲染仓库体检卡：一句话摘要、事实分组（未知沉底）与保守信号徽章。 */
+  /** Renders health check card: one-sentence summary, fact groups (unknown sunk to bottom), and conservative signal badges. */
   function renderFacts() {
     const { facts, signals, daysSinceCommit } = deriveHealthFacts();
     $('facts-signals').innerHTML = signals.map((key) => `<span class="badge signal">${esc(str[key])}</span>`).join('');
 
-    // ── 一句话摘要：维护状态 + 最近提交 / 最新发布 / 仓库历史 ──
+    // ── One-sentence summary: maintenance status + recent commit / latest release / repo history ──
     const r = { ...state.repository, ...(state.data.get('repo') || {}) };
     const archived = facts.archived.value === true;
     const disabled = facts.disabled.value === true;
@@ -1498,7 +1498,7 @@ ${release.body}`);
       : '';
     $('facts-hero').innerHTML = `<span class="dot ${dot}"></span>${esc(str[statusKey])}${heroDim}`;
 
-    // ── 事实分组：已知在前（保持语义顺序），未知沉底弱化 ──
+    // ── Fact groups: known first (preserving semantic order), unknown demoted to bottom ──
     $('facts-grid').innerHTML = FACT_GROUPS.map(({ key, facts: ids }) => {
       const rows = ids
         .map((id) => ({ id, formatted: formatFactValue(facts[id]) }))
@@ -1515,16 +1515,16 @@ ${release.body}`);
     $('card-facts').hidden = false;
   }
 
-  /* ── 区块加载 ─────────────────────────────────────────────────────── */
+  /* ── Section Loading ─────────────────────────────────────────────── */
 
   function markSectionError(cardId, error, unavailableMessage, metricId) {
-    // GitHub 对超大仓库（如 RSSHub）的 /stats/* 端点永远返回 422（统计不可计算），
-    // 跨会话稳定复现，不属于临时失败。commit_activity 的报错文案自带
-    // “10000 commits”，可按文案识别；code_frequency 的 422 文案不含 commit 字样，
-    // 需按 metricId 识别。422 一律要求来自能力桥的 HTTP 错误（code 为
-    // PLUGIN_NETWORK_HTTP_ERROR 且消息带 “GitHub API returned 422” 前缀），
-    // 避免其他路径的错误文案里偶然出现 “422” 字样被误判。两者均归入
-    // “仓库过大/统计不可用”文案。
+    // GitHub's /stats/* endpoints permanently return 422 (computation unfeasible) for massive repos (like RSSHub),
+    // stably reproducible across sessions rather than a transient failure. The commit_activity error message contains
+    // "10000 commits" and can be identified by text; code_frequency 422 does not contain "commit",
+    // so it must be identified by metricId. 422 must strictly originate as an HTTP error from the bridge (code
+    // PLUGIN_NETWORK_HTTP_ERROR and message prefixed with "GitHub API returned 422")
+    // to avoid false positives if "422" appears coincidentally in other error messages. Both map to
+    // "Repository too large / statistics unavailable" message.
     const isStatsTooLarge = /10000 commits/.test(error?.message || '')
       || (error?.code === 'PLUGIN_NETWORK_HTTP_ERROR'
         && /^GitHub API returned 422\b/.test(error.message || '')
@@ -1541,9 +1541,9 @@ ${release.body}`);
   }
 
   /**
-   * 加载一个数据集：先画缓存（stale-while-refresh），再经队列发起网络刷新。
-   * paint(payload, meta) 返回 false 表示数据不可用（区块保留空态）。
-   * 返回 null（成功）或 error（供必需指标上抛为全局错误）。
+   * Loads a dataset: renders cached data first (stale-while-refresh), then refreshes via network queue.
+   * paint(payload, meta) returning false indicates unavailable data (card remains empty).
+   * Returns null (success) or error (allows required metrics to throw global error).
    */
   const STATS_RETRY_INTERVAL_MS = 2500;
   const STATS_MAX_RETRIES = 24;
@@ -1576,17 +1576,17 @@ ${release.body}`);
   async function loadMetric({ id, cardId, pathSuffix, query, optional, stats, ttl = 24 * HOUR, absolute = false, paint, attempt = 0, statsStartTime = 0 }) {
     const { owner, repo, repoKey, queue } = state;
     const runSeq = state.runSeq;
-    const stale = () => runSeq !== state.runSeq; // 仓库已切换，本 Metric 的后续动作全部作废
+    const stale = () => runSeq !== state.runSeq; // Repository switched; cancel subsequent metric actions
     let cacheEntry = null;
     try {
       cacheEntry = await readCache(repoKey, id);
-    } catch { /* 缓存读取失败按无缓存处理 */ }
+    } catch { /* Treat cache read errors as cache misses */ }
     if (cacheEntry) {
       const isStale = Date.now() - cacheEntry.fetchedAt > cacheEntry.ttl;
       try {
         const painted = paint(cacheEntry.payload, { stale: isStale, fetchedAt: cacheEntry.fetchedAt });
         if (painted && cardId) $(cardId).hidden = false;
-      } catch { // 缓存载荷形状异常：降级为无缓存，不让异常逃逸成未处理 rejection
+      } catch { // Malformed cache payload: fall back to cache miss, prevent unhandled rejection
         cacheEntry = null;
         if (cardId) setLoading(cardId, str.loading);
       }
@@ -1595,7 +1595,7 @@ ${release.body}`);
       if (cardId) clearStatsTimer(cardId);
       return null;
     }
-    // 无缓存时一律显示加载状态，给用户明确反馈
+    // Always show loading state on cache miss to provide clear user feedback
     if (cardId && !cacheEntry && !statsTimers.has(cardId)) setLoading(cardId, str.loading);
     try {
       const result = await queue(() => (stale()
@@ -1607,8 +1607,8 @@ ${release.body}`);
       }
       const pendingStats = stats && result.status === 202 && result.body == null;
       if (pendingStats) {
-        // GitHub 统计数据在后台生成中：2.5s 轮询一次，界面以 1s 步长实时累加已等待秒数，
-        // 保证用户清晰感知当前进度，生成完毕后自动刷新。
+        // GitHub statistics generating in background: poll every 2.5s while updating elapsed seconds every 1s,
+        // giving clear progress feedback to the user, then auto-refresh once generation completes.
         if (cardId && attempt < STATS_MAX_RETRIES) {
           const statsStart = startStatsTicker(cardId, statsStartTime);
           setTimeout(() => {
@@ -1637,14 +1637,14 @@ ${release.body}`);
       return null;
     } catch (error) {
       if (cardId) clearStatsTimer(cardId);
-      // 传入 metricId：markSectionError 需要据此识别 code_frequency 等
-      // stats 端点的 422（仓库过大），避免落成通用失败文案。
+      // Pass metricId: markSectionError needs it to identify 422 (repo too large) on stats endpoints like
+      // code_frequency, avoiding generic failure text.
       if (!stale() && cardId && !cacheEntry) markSectionError(cardId, error, undefined, id);
       return error;
     }
   }
 
-  /* 星标历史：串行翻页（每页 30 周，最多 3 页），仍走并发队列占位。 */
+  /* Star history: sequential pagination (30 weeks/page, max 3 pages), queued via concurrency pool. */
   async function loadStarHistory() {
     const { owner, repo, repoKey, queue } = state;
     const cardId = 'card-stars';
@@ -1653,14 +1653,14 @@ ${release.body}`);
     let cacheEntry = null;
     try {
       cacheEntry = await readCache(repoKey, 'starHistory');
-    } catch { /* 无缓存 */ }
+    } catch { /* Cache miss */ }
     if (cacheEntry) {
       const isStale = Date.now() - cacheEntry.fetchedAt > cacheEntry.ttl;
       try {
         if (renderStarHistory(cacheEntry.payload, { stale: isStale, fetchedAt: cacheEntry.fetchedAt })) {
           $('card-stars').hidden = false;
         }
-      } catch { // 形状异常的缓存按无缓存处理
+      } catch { // Treat malformed cache as cache miss
         cacheEntry = null;
         setLoading(cardId, str.loading);
       }
@@ -1700,13 +1700,13 @@ ${release.body}`);
     }
   }
 
-  /* ── 装配 ─────────────────────────────────────────────────────────── */
+  /* ── Assembly ─────────────────────────────────────────────────────── */
 
   function applyTheme(theme) {
     document.body.dataset.theme = theme === 'light' ? 'light' : 'dark';
   }
 
-  /** 应用宿主下发的语言并刷新静态文案。 */
+  /** Applies host-provided language and refreshes static text. */
   function applyLanguage(language) {
     str = String(language).toLowerCase().startsWith('zh') ? STR.zh : STR.en;
     document.documentElement.lang = String(language).toLowerCase().startsWith('zh') ? 'zh' : 'en';
@@ -1727,7 +1727,7 @@ ${release.body}`);
     ['card-advisories', 'advisoriesTitle', 'advisoriesHint'],
   ];
 
-  /** 清空并重置全部卡片的标题、图表与状态，进入新一轮加载。 */
+  /** Resets and clears all card titles, charts, and states before a new load cycle. */
   function resetSections() {
     state.data.clear();
     state.meta.clear();
@@ -1771,14 +1771,14 @@ ${release.body}`);
   }
 
   function paintAllFromCache() {
-    // 缓存先行渲染在各 loadMetric 内完成；这里只是把 KPI 与头部先画出来。
+    // Cache-first rendering is handled inside each loadMetric; this just draws KPIs and header early.
     renderKpis();
   }
 
-  /** 拉取全部指标并渲染：并行 10 个数据集 + 星标历史翻页，全局错误只在必需指标失败时提示。 */
+  /** Fetches all metrics and renders: 10 parallel datasets + paginated star history; prompts global error only on required metric failures. */
   async function loadAll() {
     const runSeq = ++state.runSeq;
-    state.privateRepo = null; // 新一轮加载：可见性回到“未确认”
+    state.privateRepo = null; // New load cycle: visibility resets to "unconfirmed"
     resetSections();
     paintAllFromCache();
     $('status').textContent = str.loading;
@@ -1786,12 +1786,12 @@ ${release.body}`);
 
     const metrics = [
       {
-        // repo 详情：只进 KPI 与健康分，不驱动卡片状态（cardId 为空）。
+        // repo details: only feeds KPIs and health score; does not drive card state (cardId is null).
         id: 'repo', cardId: null, pathSuffix: '', ttl: 6 * HOUR, optional: false,
         paint: (payload) => {
           state.data.set('repo', payload);
-          // /repos/{o}/{r} 携带 Token 时会返回私有仓库详情：私有数据绝不进缓存，
-          // 并清掉此前可能已落盘的同仓库条目。
+          // /repos/{o}/{r} with token returns private repo details: private data must never be cached,
+          // and any existing cached entries for this repository must be purged.
           const isPrivate = payload?.private === true;
           if (isPrivate && state.privateRepo !== true) purgeRepoCache(state.repoKey);
           state.privateRepo = typeof payload?.private === 'boolean' ? payload.private : null;
@@ -1810,7 +1810,7 @@ ${release.body}`);
         optional: true, stats: true, paint: renderChurn,
       },
       {
-        // 贡献者数据只进「维护者与贡献者」容器与 AI 提示词，无独立图表卡。
+        // Contributor data only feeds "Maintainers & Contributors" container and AI prompt; no standalone chart card.
         id: 'contributors', cardId: null, pathSuffix: '/contributors',
         query: { per_page: 12 }, ttl: 24 * HOUR, optional: true, paint: renderContributors,
       },
@@ -1819,7 +1819,7 @@ ${release.body}`);
         optional: true, paint: paintOwnerProfile,
       },
       {
-        // 最近关闭的 PR：AI 动态分析用（合并 PR = merged_at 非空）。
+        // Recently closed PRs: used for AI dynamic analysis (merged PRs = non-null merged_at).
         id: 'pulls', cardId: null, pathSuffix: '/pulls',
         query: { state: 'closed', per_page: 30 }, ttl: 6 * HOUR, optional: true, paint: paintPulls,
       },
@@ -1843,11 +1843,11 @@ ${release.body}`);
 
     const results = await Promise.all(metrics.map((metric) => loadMetric(metric)));
     if (runSeq !== state.runSeq) return;
-    // repo 详情失败时给出全局错误（头部/KPI 仍用快照元数据展示）。
+    // Display global error on repo details failure (header/KPI still displays snapshot metadata).
     if (results[0]) {
       $('status').textContent = fmt(str.loadFailed, { message: results[0]?.message || str.bridgeFailed });
       $('status').classList.remove('loading');
-      // repo 详情失败时，事实卡退化为纯快照元数据（多数事实仍可给出）。
+      // When repo details fail, health check facts card degrades to pure snapshot metadata (most facts still available).
       renderFacts();
     } else if (statsTimers.size === 0) {
       $('status').classList.remove('loading');
@@ -1858,11 +1858,11 @@ ${release.body}`);
     $('foot').textContent = str.footer;
   }
 
-  /* ── 入口与仓库选择器 ─────────────────────────────────────────────── */
+  /* ── Entry Point & Repository Picker ──────────────────────────────── */
 
   let lastRepoKey = null;
 
-  /** 设定当前仓库并启动数据加载。 */
+  /** Sets current repository and starts data loading. */
   function start(repository) {
     const [owner, name] = String(repository.full_name ?? '').split('/');
     if (!owner || !name) {
@@ -1878,12 +1878,12 @@ ${release.body}`);
     void loadAll();
   }
 
-  /** 处理宿主 init：主题/语言跟随；同仓库重复 init 幂等，换仓库重新加载。 */
+  /** Handles host init: follows theme/language; idempotent for same repo, reloads on repo switch. */
   async function handleInit(context) {
     if (context.theme) applyTheme(context.theme);
     if (context.language) applyLanguage(context.language);
-    // 宿主在 init 中下发当前 GitHub 身份标签：缓存绘制前先确立身份，
-    // 标签变化（切换账号）时清空既有缓存再重载。
+    // Host sends current GitHub account tag in init: establish identity before rendering cache;
+    // clear existing cache and reload when tag changes (account switched).
     if (typeof context.accountTag === 'string' && context.accountTag) {
       if (state.acct && state.acct !== context.accountTag) {
         purgeRepoCache(state.repoKey);
@@ -1898,7 +1898,7 @@ ${release.body}`);
     const repository = context.repository;
     const repoKey = String(repository.full_name ?? '').toLowerCase();
     if (repoKey === lastRepoKey && state.repository) {
-      // 同仓库的上下文补发（如 README 异步到位）：只更新主题/文案，不重新拉数据。
+      // Supplemental context for same repo (e.g. async README arrival): only update theme/copy, do not re-fetch data.
       state.repository = repository;
       renderHeader();
       renderKpis();
@@ -1908,7 +1908,7 @@ ${release.body}`);
     start(repository);
   }
 
-  /** 经桥搜索宿主已加载的仓库（设置页入口的仓库选择器用）。 */
+  /** Searches loaded repositories via bridge (used by repo picker from settings page entry). */
   async function searchRepositories(query) {
     const value = await request('repositories.search', { query, limit: 10 });
     return Array.isArray(value) ? value : value?.repositories ?? [];

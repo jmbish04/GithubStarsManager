@@ -21,9 +21,9 @@ const PACKAGE_SYNC_TARGETS = [
 ];
 
 /**
- * 根 package.json 是应用版本的唯一来源。
+ * The root package.json is the single source of truth for the app version.
  *
- * 用法：
+ * Usage:
  *   node scripts/update-version.cjs <changelog...> [--url=downloadUrl]
  *   node scripts/update-version.cjs --sync-lock
  *   node scripts/update-version.cjs --list
@@ -52,7 +52,7 @@ function updateVersionInfo() {
   }
 
   if (args.length === 0) {
-    console.error('❌ 参数不足');
+    console.error('❌ Not enough arguments');
     showHelp();
     process.exitCode = 1;
     return;
@@ -71,7 +71,7 @@ function updateVersionInfo() {
     releaseLock = acquireReleaseLockAfterRecovery();
     const releaseArgs = parseReleaseArgs(args);
     if (releaseArgs.changelog.length === 0) {
-      throw new Error('至少需要提供一条更新日志');
+      throw new Error('At least one changelog entry is required');
     }
 
     const version = readRootPackageVersion();
@@ -107,17 +107,17 @@ function updateVersionInfo() {
       throw error;
     }
 
-    console.log(`✅ 已根据根 package.json 的版本 v${version} 更新发布元数据`);
-    console.log('📝 更新内容:');
+    console.log(`✅ Updated release metadata from root package.json version v${version}`);
+    console.log('📝 Changes:');
     releaseArgs.changelog.forEach((item, index) => {
       console.log(`   ${index + 1}. ${item}`);
     });
     if (releaseArgs.customDownloadUrl !== null) {
-      console.log(`🔗 自定义下载链接: ${releaseArgs.customDownloadUrl}`);
+      console.log(`🔗 Custom download URL: ${releaseArgs.customDownloadUrl}`);
     }
-    console.log('\n🔄 请记得提交这些更改到 Git 仓库');
+    console.log('\n🔄 Remember to commit these changes to the Git repository');
   } catch (error) {
-    console.error('❌ 更新版本失败:', error.message);
+    console.error('❌ Failed to update version:', error.message);
     process.exitCode = 1;
   } finally {
     cleanupStagedFile(stagedLockfilePath);
@@ -152,9 +152,9 @@ function syncLockfileFromRootVersion() {
       }
       throw error;
     }
-    console.log(`📦 已将根与 server package-lock.json 同步为根 package.json 的版本 v${version}`);
+    console.log(`📦 Synced root and server package-lock.json to root package.json version v${version}`);
   } catch (error) {
-    console.error('❌ 同步 package-lock.json 失败:', error.message);
+    console.error('❌ Failed to sync package-lock.json:', error.message);
     process.exitCode = 1;
   } finally {
     releaseReleaseLock(releaseLock);
@@ -163,14 +163,14 @@ function syncLockfileFromRootVersion() {
 
 function acquireReleaseLockAfterRecovery() {
   const lock = acquireReleaseLockWithTakeover();
-  // 恢复必须在持有独占锁之后进行，否则两个进程可能并发恢复同一份事务日志：
-  // 一个还在读备份，另一个已经把备份删掉了。
+  // Recovery must happen after acquiring the exclusive lock; otherwise two processes could recover the same transaction journal concurrently:
+  // one is still reading the backups while the other has already deleted them.
   recoverInterruptedPackageSync();
   return lock;
 }
 
 function acquireReleaseLockWithTakeover() {
-  // 只有死属主残留的锁才会被接管；活进程或状态未知时保持获取失败（EEXIST 拒绝）。
+  // Only locks left behind by a dead owner are taken over; if the owner is alive or its state is unknown, acquisition keeps failing (EEXIST rejection).
   tryTakeOverStaleReleaseLock();
   return acquireReleaseLock();
 }
@@ -182,7 +182,7 @@ function tryTakeOverStaleReleaseLock() {
   }
 
   try {
-    // rename 抢占是原子的：并发接管者中只有一个能把陈旧锁移走
+    // The rename takeover is atomic: only one of the concurrent takers can move the stale lock away
     fs.renameSync(RELEASE_LOCK_PATH, RELEASE_LOCK_TAKENOVER_PATH);
   } catch (error) {
     if (error.code === 'ENOENT') {
@@ -192,11 +192,11 @@ function tryTakeOverStaleReleaseLock() {
   }
 
   if (readReleaseLockPid(RELEASE_LOCK_TAKENOVER_PATH) !== stalePid) {
-    // rename 前锁可能已被在线属主重建：原样放回并放弃接管，绝不删除在线进程的锁
+    // The lock may have been recreated by a live owner before the rename: put it back as-is and give up the takeover; never delete a live process's lock
     try {
       fs.renameSync(RELEASE_LOCK_TAKENOVER_PATH, RELEASE_LOCK_PATH);
     } catch {
-      // 无法放回时同样放弃，由属主自身的释放逻辑兜底
+      // Give up as well if it cannot be put back; the owner's own release logic is the fallback
     }
     return false;
   }
@@ -244,7 +244,7 @@ function commitPackageSyncTargets(version, transaction, staged = {}) {
 
 function createPackageSyncTransaction(version) {
   if (fs.existsSync(PACKAGE_SYNC_JOURNAL_PATH)) {
-    throw new Error('检测到未完成的 package 版本同步事务，无法开始新的事务');
+    throw new Error('Detected an unfinished package version sync transaction; cannot start a new transaction');
   }
 
   preparePackageSyncBackupDir();
@@ -276,14 +276,14 @@ function createPackageSyncTransaction(version) {
 function preparePackageSyncBackupDir() {
   if (fs.existsSync(PACKAGE_SYNC_BACKUP_DIR)) {
     if (!fs.statSync(PACKAGE_SYNC_BACKUP_DIR).isDirectory()) {
-      throw new Error('package sync 备份路径不是目录，无法开始新事务');
+      throw new Error('The package sync backup path is not a directory; cannot start a new transaction');
     }
-    // 事务日志在所有备份写完后才落盘：没有日志时，目录中的备份必然来自
-    // 写日志前被中断的同步，目标文件尚未改写、备份无人引用，可安全清除。
+    // The transaction journal is written only after all backups are written: when there is no journal, any backups in the directory must come from
+    // a sync interrupted before the journal was written; the target files have not been rewritten and nothing references the backups, so they can be safely removed.
     for (const entry of fs.readdirSync(PACKAGE_SYNC_BACKUP_DIR)) {
       const entryPath = path.join(PACKAGE_SYNC_BACKUP_DIR, entry);
       if (!fs.statSync(entryPath).isFile()) {
-        throw new Error(`package sync 备份目录存在无法清理的异常条目：${entry}`);
+        throw new Error(`The package sync backup directory contains an entry that cannot be cleaned up: ${entry}`);
       }
       unlinkIfExists(entryPath);
     }
@@ -315,7 +315,7 @@ function readPackageSyncJournal() {
   try {
     transaction = JSON.parse(fs.readFileSync(PACKAGE_SYNC_JOURNAL_PATH, 'utf8'));
   } catch (error) {
-    throw new Error(packageSyncJournalError(`package sync 事务日志读取失败：${error.message}`));
+    throw new Error(packageSyncJournalError(`Failed to read the package sync transaction journal: ${error.message}`));
   }
 
   validatePackageSyncJournal(transaction);
@@ -323,25 +323,25 @@ function readPackageSyncJournal() {
 }
 
 function packageSyncJournalError(message) {
-  return `${message}。如确认当前没有同步在进行，可手动删除 .package-sync.transaction.json 与 .package-sync-backups/ 后重试`;
+  return `${message}. If you are sure no sync is in progress, manually delete .package-sync.transaction.json and .package-sync-backups/ and retry`;
 }
 
 function validatePackageSyncJournal(transaction) {
   if (!transaction || transaction.transaction !== PACKAGE_SYNC_TRANSACTION) {
-    throw new Error(packageSyncJournalError('package sync 事务日志类型不正确'));
+    throw new Error(packageSyncJournalError('The package sync transaction journal has an invalid type'));
   }
   if (typeof transaction.version !== 'string') {
-    throw new Error(packageSyncJournalError('package sync 事务日志的 version 字段不正确'));
+    throw new Error(packageSyncJournalError('The package sync transaction journal has an invalid version field'));
   }
   validateVersion(transaction.version);
   if (typeof transaction.startedAt !== 'string' || transaction.startedAt.length === 0) {
-    throw new Error(packageSyncJournalError('package sync 事务日志的 startedAt 字段不正确'));
+    throw new Error(packageSyncJournalError('The package sync transaction journal has an invalid startedAt field'));
   }
   if (!['prepared', 'committed', 'recovered'].includes(transaction.state)) {
-    throw new Error(packageSyncJournalError('package sync 事务日志的 state 字段不正确'));
+    throw new Error(packageSyncJournalError('The package sync transaction journal has an invalid state field'));
   }
   if (!Array.isArray(transaction.targets) || transaction.targets.length !== PACKAGE_SYNC_TARGETS.length) {
-    throw new Error(packageSyncJournalError('package sync 事务日志的 targets 列表不正确'));
+    throw new Error(packageSyncJournalError('The package sync transaction journal has an invalid targets list'));
   }
 
   PACKAGE_SYNC_TARGETS.forEach((expected, index) => {
@@ -351,7 +351,7 @@ function validatePackageSyncJournal(transaction) {
       `${index}-${path.basename(expected.path)}.bak`
     );
     if (!actual || actual.targetPath !== expected.path || actual.backupPath !== expectedBackupPath) {
-      throw new Error(packageSyncJournalError(`package sync 事务日志的 target ${index} 与预期不一致`));
+      throw new Error(packageSyncJournalError(`The package sync transaction journal target ${index} does not match what was expected`));
     }
   });
 }
@@ -360,8 +360,8 @@ function restorePackageSyncBackups(transaction) {
   for (const target of transaction.targets) {
     if (!fs.existsSync(target.backupPath)) {
       throw new Error(
-        `package sync 备份文件缺失：${path.basename(target.backupPath)}，无法恢复中断的事务。` +
-        '可删除 .package-sync.transaction.json 与 .package-sync-backups/，用 git 还原目标文件后重试'
+        `Package sync backup file missing: ${path.basename(target.backupPath)}; cannot recover the interrupted transaction.` +
+        'You can delete .package-sync.transaction.json and .package-sync-backups/, restore the target files with git, and retry'
       );
     }
     writeDurableFile(target.targetPath, fs.readFileSync(target.backupPath));
@@ -381,7 +381,7 @@ function cleanupPackageSyncTransaction(transaction) {
 
   if (fs.existsSync(PACKAGE_SYNC_BACKUP_DIR)) {
     if (fs.readdirSync(PACKAGE_SYNC_BACKUP_DIR).length > 0) {
-      throw new Error('package sync 备份目录清理未完成，存在残留文件');
+      throw new Error('Package sync backup directory cleanup incomplete; leftover files remain');
     }
     syncDirectory(PACKAGE_SYNC_BACKUP_DIR);
     fs.rmdirSync(PACKAGE_SYNC_BACKUP_DIR);
@@ -493,7 +493,7 @@ function acquireReleaseLock() {
     return RELEASE_LOCK_PATH;
   } catch (error) {
     if (error.code === 'EEXIST') {
-      throw new Error(`检测到另一个版本同步任务正在运行（${path.basename(RELEASE_LOCK_PATH)}）。确认其结束后再重试`);
+      throw new Error(`Detected another version sync task running (${path.basename(RELEASE_LOCK_PATH)}). Retry after confirming it has finished`);
     }
     throw error;
   }
@@ -508,7 +508,7 @@ function releaseReleaseLock(lockPath) {
     fs.unlinkSync(lockPath);
   } catch (error) {
     if (error.code !== 'ENOENT') {
-      console.error(`❌ 无法移除版本同步锁 ${path.basename(lockPath)}:`, error.message);
+      console.error(`❌ Failed to remove version sync lock ${path.basename(lockPath)}:`, error.message);
       process.exitCode = 1;
     }
   }
@@ -533,10 +533,10 @@ function parseReleaseArgs(args) {
     try {
       url = new URL(customDownloadUrl);
     } catch {
-      throw new Error('自定义下载链接必须是合法的绝对 URL');
+      throw new Error('The custom download URL must be a valid absolute URL');
     }
     if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-      throw new Error('自定义下载链接只允许使用 http 或 https 协议');
+      throw new Error('The custom download URL may only use the http or https protocol');
     }
   }
 
@@ -550,7 +550,7 @@ function readRootPackageVersion() {
 
 function validateVersion(version) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
-    throw new Error(`根 package.json 的版本无效：${version}`);
+    throw new Error(`The root package.json version is invalid: ${version}`);
   }
 }
 
@@ -569,13 +569,13 @@ function loadVersionXml(version) {
 
   const closingTagIndex = xmlContent.lastIndexOf('</versions>');
   if (closingTagIndex === -1) {
-    throw new Error('versions/version-info.xml 缺少 </versions> 结束标签');
+    throw new Error('versions/version-info.xml is missing the closing </versions> tag');
   }
 
   const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const versionPattern = new RegExp(`<number>\\s*${escapedVersion}\\s*</number>`);
   if (versionPattern.test(xmlContent)) {
-    throw new Error(`版本 ${version} 已存在于 versions/version-info.xml，拒绝重复发布`);
+    throw new Error(`Version ${version} already exists in versions/version-info.xml; refusing to publish a duplicate`);
   }
 
   return { content: xmlContent, closingTagIndex };
@@ -584,7 +584,7 @@ function loadVersionXml(version) {
 function stageSyncedPackageLock(lockfilePath, version) {
   const packageLock = JSON.parse(fs.readFileSync(lockfilePath, 'utf8'));
   if (!packageLock.packages || !packageLock.packages['']) {
-    throw new Error(`${path.basename(lockfilePath)} 缺少根包条目，无法同步版本`);
+    throw new Error(`${path.basename(lockfilePath)} is missing the root package entry; cannot sync the version`);
   }
 
   packageLock.version = version;
@@ -633,7 +633,7 @@ function cleanupStagedFile(stagedPath) {
   try {
     fs.unlinkSync(stagedPath);
   } catch (error) {
-    console.error(`❌ 无法清理临时文件 ${path.basename(stagedPath)}:`, error.message);
+    console.error(`❌ Failed to clean up temporary file ${path.basename(stagedPath)}:`, error.message);
     process.exitCode = 1;
   }
 }
@@ -664,7 +664,7 @@ function restoreFileSnapshot(snapshot) {
       fs.unlinkSync(snapshot.path);
     }
   } catch (error) {
-    throw new Error(`版本同步失败，且 ${path.basename(snapshot.path)} 回滚未完成：${error.message}`);
+    throw new Error(`Version sync failed, and rollback of ${path.basename(snapshot.path)} did not complete: ${error.message}`);
   }
 }
 
@@ -676,19 +676,19 @@ function verifyRootVersionSync(version) {
   const serverLockRootVersion = serverPackageLock.packages?.['']?.version;
 
   if (readRootPackageVersion() !== version) {
-    throw new Error(`package.json 版本在同步期间变更，预期为 ${version}`);
+    throw new Error(`The package.json version changed during sync; expected ${version}`);
   }
 
   if (packageLock.version !== version || lockRootVersion !== version) {
-    throw new Error(`package-lock.json 的根包版本未同步为 ${version}`);
+    throw new Error(`The package-lock.json root package version was not synced to ${version}`);
   }
 
   if (serverPackage.version !== version) {
-    throw new Error(`server/package.json 版本未同步为 ${version}`);
+    throw new Error(`The server/package.json version was not synced to ${version}`);
   }
 
   if (serverPackageLock.version !== version || serverLockRootVersion !== version) {
-    throw new Error(`server/package-lock.json 的根包版本未同步为 ${version}`);
+    throw new Error(`server/The package-lock.json root package version was not synced to ${version}`);
   }
 }
 
@@ -708,13 +708,13 @@ function listVersions() {
 
     parser.parseString(xmlContent, (error, result) => {
       if (error) {
-        console.error('❌ XML 解析失败:', error.message);
+        console.error('❌ Failed to parse XML:', error.message);
         process.exitCode = 1;
         return;
       }
 
       const versions = result.versions?.version || [];
-      console.log('📋 版本历史:\n');
+      console.log('📋 Version history:\n');
       versions.forEach((version, index) => {
         console.log(`${index + 1}. v${version.number[0]} (${version.releaseDate[0]})`);
         if (version.changelog?.[0]?.item) {
@@ -724,37 +724,37 @@ function listVersions() {
       });
     });
   } catch (error) {
-    console.error('❌ 读取版本信息失败:', error.message);
+    console.error('❌ Failed to read version info:', error.message);
     process.exitCode = 1;
   }
 }
 
 function showCurrentVersion() {
   try {
-    console.log(`📦 当前版本: v${readRootPackageVersion()}`);
+    console.log(`📦 Current version: v${readRootPackageVersion()}`);
   } catch (error) {
-    console.error('❌ 读取当前版本失败:', error.message);
+    console.error('❌ Failed to read current version:', error.message);
     process.exitCode = 1;
   }
 }
 
 function showHelp() {
-  console.log('📖 版本管理工具使用说明\n');
-  console.log('根 package.json 的 version 是唯一版本输入。请先修改它，再执行以下命令。\n');
-  console.log('用法:');
+  console.log('📖 Version management tool usage\n');
+  console.log('The version in the root package.json is the only version input. Edit it first, then run the commands below.\n');
+  console.log('Usage:');
   console.log('  node scripts/update-version.cjs <changelog...> [--url=downloadUrl]');
   console.log('  node scripts/update-version.cjs --sync-lock');
   console.log('  node scripts/update-version.cjs --list');
   console.log('  node scripts/update-version.cjs --current\n');
-  console.log('示例:');
+  console.log('Examples:');
   console.log('  npm run sync-version');
-  console.log('  npm run update-version -- "修复已知问题" "提升用户体验"');
-  console.log('  npm run update-version -- "优化性能" --url=https://example.com/download\n');
-  console.log('注意:');
-  console.log('  • 根与 server 的 package-lock.json，以及 server/package.json 的版本由根 package.json 自动同步。');
-  console.log('  • electron/package.json 不维护独立应用版本；Electron Builder 使用根 package.json。');
-  console.log('  • 版本同步期间会持有仓库独占锁，防止并发发布互相覆盖。');
-  console.log('  • --url= 会被视为无效参数，避免静默回退到默认下载链接。');
+  console.log('  npm run update-version -- "Fix known issues" "Improve user experience"');
+  console.log('  npm run update-version -- "Improve performance" --url=https://example.com/download\n');
+  console.log('Notes:');
+  console.log('  • The root and server package-lock.json files, and the server/package.json version, are synced automatically from the root package.json.');
+  console.log('  • electron/package.json does not maintain a separate app version; Electron Builder uses the root package.json.');
+  console.log('  • An exclusive repository lock is held during version sync to prevent concurrent releases from overwriting each other.');
+  console.log('  • --url= is treated as an invalid argument to avoid silently falling back to the default download URL.');
 }
 
 updateVersionInfo();

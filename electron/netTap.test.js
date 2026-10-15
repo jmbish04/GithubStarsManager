@@ -94,7 +94,7 @@ describe('netTap.wrapFetch', () => {
 
   it('records aborts by exception name (no net:: code in chain) as info', async () => {
     const { entries, record } = collect();
-    // AbortController.abort() 抛出的异常只有 name，cause 链里没有 net::ERR_*
+    // Errors thrown by AbortController.abort() only have a name; there is no net::ERR_* in the cause chain
     const boom = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
     const tapped = wrapFetch(async () => { throw boom; }, { source: 'test', record });
     await assert.rejects(() => tapped('https://api.example.com/x'), (err) => err === boom);

@@ -135,9 +135,9 @@ const mockUseAppStore = vi.mocked(mocks.useAppStore);
 
 const identity = <T,>(repos: T[]): T[] => repos;
 
-// resetAllMocks 会连同 useAppStore 的 mockImplementation 一起清掉，每次重建。
-// 用 resetAllMocks 而非 clearAllMocks：后者不清实现，mockRejectedValue 等会
-// 泄漏进后续用例，形成用例顺序依赖。
+// resetAllMocks clears useAppStore's mockImplementation along with everything else, so rebuild each time.
+// Use resetAllMocks rather than clearAllMocks: the latter does not reset implementations, causing
+// mockRejectedValue etc. to leak into subsequent test cases and create order dependencies.
 const setupStoreMocks = () => {
   storeState = createStoreState();
   mockUseAppStore.mockImplementation((selector?: (state: typeof storeState) => unknown) =>
@@ -167,7 +167,7 @@ describe('useSearchActions.aiSearch (vector hit)', () => {
       baseRepo({ id: 2, full_name: 'owner/other', description: 'has foo inside' }),
       baseRepo({ id: 3, full_name: 'owner/tagged', topics: [] }),
     ];
-    // 预置与 list 同名的本地分类，使本用例不触发新建分类分支
+    // Pre-seed a local category with the same name as the list so this test doesn't trigger the create category branch
     storeState.customCategories = [{ id: 'custom-1', name: 'MyList', icon: 'x', isCustom: true, keywords: [] }];
     mocks.embed.mockResolvedValue([[0.1, 0.2]]);
     mocks.vectorQuery.mockResolvedValue([
@@ -185,7 +185,7 @@ describe('useSearchActions.aiSearch (vector hit)', () => {
       scores: new Map([['1', 0.9 + 0.05], ['2', 0.8 + 0.03], ['3', 0.7 + 0.02]]),
     });
     expect(result.current.skipNextTextSearchRef.current).toBe(true);
-    // 加分后按分数降序：3(0.72+0.02=0.74)? —— 见下：tag 加分 0.02 → 0.72
+    // Descending by score after boosting: 3(0.72+0.02=0.74)? — see below: tag boost 0.02 -> 0.72
     expect(storeState.setSearchResults).toHaveBeenCalledWith([
       storeState.repositories[0],
       storeState.repositories[1],
@@ -259,7 +259,7 @@ describe('useSearchActions.aiSearch (vector hit)', () => {
       await act(async () => { await promise; });
 
       expect(mocks.embed).toHaveBeenCalledWith(['foo'], 'query');
-      // 5s 预算耗尽后 HyDE 局部 controller 必须真正 abort 掉挂起的请求
+      // After the 5s budget is exhausted, the local HyDE controller must abort the pending request
       expect(hydeSignals[0]?.aborted).toBe(true);
     } finally {
       vi.useRealTimers();
@@ -327,7 +327,7 @@ describe('useSearchActions.aiSearch (vector hit)', () => {
     const { result } = renderHook(() => useSearchActions());
     await act(async () => { await result.current.aiSearch('foo', identity); });
 
-    // 落入 keywordSearch 后 AI 精选成功：结果须像向量路径一样挡住过滤 effect 的覆盖
+    // When falling into keywordSearch with successful AI selection: results must block the filter effect override, matching the vector path
     expect(result.current.skipNextTextSearchRef.current).toBe(true);
     expect(storeState.setSearchResults).toHaveBeenCalledWith([storeState.repositories[0]]);
     expect(storeState.setSearchFilters).toHaveBeenCalledWith({ query: 'foo' });
@@ -415,7 +415,7 @@ describe('useSearchActions.keywordSearch', () => {
     expect(mocks.searchRepositoriesWithSelection).toHaveBeenCalledTimes(1);
     expect(storeState.setSearchResults).toHaveBeenCalledWith([storeState.repositories[0]]);
     expect(storeState.setSearchFilters).toHaveBeenCalledWith({ query: 'foo' });
-    // AI 失败走基础文本搜索兜底：顺序非 AI 产物，无需挡 SearchBar 的过滤 effect
+    // AI failure falls back to basic text search: ordering is not an AI artifact, no need to block SearchBar's filter effect
     expect(result.current.skipNextTextSearchRef.current).toBe(false);
   });
 
@@ -435,7 +435,7 @@ describe('useSearchActions.keywordSearch', () => {
     ];
     mocks.embed.mockResolvedValue([[0.1]]);
     mocks.vectorQuery.mockResolvedValue([]);
-    // 模型明确判断"没有相关仓库"：返回 [] 是合法结果，UI 应呈现空态而非全库噪声
+    // Model explicitly determines "no relevant repositories": returning [] is a valid outcome; UI should show empty state rather than noise from the entire repo list
     mocks.searchRepositoriesWithSelection.mockResolvedValue([]);
 
     const { result } = renderHook(() => useSearchActions());
@@ -443,7 +443,7 @@ describe('useSearchActions.keywordSearch', () => {
 
     expect(storeState.setSearchResults).toHaveBeenCalledWith([]);
     expect(storeState.setSearchFilters).toHaveBeenCalledWith({ query: '完全不相关的东西' });
-    // 空态是模型的明确判断，同样必须挡住 SearchBar 过滤 effect 的回填
+    // Empty state is an explicit decision by the model and must also block backfilling by SearchBar's filter effect
     expect(result.current.skipNextTextSearchRef.current).toBe(true);
   });
 
@@ -463,12 +463,12 @@ describe('useSearchActions.keywordSearch', () => {
     ];
     mocks.embed.mockResolvedValue([[0.1]]);
     mocks.vectorQuery.mockResolvedValue([]);
-    // LLM 精选把低 star 的排在前面：applyFilters 的 star 降序不能覆盖该顺序
+    // LLM curation ranks lower-star repos higher: applyFilters star-descending sort must not override this ordering
     mocks.searchRepositoriesWithSelection.mockResolvedValue([
       storeState.repositories[1],
       storeState.repositories[0],
     ]);
-    // 模拟 SearchBar 真实的 applyFilters：按 star 降序排序
+    // Simulate SearchBar's real applyFilters: sort descending by stars
     const starSort = (repos: Repository[]) =>
       [...repos].sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0));
 
@@ -479,8 +479,8 @@ describe('useSearchActions.keywordSearch', () => {
       storeState.repositories[1],
       storeState.repositories[0],
     ]);
-    // AI 结果的顺序/子集/空态不能被 SearchBar 的过滤 effect 用基础文本搜索覆盖：
-    // keywordSearch 需像向量路径一样置位 skipNextTextSearchRef
+    // AI result order/subset/empty state must not be overwritten by SearchBar's filter effect using basic text search:
+    // keywordSearch needs to set skipNextTextSearchRef, matching the vector path
     expect(result.current.skipNextTextSearchRef.current).toBe(true);
   });
 
@@ -500,7 +500,7 @@ describe('useSearchActions.keywordSearch', () => {
     ];
     mocks.embed.mockResolvedValue([[0.1]]);
     mocks.vectorQuery.mockResolvedValue([]);
-    // 端点抖动/配置问题：service 回调 ai_failed，词法命中照常返回
+    // Endpoint jitter / configuration issue: service invokes onFallback with ai_failed; lexical hits are returned as usual
     mocks.searchRepositoriesWithSelection.mockImplementation(
       (_repos: Repository[], _query: string, opts?: { onFallback?: (reason: string) => void }) => {
         opts?.onFallback?.('ai_failed');
@@ -513,8 +513,8 @@ describe('useSearchActions.keywordSearch', () => {
 
     expect(mocks.toast).toHaveBeenCalledWith('AI 请求失败，已回退本地词法搜索', 'warning');
     expect(storeState.setSearchResults).toHaveBeenCalledWith([storeState.repositories[0]]);
-    // 兜底结果（加权词法 + CJK bigram 召回）优于过滤 effect 的 AND 整串匹配，
-    // 必须置位 skipNextTextSearchRef 防止被其重设（CJK 查询会被重设为空）
+    // Fallback results (weighted lexical + CJK bigram recall) are superior to filter effect's AND exact string matching;
+    // must set skipNextTextSearchRef to prevent being reset by it (CJK queries would be reset to empty)
     expect(result.current.skipNextTextSearchRef.current).toBe(true);
   });
 
@@ -534,7 +534,7 @@ describe('useSearchActions.keywordSearch', () => {
     ];
     mocks.embed.mockResolvedValue([[0.1]]);
     mocks.vectorQuery.mockResolvedValue([]);
-    // service 按契约把 AbortError 向上重抛：取消不是失败，hook 不做基础文本兜底
+    // Service re-throws AbortError per contract: cancellation is not a failure; hook does not perform basic text fallback
     mocks.searchRepositoriesWithSelection.mockRejectedValue(
       Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' }),
     );
@@ -557,7 +557,7 @@ describe('useSearchActions.keywordSearch', () => {
     mocks.searchRepositoriesWithSelection.mockImplementation(
       (_repos: Repository[], _query: string, opts?: { signal?: AbortSignal }) => {
         signals.push(opts?.signal);
-        // 模拟真实在途请求：signal abort 时以 AbortError 拒绝
+        // Simulate real in-flight request: reject with AbortError when signal aborts
         return new Promise<Repository[]>((_resolve, reject) => {
           opts?.signal?.addEventListener('abort', () => {
             reject(Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' }));
@@ -569,14 +569,14 @@ describe('useSearchActions.keywordSearch', () => {
     const { result } = renderHook(() => useSearchActions());
     let first!: Promise<void>;
     await act(async () => { first = result.current.aiSearch('first', identity); });
-    // 第二次搜索（不 await：模拟仍在途）启动时中止第一次
+    // Second search (not awaited: simulate still in-flight) aborts the first upon launch
     await act(async () => { result.current.aiSearch('second', identity); });
-    // 第二次搜索的启动即中止第一次的在途 controller
+    // Starting the second search aborts the in-flight controller of the first
     expect(signals[0]?.aborted).toBe(true);
     expect(signals[1]?.aborted).toBe(false);
     await act(async () => { await first; });
 
-    // 被取代的搜索不得写入结果，也不复位第二次搜索的 isSearching
+    // Superseded search must not write results, nor reset isSearching of the second search
     expect(storeState.setSearchResults).not.toHaveBeenCalled();
     expect(result.current.isSearching).toBe(true);
   });
@@ -607,7 +607,7 @@ describe('useSearchActions.syncStars', () => {
     ]);
     mocks.getUserLists.mockResolvedValue([{ id: 'l1', name: 'MyList', isPrivate: false, items: ['owner/repo-one'] }]);
     storeState.repositories = [baseRepo({ id: 1, full_name: 'owner/repo-one' })];
-    // 预置与 list 同名的本地分类，使本用例不触发新建分类分支
+    // Pre-seed a local category with the same name as the list so this test doesn't trigger the create category branch
     storeState.customCategories = [{ id: 'custom-1', name: 'MyList', icon: 'x', isCustom: true, keywords: [] }];
 
     const { result } = renderHook(() => useSearchActions());
@@ -616,7 +616,7 @@ describe('useSearchActions.syncStars', () => {
     expect(storeState.setRepositories).toHaveBeenCalledTimes(1);
     const written = storeState.setRepositories.mock.calls[0][0] as Repository[];
     expect(written[0].custom_tags).toContain('MyList');
-    // list 名命中同名本地分类 → 设分类并加锁
+    // List name matches local category of the same name -> set category and lock
     expect(written[0].custom_category).toBe('MyList');
     expect(written[0].category_locked).toBe(true);
     expect(written[0].last_edited).toEqual(expect.any(String));
@@ -781,8 +781,8 @@ describe('useSearchActions pure helpers', () => {
   });
 
   it('mergeStarredRepositories keeps AI analysis when a batch-starred repo only matches by full_name', () => {
-    // 回归：批量从链接 Star 的仓库曾被分配合成 id，与 GitHub 真实 id 对不上。
-    // 仅按 id 匹配会失配并整条采用裸 GitHub 数据，抹掉 AI 分析与分类标签。
+    // Regression: repositories starred in batch from links used to be assigned synthetic ids that didn't match real GitHub ids.
+    // Matching only by id would mismatch and adopt raw GitHub data entirely, wiping AI analysis and category tags.
     const storeRepos = [
       baseRepo({
         id: 1_700_000_000_123,
@@ -803,20 +803,20 @@ describe('useSearchActions pure helpers', () => {
 
     expect(merged).toHaveLength(1);
     expect(merged[0]).toMatchObject({
-      // 本地 AI 分析与分类标签必须保留
+      // Local AI analysis and category tags must be retained
       ai_summary: 'AI 摘要',
       ai_tags: ['ai-tag'],
       ai_platforms: ['cli'],
       analyzed_at: '2026-02-01T00:00:00.000Z',
       custom_category: '工具',
       category_locked: true,
-      // GitHub 源元数据仍然刷新
+      // GitHub source metadata is still refreshed
       description: '来自 GitHub 的新描述',
     });
   });
 
   it('matches the full_name fallback case-insensitively', () => {
-    // 合成 id（>=1e11）代表批量 Star 的历史记录，才有资格走名称兜底
+    // Synthetic ids (>=1e11) represent legacy batch-starred records and are eligible for name fallback
     const storeRepos = [
       baseRepo({ id: 1_700_000_000_555, full_name: 'Owner/Mixed-Case', ai_summary: 'AI 摘要' }),
     ];
@@ -829,9 +829,9 @@ describe('useSearchActions pure helpers', () => {
   });
 
   it('does not let a different repo inherit analysis by reusing a real-id repo name', () => {
-    // 回归（CodeRabbit 安全评审）：本地记录带**真实 GitHub id** 时，身份是权威的。
-    // 该仓库被改名/删除后，旧名可能被另一个新仓库复用。若仍走名称兜底，
-    // 新仓库会继承旧仓库的 AI 分析、锁定分类与订阅状态（身份错误归属）。
+    // Regression (CodeRabbit security review): when a local record has a **real GitHub id**, identity is authoritative.
+    // If that repository was renamed/deleted, the old name might be reused by a new repository. Falling back by name
+    // would cause the new repository to inherit the old repository's AI analysis, locked category, and subscription (misattribution).
     const storeRepos = [
       baseRepo({
         id: 555,
@@ -842,7 +842,7 @@ describe('useSearchActions pure helpers', () => {
         subscribed_to_releases: true,
       }),
     ];
-    // 另一个恰好复用旧名的新仓库，id 不同
+    // Another new repository that happens to reuse the old name, with a different id
     const newRepos = [baseRepo({ id: 777, full_name: 'owner/old' })];
 
     const merged = mergeStarredRepositories(newRepos, storeRepos);
@@ -853,12 +853,12 @@ describe('useSearchActions pure helpers', () => {
     expect(merged[0].custom_category).toBeUndefined();
     expect(merged[0].category_locked).toBeUndefined();
     expect(merged[0].subscribed_to_releases).toBeUndefined();
-    // 复用旧名的仓库是真正的新增
+    // The repository reusing the old name is genuinely new
     expect(countNewStarredRepositories(newRepos, storeRepos)).toBe(1);
   });
 
   it('still repairs legacy synthetic-id records by name fallback', () => {
-    // 兜底的正向场景不能被上面的加固误伤：合成 id 记录仍应被认领并恢复分析结果
+    // The positive fallback scenario must not be broken by the hardening above: synthetic-id records should still be claimed and have analysis restored
     const storeRepos = [
       baseRepo({
         id: 1_700_000_000_999,

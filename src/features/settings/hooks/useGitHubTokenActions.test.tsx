@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../store/useAppStore', () => ({
   useAppStore: (selector: (state: Record<string, unknown>) => unknown) => selector({
-    language: 'zh',
+    language: 'en',
     user: { id: 1, login: 'octocat', name: 'Octo', avatar_url: '', email: null },
     setUser: mocks.setUser,
     setGitHubToken: mocks.setGitHubToken,
@@ -49,7 +49,7 @@ describe('useGitHubTokenActions', () => {
 
     expect(mocks.setGitHubToken).toHaveBeenCalledWith('ghp_new');
     expect(mocks.setUser).toHaveBeenCalledWith(expect.objectContaining({ id: 1, login: 'octocat' }));
-    expect(mocks.toast).toHaveBeenCalledWith('GitHub Token 已更新', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('GitHub token updated', 'success');
     expect(result.current.tokenInput).toBe('');
   });
 

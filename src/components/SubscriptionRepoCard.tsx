@@ -29,8 +29,8 @@ export const SubscriptionRepoCard: React.FC<SubscriptionRepoCardProps> = ({ repo
 
   const t = useT('releases');
 
-  // 「自动翻译仓库描述」：发现页卡片原始描述与 AI 总结同时展示，有描述即翻译；
-  // 翻译中/失败/同语言时回退原文。
+  // "Auto-translate repository description": Discovery cards show both raw description and AI summary; translates if description exists;
+  // falls back to original text while translating, on failure, or when languages match.
   const translatedDescription = useTranslatedDescription(repo.description);
   const displayDescription = translatedDescription ?? repo.description ?? null;
 
@@ -38,13 +38,13 @@ export const SubscriptionRepoCard: React.FC<SubscriptionRepoCardProps> = ({ repo
     useDiscoveryRepoActions({ repo });
 
   const [readmeModalOpen, setReadmeModalOpen] = useState(false);
-  // 取消Star确认对话框状态（确认 UI 留 View；动作本体在 useDiscoveryRepoActions）
+  // Unstar confirmation dialog state (confirmation UI stays in View; action logic lives in useDiscoveryRepoActions)
   const [unstarConfirmOpen, setUnstarConfirmOpen] = useState(false);
-  // 周刊频道："查看原贴"弹窗
+  // Weekly channel: "View original post" modal
   const [issueModalOpen, setIssueModalOpen] = useState(false);
-  // X 推文频道："查看原贴"弹窗
+  // X tweet channel: "View original post" modal
   const [tweetModalOpen, setTweetModalOpen] = useState(false);
-  // Telegram 频道："查看消息原文"弹窗
+  // Telegram channel: "View original message" modal
   const [telegramModalOpen, setTelegramModalOpen] = useState(false);
 
   const formatNumber = (num: number) => {
@@ -69,19 +69,19 @@ export const SubscriptionRepoCard: React.FC<SubscriptionRepoCardProps> = ({ repo
     return 'bg-muted dark:bg-muted/40 text-muted-foreground dark:text-muted-foreground';
   }, []);
 
-  // 平台图标统一由 platformMeta 模块提供
+  // Platform icons are provided uniformly by the platformMeta module
   const getPlatformIcon = (platform: string) => {
     const Icon = getSharedPlatformIcon(platform);
     return <Icon className="w-3 h-3" />;
   };
 
-  // 执行取消Star操作：确认 UI（自定义 Modal）留 View，动作本体在 hook。
+  // Execute unstar: confirmation UI (custom Modal) stays in View; action logic lives in hook.
   const confirmUnstar = () => {
     setUnstarConfirmOpen(false);
     void executeUnstar();
   };
 
-  // 处理添加/取消Star：已 Star 时打开自定义确认 Modal，否则执行添加
+  // Handle star/unstar: open custom confirmation Modal if already starred, otherwise star
   const handleStar = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!githubToken || isStarring) return;
@@ -92,41 +92,41 @@ export const SubscriptionRepoCard: React.FC<SubscriptionRepoCardProps> = ({ repo
     void star(onStar);
   };
 
-  // 处理在ZRead打开
+  // Handle opening in ZRead
   const handleOpenInZRead = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     const zreadUrl = `https://zread.ai/${repo.full_name}`;
     window.open(zreadUrl, '_blank');
   }, [repo.full_name]);
 
-  // 处理单个项目AI分析（校验/中止/patch/toast 均在 hook）
+  // Handle single-item AI analysis (validation, abort, patch, and toast live in hook)
   const handleAnalyze = (e: React.MouseEvent) => {
     e.stopPropagation();
     void analyze(onAnalyze);
   };
 
-  // 判断是否已分析
+  // Check if already analyzed
   const isAnalyzed = !!repo.analyzed_at && !repo.analysis_failed;
   const isFailed = !!repo.analysis_failed;
 
-  // 点击卡片打开 README
+  // Click card to open README
   const handleCardClick = useCallback(() => {
     setReadmeModalOpen(true);
   }, []);
 
-  // 周刊频道：查看原贴（GitHub 渲染样式的投稿 issue）
+  // Weekly channel: view original post (GitHub-styled submission issue)
   const handleOpenIssue = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setIssueModalOpen(true);
   }, []);
 
-  // X 推文频道：查看原贴（抓取到的推文正文）
+  // X tweet channel: view original post (fetched tweet body)
   const handleOpenTweet = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setTweetModalOpen(true);
   }, []);
 
-  // Telegram 频道：查看消息原文（抓取到的频道消息正文）
+  // Telegram channel: view original message (fetched channel message body)
   const handleOpenTelegramMessage = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setTelegramModalOpen(true);
@@ -213,7 +213,7 @@ export const SubscriptionRepoCard: React.FC<SubscriptionRepoCardProps> = ({ repo
                 <BookOpen className="w-4 h-4" />
               </Button>
 
-              {/* 周刊/推文/频道消息：查看原贴按钮 */}
+              {/* Weekly/Tweet/Channel message: view original post button */}
               {(repo.weeklyIssue || repo.xTweet || repo.telegram) && (
                 repo.telegram ? (
                   <Button
@@ -467,7 +467,7 @@ export const SubscriptionRepoCard: React.FC<SubscriptionRepoCardProps> = ({ repo
         onClose={() => setReadmeModalOpen(false)}
         repository={repo} />
 
-    {/* 周刊原贴 Modal */}
+    {/* Weekly original post Modal */}
       {repo.weeklyIssue && (
         <WeeklyIssueModal
           isOpen={issueModalOpen}
@@ -475,7 +475,7 @@ export const SubscriptionRepoCard: React.FC<SubscriptionRepoCardProps> = ({ repo
           issue={repo.weeklyIssue} />
       )}
 
-    {/* X 推文原贴 Modal */}
+    {/* X tweet original post Modal */}
       {repo.xTweet && (
         <XTweetModal
           isOpen={tweetModalOpen}
@@ -483,7 +483,7 @@ export const SubscriptionRepoCard: React.FC<SubscriptionRepoCardProps> = ({ repo
           tweet={repo.xTweet} />
       )}
 
-    {/* Telegram 频道消息原文 Modal */}
+    {/* Telegram channel original message Modal */}
       {repo.telegram && (
         <TelegramMessageModal
           isOpen={telegramModalOpen}

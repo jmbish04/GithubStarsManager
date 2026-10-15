@@ -14,13 +14,15 @@ interface TrendingHistoryPanelProps {
 }
 
 /**
- * 榜单历史面板（开发守则 §7）。
+ * Trending history panel (Development Guide §7).
  *
- * 数据全部来自本地快照：排名变化对比的是**上一天**的记录（同一天刷新多次不算变化），
- * "新增 stars"是我们自己两次记录之间的差值，不是 GitHub 的"本周期新增"——文案里说清楚，
- * 免得用户以为是官方口径。
+ * All data comes from local snapshots: rank changes compare against the **previous day's** record
+ * (refreshing multiple times on the same day does not count as a change).
+ * "Stars gained" is the difference between our two records, not GitHub's "gained in this period" —
+ * this is clarified in the copy to avoid confusion with official metrics.
  *
- * 只有一份快照时（第一天）不渲染：那时所有条目都会被算成"新上榜"，没有信息量。
+ * Does not render when only one snapshot exists (day one), as all entries would count as "new entries",
+ * providing little informational value.
  */
 export const TrendingHistoryPanel: React.FC<TrendingHistoryPanelProps> = ({ period, platform }) => {
   const t = useT('discovery');

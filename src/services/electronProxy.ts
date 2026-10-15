@@ -108,18 +108,19 @@ interface ElectronAPI {
   setProxy: (config: ProxyConfig) => Promise<{ success: boolean }>;
   getProxy: () => Promise<ProxyConfig>;
   testProxy: (config: ProxyConfig) => Promise<{ success: boolean; error?: string }>;
-  /** X 推文频道：主进程代抓 x.com 未登录主页 HTML（绕开渲染进程 CORS） */
+  /** X tweet channel: the main process fetches the logged-out x.com home page HTML (bypassing renderer CORS) */
   xFetchTimeline?: (handle: string) => Promise<{ success: boolean; html?: string; error?: string }>;
   /**
-   * X 推文频道鉴权路径：主进程代发 x.com GraphQL / 静态资源 GET 请求
+   * X tweet channel authenticated path: the main process issues x.com GraphQL / static asset GET requests
+   * (with the user's auth_token/ct0 cookies and Bearer, bypassing renderer CORS)
    * （带用户的 auth_token/ct0 Cookie 与 Bearer，绕开渲染进程 CORS）
    */
   xFetchGraphQL?: (url: string, auth: { authToken: string; ct0: string } | null) => Promise<{ success: boolean; body?: string; error?: string }>;
-  /** Telegram 频道：主进程代抓 t.me/s/<name> 公开预览 HTML（可选 before 游标翻历史页） */
+  /** Telegram channel: the main process fetches the t.me/s/<name> public preview HTML (optional before cursor to page through history) */
   telegramFetchChannel?: (channel: string, before?: string) => Promise<{ success: boolean; html?: string; error?: string }>;
   /**
-   * WebDAV：主进程代发 DAV 请求（渲染进程 webSecurity 开启且 file:// 源同样受 CORS 约束，
-   * 桌面版又不带后端，只能由主进程代发）。响应体以文本原样返回，供上层还原 Response。
+   * WebDAV: the main process issues DAV requests (the renderer has webSecurity enabled and file:// origins are likewise subject to CORS,
+   * and the desktop build has no backend, so the main process must send them). The response body is returned as-is text, so upper layers can rebuild a Response.
    */
   webdavRequest?: (params: {
     url: string;
@@ -134,9 +135,9 @@ interface ElectronAPI {
     body?: string;
     contentType?: string;
     error?: string;
-    /** 主进程网络栈失败时的最底层错误码（如 ECONNREFUSED / ENOTFOUND / DEPTH_ZERO_SELF_SIGNED_CERT） */
+    /** Lowest-level error code when the main process network stack fails (e.g. ECONNREFUSED / ENOTFOUND / DEPTH_ZERO_SELF_SIGNED_CERT) */
     causeCode?: string;
-    /** 最底层错误的原始描述（如 "connect ECONNREFUSED 10.0.0.5:5006"） */
+    /** Raw description of the lowest-level error (e.g. "connect ECONNREFUSED 10.0.0.5:5006") */
     causeMessage?: string;
     timedOut?: boolean;
   }>;
@@ -184,7 +185,7 @@ export const electronProxy = {
   },
 };
 
-/** X 推文频道：经主进程抓取 x.com 未登录主页 HTML。非桌面环境返回 null。 */
+/** X tweet channel: fetches the logged-out x.com home page HTML via the main process. Returns null outside desktop. */
 export const fetchXTimelineViaDesktop = async (handle: string): Promise<string | null> => {
   if (!window.electronAPI?.xFetchTimeline) return null;
   const result = await window.electronAPI.xFetchTimeline(handle);
@@ -202,11 +203,11 @@ export const isAllowedXGraphQLUrl = (url: string): boolean =>
   url === X_HOME_URL || X_MAIN_JS_PATTERN.test(url) || X_GRAPHQL_API_PATTERN.test(url);
 
 /**
- * X 推文频道鉴权路径：经主进程代发 x.com GraphQL / 静态资源请求。非桌面环境返回 null。
- * 限制仅允许 x.com 与 abs.twimg.com 目标，主进程配置 redirect: 'error'
- * 拒绝跨域重定向，防止 Cookie 被转到允许域名之外。
- * auth 为 null 时走主进程免登录 guest 流程（guest token + Chromium 栈），
- * 用作鉴权请求被 x.com 边缘 WAF 403（TLS 指纹拦截）时的降级路径。
+ * X tweet channel authenticated path: issues x.com GraphQL / static asset requests via the main process. Returns null outside desktop.
+ * Only x.com and abs.twimg.com targets are allowed; the main process sets redirect: 'error'
+ * to reject cross-origin redirects, so cookies cannot be forwarded outside the allowed domains.
+ * When auth is null, uses the main process's login-free guest flow (guest token + Chromium stack),
+ * as the fallback when an authenticated request is 403'd by x.com's edge WAF (TLS fingerprint blocking).
  */
 export const fetchXGraphQLViaDesktop = async (
   url: string,
@@ -223,7 +224,7 @@ export const fetchXGraphQLViaDesktop = async (
   return result.body;
 };
 
-/** X 鉴权 Cookie 本地安全读取（Electron safeStorage 加密保存在本机）。非桌面环境返回 null。 */
+/** Reads the X auth cookies locally and securely (encrypted on this machine with Electron safeStorage). Returns null outside desktop. */
 export const loadEncryptedXAuthViaDesktop = async (): Promise<{ authToken: string; ct0: string } | null> => {
   if (!window.electronAPI?.xAuth?.get) return null;
   try {
@@ -233,7 +234,7 @@ export const loadEncryptedXAuthViaDesktop = async (): Promise<{ authToken: strin
   }
 };
 
-/** X 鉴权 Cookie 本地安全写入（Electron safeStorage 加密保存在本机）。 */
+/** Writes the X auth cookies locally and securely (encrypted on this machine with Electron safeStorage). */
 export const saveEncryptedXAuthViaDesktop = async (auth: { authToken: string; ct0: string }): Promise<void> => {
   if (!window.electronAPI?.xAuth?.save) return;
   const result = await window.electronAPI.xAuth.save(auth);
@@ -242,7 +243,7 @@ export const saveEncryptedXAuthViaDesktop = async (auth: { authToken: string; ct
   }
 };
 
-/** X 鉴权 Cookie 本地安全清理。 */
+/** Securely clears the locally stored X auth cookies. */
 export const clearEncryptedXAuthViaDesktop = async (): Promise<void> => {
   if (!window.electronAPI?.xAuth?.clear) return;
   const result = await window.electronAPI.xAuth.clear();
@@ -252,7 +253,7 @@ export const clearEncryptedXAuthViaDesktop = async (): Promise<void> => {
 };
 
 
-/** Telegram 频道：经主进程抓取 t.me/s 公开预览 HTML。非桌面环境返回 null。 */
+/** Telegram channel: fetches the t.me/s public preview HTML via the main process. Returns null outside desktop. */
 export const fetchTelegramChannelViaDesktop = async (channel: string, before?: string): Promise<string | null> => {
   if (!window.electronAPI?.telegramFetchChannel) return null;
   const result = await window.electronAPI.telegramFetchChannel(channel, before);

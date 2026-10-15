@@ -29,7 +29,7 @@ vi.mock('../services/aiService', () => ({
 }));
 
 const createStoreState = () => ({
-  language: 'zh' as const,
+  language: 'en' as const,
   backendApiSecret: 'secret-1' as string | null,
   aiConfigs: [{
     id: 'ai-config',
@@ -82,7 +82,7 @@ describe('useReleaseArtifactActions.sendRpcDownload', () => {
     });
     expect(mocks.sendToRpcDownload).toHaveBeenCalledWith('https://x/a.zip', 'a.zip', 'secret-1');
     expect(result.current.rpcDownloadStates['https://x/a.zip@2026-01-01T00:00:00.000Z']).toBe('sent');
-    expect(mocks.toast).toHaveBeenCalledWith('已发送到远程下载器', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('Sent to remote downloader', 'success');
   });
 
   it('omits the secret when the store has none', async () => {
@@ -101,7 +101,7 @@ describe('useReleaseArtifactActions.sendRpcDownload', () => {
     await act(async () => {
       await result.current.sendRpcDownload({ url: 'https://x/a.zip', name: 'a.zip' });
     });
-    expect(mocks.toast).toHaveBeenCalledWith('远程下载服务未运行，请检查配置', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Remote download service not running, please check config', 'error');
     expect(result.current.rpcDownloadStates['https://x/a.zip@']).toBe('idle');
   });
 
@@ -117,7 +117,7 @@ describe('useReleaseArtifactActions.sendRpcDownload', () => {
     await act(async () => {
       await result.current.sendRpcDownload({ url: 'https://x/b.zip', name: 'b.zip' });
     });
-    expect(mocks.toast).toHaveBeenLastCalledWith('发送失败', 'error');
+    expect(mocks.toast).toHaveBeenLastCalledWith('Send failed', 'error');
   });
 
   it('toasts the not-running message on a thrown error', async () => {
@@ -126,7 +126,7 @@ describe('useReleaseArtifactActions.sendRpcDownload', () => {
     await act(async () => {
       await result.current.sendRpcDownload({ url: 'https://x/a.zip', name: 'a.zip' });
     });
-    expect(mocks.toast).toHaveBeenCalledWith('远程下载服务未运行，请检查配置', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Remote download service not running, please check config', 'error');
     expect(result.current.rpcDownloadStates['https://x/a.zip@']).toBe('idle');
   });
 
@@ -144,7 +144,7 @@ describe('useReleaseArtifactActions.sendRpcDownload', () => {
     });
     expect(result.current.rpcDownloadStates['https://x/a.zip@']).toBe('sending');
 
-    // 发送中重复点击被短路：第二次调用不会发起新请求
+    // Consecutive clicks while sending are short-circuited: second call does not initiate a new request
     await act(async () => {
       await result.current.sendRpcDownload(link);
     });
@@ -156,7 +156,7 @@ describe('useReleaseArtifactActions.sendRpcDownload', () => {
     });
     expect(result.current.rpcDownloadStates['https://x/a.zip@']).toBe('sent');
 
-    // 重试：清除旧的成功态再发送
+    // Retry: clear old success state before sending again
     mocks.sendToRpcDownload.mockResolvedValue({ success: true });
     await act(async () => {
       await result.current.sendRpcDownload(link);
@@ -176,7 +176,7 @@ describe('useReleaseArtifactActions.generateSummary', () => {
     storeState.aiConfigs = [];
     const { result } = renderHook(() => useReleaseArtifactActions());
     await act(async () => { await result.current.generateSummary(release); });
-    expect(mocks.toast).toHaveBeenCalledWith('请先在设置中配置 AI 服务。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Please configure AI service in settings first.', 'error');
     expect(result.current.summaries[100]).toBeUndefined();
     expect(mocks.analyzeReleaseSummary).not.toHaveBeenCalled();
   });
@@ -201,7 +201,7 @@ describe('useReleaseArtifactActions.generateSummary', () => {
     await act(async () => { await result.current.generateSummary(release); });
     expect(mocks.analyzeReleaseSummary).toHaveBeenCalledTimes(1);
 
-    // loading 态同样短路
+    // loading state also short-circuits
     let resolveSummary!: (value: string) => void;
     mocks.analyzeReleaseSummary.mockImplementation(() => new Promise<string>((resolve) => {
       resolveSummary = resolve;
@@ -218,8 +218,8 @@ describe('useReleaseArtifactActions.generateSummary', () => {
   });
 
   it('collapses same-tick consecutive generateSummary calls into a single request', async () => {
-    // loading 守卫读渲染快照：同一事件循环内（同步双调用）第二次仍看到旧快照，
-    // 依赖 summaryAbortRefs 的同步门卫去重。
+    // loading guard reads render snapshot: a second synchronous invocation in the same event loop still sees the old snapshot;
+    // relies on summaryAbortRefs synchronous guard for deduplication.
     mocks.analyzeReleaseSummary.mockImplementation(() => new Promise<string>(() => undefined));
     const { result } = renderHook(() => useReleaseArtifactActions());
     act(() => {
@@ -235,7 +235,7 @@ describe('useReleaseArtifactActions.generateSummary', () => {
     const { result } = renderHook(() => useReleaseArtifactActions());
     await act(async () => { await result.current.generateSummary(release); });
     expect(result.current.summaries[100]).toEqual({ status: 'error', error: 'model offline' });
-    expect(mocks.toast).toHaveBeenCalledWith('总结生成失败：model offline', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Summary failed: model offline', 'error');
   });
 
   it('stays silent on AbortError', async () => {
@@ -280,7 +280,7 @@ describe('useReleaseArtifactActions.generateSummary', () => {
   });
 
   it('reset cancels in-flight summaries so they cannot write back after clearing', async () => {
-    // abort 感知 mock：真实 fetch 在 signal 中止时会以 AbortError 拒绝
+    // abort-aware mock: real fetch rejects with AbortError when signal is aborted
     const resolvers: Array<(value: string) => void> = [];
     mocks.analyzeReleaseSummary.mockImplementation((_b: string, _m: unknown, signal: AbortSignal) =>
       new Promise<string>((resolve, reject) => {
@@ -306,7 +306,7 @@ describe('useReleaseArtifactActions.generateSummary', () => {
     });
     expect(result.current.summaries).toEqual({});
 
-    // 模拟迟到的完成：请求已被 reset 取消，结果不得回写
+    // Simulate late completion: request was cancelled by reset, result must not be written back
     resolvers[0]('# stale');
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     expect(result.current.summaries).toEqual({});
@@ -314,8 +314,8 @@ describe('useReleaseArtifactActions.generateSummary', () => {
   });
 
   it('reset discards late results even when the service ignores the abort signal', async () => {
-    // H1 回归：resolve 型 mock（忽略 signal，不抛 AbortError）——修复前会把迟到
-    // 的 done 回写进刚清空的状态；修复后由 post-await aborted 守卫丢弃。
+    // H1 regression: resolving mock (ignores signal, does not throw AbortError) - before fix, late
+    // done would write back into freshly cleared state; after fix, discarded by post-await aborted guard.
     let resolveSummary!: (value: string) => void;
     mocks.analyzeReleaseSummary.mockImplementation(() => new Promise<string>((resolve) => {
       resolveSummary = resolve;

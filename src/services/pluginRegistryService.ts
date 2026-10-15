@@ -1,8 +1,8 @@
 /**
- * 社区插件注册表的客户端桥（开发守则 §17 / §18）。
+ * Client bridge for the community plugin registry (Development Guidelines §17 / §18).
  *
- * 主进程负责取回并逐条校验注册表；渲染进程只拿到"已经校验过的结构"。这里**不下载插件包**：
- * 安装必须先在客户端校验 sha256，属于下一步，单独实现。
+ * The main process fetches and validates the registry entry by entry; the renderer only receives "already-validated structures". This **does not download plugin packages**:
+ * installation must first verify sha256 on the client, which is the next step and implemented separately.
  */
 
 export interface PluginRegistryEntry {
@@ -30,9 +30,9 @@ export interface PluginRegistry {
   fetchedAt: string;
   plugins: Array<{ id: string; versions: PluginRegistryEntry[] }>;
   removed: PluginRemovalEntry[];
-  /** 被丢弃的条目及原因——界面可以提示"注册表里有 N 条记录没通过校验"。 */
+  /** Dropped entries and the reasons — the UI can show "N registry records failed validation". */
   rejected: Array<{ index?: number; code: string; message: string }>;
-  /** 两个文件里有一个没取到时的原因。 */
+  /** The reason when one of the two files could not be fetched. */
   error: { code: string; message: string } | null;
 }
 
@@ -49,7 +49,7 @@ const getApi = (): PluginRegistryElectronAPI | undefined => (
 );
 
 export const pluginRegistryService = {
-  /** 只有桌面端有这条通道；Web 形态返回 false，界面据此隐藏社区区块。 */
+  /** Only the desktop build has this channel; the Web build returns false, and the UI uses that to hide the community section. */
   isAvailable(): boolean {
     return !!getApi();
   },

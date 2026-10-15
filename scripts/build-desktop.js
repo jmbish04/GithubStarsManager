@@ -4,10 +4,10 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-console.log('🚀 开始构建桌面应用...');
+console.log('🚀 Starting desktop app build...');
 
-// 1. 构建Web应用
-console.log('📦 构建Web应用...');
+// 1. Build the web app
+console.log('📦 Building web app...');
 execSync('npm run build', { stdio: 'inherit' });
 
 // 2. Electron sources are committed under electron/ (main.js, preload.js, mcpLocalServer.js).
@@ -40,10 +40,10 @@ for (const icon of [
     process.exit(1);
   }
 }
-console.log('⚡ 使用已提交的 electron/ 源码（含 MCP 与 preload）');
+console.log('⚡ Using committed electron/ sources (including MCP and preload)');
 
-// 2.5 构建资源图标（与 CI 的 "Prepare build resources" 步骤一致，
-// electron-builder 会自动把 PNG 转换为 .ico/.icns）。
+// 2.5 Build resource icons (same as the CI "Prepare build resources" step;
+// electron-builder converts PNGs to .ico/.icns automatically).
 const buildDir = path.join(__dirname, '../build');
 fs.mkdirSync(buildDir, { recursive: true });
 const iconSource = path.join(__dirname, '../assets/icon.png');
@@ -54,20 +54,20 @@ if (!fs.existsSync(iconSource)) {
 fs.copyFileSync(iconSource, path.join(buildDir, 'icon.png'));
 fs.copyFileSync(iconSource, path.join(buildDir, 'icon-512x512.png'));
 
-// 3. electron / electron-builder 已固定在 devDependencies（与 CI 共用
-// electron-builder.yml 配置），确认工具链就绪即可。
+// 3. electron / electron-builder are pinned in devDependencies (shared with CI via
+// the electron-builder.yml config); just confirm the toolchain is ready.
 if (!fs.existsSync(path.join(__dirname, '../node_modules/electron-builder/package.json'))) {
-  console.error('❌ 缺少 electron-builder，请先运行 npm ci');
+  console.error('❌ electron-builder is missing; run npm ci first');
   process.exit(1);
 }
 
-// 4. 构建应用
-console.log('🔨 构建桌面应用...');
+// 4. Build the app
+console.log('🔨 Building desktop app...');
 try {
   execSync('npx electron-builder --publish=never', { stdio: 'inherit' });
-  console.log('✅ 桌面应用构建完成！');
-  console.log('📁 构建文件位于 release/ 目录');
+  console.log('✅ Desktop app build complete!');
+  console.log('📁 Build output is in the release/ directory');
 } catch (error) {
-  console.error('构建失败:', error.message);
+  console.error('Build failed:', error.message);
   process.exit(1);
 }

@@ -59,7 +59,7 @@ const storeState = {
   setLoading: vi.fn(),
   updateRepository: vi.fn(),
   deleteRepository: vi.fn(),
-  language: 'zh' as const,
+  language: 'en' as const,
   customCategories: [],
   hiddenDefaultCategoryIds: [],
   defaultCategoryOverrides: {},
@@ -131,17 +131,17 @@ describe('RepositoryList view mode controls', () => {
 
     const card = screen.getByTestId('repository-card-1');
     expect(card).toHaveAttribute('data-view-mode', 'grid');
-    expect(screen.getByTitle('多列卡片')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTitle('Grid view')).toHaveAttribute('aria-pressed', 'true');
 
-    const layoutControls = screen.getByRole('group', { name: '仓库布局' });
+    const layoutControls = screen.getByRole('group', { name: 'Repository layout' });
     const toolbar = layoutControls.closest('.ui-toolbar');
     expect(toolbar?.lastElementChild).toContainElement(layoutControls);
 
-    fireEvent.click(screen.getByTitle('单列列表'));
+    fireEvent.click(screen.getByTitle('List view'));
 
     expect(storeState.setRepositoryViewMode).toHaveBeenCalledWith('list');
     rerender(<RepositoryList repositories={[repository]} selectedCategory="all" />);
     expect(screen.getByTestId('repository-card-1')).toHaveAttribute('data-view-mode', 'list');
-    expect(screen.getByTitle('单列列表')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTitle('List view')).toHaveAttribute('aria-pressed', 'true');
   });
 });

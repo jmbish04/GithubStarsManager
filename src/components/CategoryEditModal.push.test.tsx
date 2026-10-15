@@ -27,7 +27,7 @@ vi.mock('../hooks/useDialog', () => ({
   useDialog: () => ({ toast: mocks.toast, confirm: vi.fn().mockResolvedValue(true) }),
 }));
 
-const category: Category = { id: 'cat-1', name: '分类A', icon: '📦', keywords: ['a'], isCustom: true };
+const category: Category = { id: 'cat-1', name: 'Category A', icon: '📦', keywords: ['a'], isCustom: true };
 
 const storeState = {
   addCustomCategory: vi.fn(),
@@ -73,7 +73,7 @@ describe('CategoryEditModal push to GitHub list', () => {
     render(<CategoryEditModal isOpen onClose={vi.fn()} category={category} />);
     const button = screen.getByText(pushLabel).closest('button') as HTMLButtonElement;
     expect(button.disabled).toBe(false);
-    fireEvent.change(screen.getByLabelText(/categoryEditModal.category-name/), { target: { value: '分类A2' } });
+    fireEvent.change(screen.getByLabelText(/categoryEditModal.category-name/), { target: { value: 'Category A2' } });
     expect(button.disabled).toBe(true);
     expect(button.title).toBe('categoryEditModal.save-changes-before-push');
   });
@@ -85,7 +85,7 @@ describe('CategoryEditModal push to GitHub list', () => {
     const button = screen.getByText(pushLabel).closest('button') as HTMLButtonElement;
 
     expect(button.disabled).toBe(true);
-    // user-event 模拟真实用户点击：对禁用按钮不会派发 click，比 fireEvent 更接近浏览器行为
+    // user-event simulates real user clicks: disabled buttons do not dispatch click events, closer to browser behavior than fireEvent
     await userEvent.click(button);
     expect(onClose).not.toHaveBeenCalled();
     expect(mocks.pushCategoriesToLists).not.toHaveBeenCalled();

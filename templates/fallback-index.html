@@ -79,17 +79,17 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM ready - Fallback page');
             
-            // 尝试检测是否在 Electron 环境中
+            // Try to detect whether running in an Electron environment
             if (window.process && window.process.type === 'renderer') {
                 console.log('Running in Electron renderer process');
             }
             
-            // 添加一些基本的错误处理
+            // Add some basic error handling
             window.addEventListener('error', function(e) {
                 console.error('Page error:', e.error);
             });
             
-            // 检查资源加载
+            // Check resource loading
             setTimeout(function() {
                 console.log('Fallback page fully loaded');
             }, 1000);

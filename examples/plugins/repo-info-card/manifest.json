@@ -16,7 +16,7 @@
     "repositoryActions": [
       {
         "id": "generate-info-card",
-        "title": "生成仓库信息卡",
+        "title": "Generate Repo Info Card",
         "placement": "repository-card",
         "opensPage": "info-card"
       }

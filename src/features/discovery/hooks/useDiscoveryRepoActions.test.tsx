@@ -73,7 +73,7 @@ const createStoreState = () => ({
     model: 'ai-model',
   }] as Array<{ id: string; name: string; baseUrl?: string; apiKey?: string; model?: string; apiKeyStatus?: 'ok' | 'decrypt_failed' | 'empty' }>,
   activeAIConfig: 'ai-config',
-  language: 'zh' as const,
+  language: 'en' as const,
   customCategories: [],
   repositories: [] as { id: number; full_name: string }[],
   updateDiscoveryRepo: vi.fn(),
@@ -97,13 +97,13 @@ describe('useDiscoveryRepoActions.analyze', () => {
     storeState.githubToken = null;
     const { result, rerender } = renderHook(() => useDiscoveryRepoActions({ repo }));
     await act(async () => { await result.current.analyze(); });
-    expect(mocks.toast).toHaveBeenNthCalledWith(1, 'GitHub Token 未找到，请重新登录。', 'error');
+    expect(mocks.toast).toHaveBeenNthCalledWith(1, 'GitHub token not found. Please login again.', 'error');
 
     storeState.githubToken = 'github-token';
     storeState.aiConfigs = [];
     rerender();
     await act(async () => { await result.current.analyze(); });
-    expect(mocks.toast).toHaveBeenNthCalledWith(2, '请先在设置中配置AI服务。', 'error');
+    expect(mocks.toast).toHaveBeenNthCalledWith(2, 'Please configure AI service in settings first.', 'error');
 
     storeState.aiConfigs = [{
       id: 'ai-config',
@@ -115,12 +115,12 @@ describe('useDiscoveryRepoActions.analyze', () => {
     }];
     rerender();
     await act(async () => { await result.current.analyze(); });
-    expect(mocks.toast).toHaveBeenNthCalledWith(3, 'AI服务的API密钥无法解密或为空，请在设置中重新输入并保存该配置。', 'error');
+    expect(mocks.toast).toHaveBeenNthCalledWith(3, 'The AI service API key could not be decrypted or is empty. Please re-enter and save the configuration in settings.', 'error');
 
     storeState.aiConfigs = [{ id: 'ai-config', name: 'Incomplete', baseUrl: '', apiKey: '', model: '' }];
     rerender();
     await act(async () => { await result.current.analyze(); });
-    expect(mocks.toast).toHaveBeenNthCalledWith(4, 'AI服务配置不完整，请检查API端点、密钥和模型名称。', 'error');
+    expect(mocks.toast).toHaveBeenNthCalledWith(4, 'AI service configuration is incomplete. Please check the API endpoint, key, and model name.', 'error');
     expect(mocks.analyzeRepository).not.toHaveBeenCalled();
     expect(mocks.forceSyncToBackend).not.toHaveBeenCalled();
   });
@@ -167,7 +167,7 @@ describe('useDiscoveryRepoActions.analyze', () => {
       analysis_failed: true,
       analysis_error: 'network down',
     });
-    expect(mocks.toast).toHaveBeenCalledWith('AI分析失败，请检查AI配置。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('AI analysis failed. Please check your AI configuration.', 'error');
   });
 
   it('stays silent after unmount aborts an in-flight analysis', async () => {
@@ -228,7 +228,7 @@ describe('useDiscoveryRepoActions.star', () => {
     expect(onStarOrder).toBeLessThan(syncOrder);
 
     expect(result.current.optimisticStarred).toBeNull();
-    expect(mocks.toast).toHaveBeenCalledWith('已成功添加 Star', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('Successfully starred', 'success');
   });
 
   it('rolls back the optimistic state and toasts when starring fails', async () => {
@@ -251,7 +251,7 @@ describe('useDiscoveryRepoActions.star', () => {
     expect(result.current.optimisticStarred).toBeNull();
     expect(storeState.addRepository).not.toHaveBeenCalled();
     expect(mocks.forceSyncToBackend).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith('Star 操作失败，请检查网络连接或 GitHub Token 权限。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Failed to star repository. Please check your network connection or GitHub Token permissions.', 'error');
   });
 
   it('adds the repository for a repo that is not yet starred', async () => {
@@ -268,7 +268,7 @@ describe('useDiscoveryRepoActions.star', () => {
       platform: undefined,
       starred_at: expect.any(String),
     });
-    expect(result.current.isStarred).toBe(false); // repositories fixture 不含该仓库，乐观态已清
+    expect(result.current.isStarred).toBe(false); // repositories fixture does not contain repo; optimistic state is cleared
     expect(result.current.isStarring).toBe(false);
   });
 });
@@ -281,7 +281,7 @@ describe('useDiscoveryRepoActions.executeUnstar', () => {
 
   it('deletes the local repository sharing the GitHub id, forces sync, and never toasts on success', async () => {
     mocks.unstarRepository.mockResolvedValue(undefined);
-    // 同一 GitHub 身份：本地记录与发现页条目 id 相同
+    // Same GitHub identity: local record and discovery entry share the same id
     storeState.repositories = [{ id: repo.id, full_name: repo.full_name }];
     const { result, rerender } = renderHook(() => useDiscoveryRepoActions({ repo }));
     rerender();
@@ -302,7 +302,7 @@ describe('useDiscoveryRepoActions.executeUnstar', () => {
 
   it('deletes a legacy synthetic-id record by name fallback', async () => {
     mocks.unstarRepository.mockResolvedValue(undefined);
-    // 批量 Star 遗留的合成 id 记录：id 与发现有差异，但缺失权威身份，按名称认领
+    // Legacy synthetic id record from batch star: id differs from discovery, but lacks authoritative identity so claimed by name
     const legacyId = 1_700_000_000_042;
     storeState.repositories = [{ id: legacyId, full_name: repo.full_name }];
     const { result, rerender } = renderHook(() => useDiscoveryRepoActions({ repo }));
@@ -315,19 +315,19 @@ describe('useDiscoveryRepoActions.executeUnstar', () => {
   });
 
   it('does not delete an unrelated record that merely reuses the name', async () => {
-    // 回归：本地那条带真实 id 的记录是「已改名/删除的旧仓库」，其旧名被当前
-    // 发现页条目复用。二者不是同一仓库 —— 不得误判为已 Star，也不得删错记录。
+    // Regression: local record with real id is a "renamed/deleted old repo" whose old name is reused by current
+    // discovery entry. They are not the same repo — must not falsely judge as already starred, nor delete the wrong record.
     mocks.unstarRepository.mockResolvedValue(undefined);
     storeState.repositories = [{ id: 999, full_name: repo.full_name }];
     const { result, rerender } = renderHook(() => useDiscoveryRepoActions({ repo }));
     rerender();
 
-    // 不应被误判为已在库中
+    // Should not be falsely considered already in store
     expect(result.current.isStarred).toBe(false);
 
     await act(async () => { await result.current.executeUnstar(); });
 
-    // 取消 Star 的对象是 id 7，与本地 id 999 无关，不得删除该记录
+    // Unstar target is id 7, unrelated to local id 999; must not delete this record
     expect(storeState.deleteRepository).not.toHaveBeenCalled();
   });
 
@@ -341,7 +341,7 @@ describe('useDiscoveryRepoActions.executeUnstar', () => {
     expect(result.current.optimisticStarred).toBeNull();
     expect(storeState.deleteRepository).not.toHaveBeenCalled();
     expect(mocks.forceSyncToBackend).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith('取消 Star 失败，请检查网络连接或 GitHub Token 权限。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Failed to unstar repository. Please check your network connection or GitHub Token permissions.', 'error');
   });
 });
 

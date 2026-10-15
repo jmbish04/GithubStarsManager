@@ -35,7 +35,7 @@ export const useGitHubTokenActions = (): GitHubTokenActions => {
 
     setIsSaving(true);
     try {
-      // 直连校验新 token：代理会用后端库里存的旧 token，导致无效的新令牌被放行。
+      // Verify new token directly: proxy would use the old token stored in the backend database, allowing invalid new tokens to pass through.
       const nextUser = await createGitHubApiService(token, { direct: true }).getCurrentUser();
       if (user && nextUser.id !== user.id) {
         toast(

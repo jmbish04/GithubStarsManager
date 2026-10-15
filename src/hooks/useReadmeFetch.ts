@@ -12,9 +12,9 @@ const isAbortError = (error: unknown, signal?: AbortSignal): boolean => {
   return Boolean(signal?.aborted || (error as { name?: string })?.name === 'AbortError');
 };
 
-// controller 被 hook 自身 abort（被新请求取代或 cancel()）时，以 AbortError 命名的错误
-// 拒绝，调用方据此丢弃过期结果且不动 loading 态——等价于原先 View 持有 signal 的
-// "resolve 后 signal.aborted 检查"（View 已不再持有 controller）。
+// When a controller is aborted by the hook itself (superseded by a new request or via cancel()),
+// reject with an AbortError. Callers discard stale results without updating loading state—
+// equivalent to the previous View-owned signal check after resolve (View no longer holds the controller).
 const abortOperation = (): Error => new DOMException('Aborted', 'AbortError');
 
 export interface UseReadmeFetchOptions {
@@ -25,7 +25,7 @@ export interface UseReadmeFetchOptions {
 export interface ReadmeFetchActions {
   fetchReadmeContent: (variant: ReadmeVariant) => Promise<string>;
   fetchReadmeCandidates: (defaultBranch: string | undefined) => Promise<GitHubReadmeCandidateItem[]>;
-  /** abort 两路 controller 并置 null；View 关闭 modal 时调，hook unmount 亦自动。 */
+  /** Aborts both controllers and nulls them out; called when the View closes the modal, and automatically on hook unmount. */
   cancel: () => void;
 }
 
@@ -138,7 +138,7 @@ export const useReadmeFetch = ({ owner, name }: UseReadmeFetchOptions): ReadmeFe
   }), [fetchReadmeContent, fetchReadmeCandidates, cancel]);
 };
 
-// 原 ReadmeModal 变体选择的 find(...)||default 提纯。
+// Extracted variant selection logic (find(...) || default) originally in ReadmeModal.
 export const pickReadmeCandidate = (
   variants: ReadmeVariant[],
   selectedKey: string | undefined,

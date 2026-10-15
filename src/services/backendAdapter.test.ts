@@ -19,7 +19,7 @@ function make429Response(headers: Record<string, string>): Response {
 
 type BackendAdapterLike = { _backendUrl: string | null };
 
-describe('backendAdapter 429 Retry-After 解析', () => {
+describe('backendAdapter 429 Retry-After parsing', () => {
   const adapter = backend as unknown as BackendAdapterLike;
 
   afterEach(() => {
@@ -27,7 +27,7 @@ describe('backendAdapter 429 Retry-After 解析', () => {
     adapter._backendUrl = null;
   });
 
-  it('解析 retry-after-ms（毫秒，优先于 retry-after）', async () => {
+  it('parses retry-after-ms (milliseconds, takes precedence over retry-after)', async () => {
     adapter._backendUrl = 'http://localhost:3000/api';
     vi.mocked(window.fetch).mockResolvedValue(make429Response({ 'retry-after-ms': '60000', 'retry-after': '5' }));
 
@@ -37,7 +37,7 @@ describe('backendAdapter 429 Retry-After 解析', () => {
     });
   });
 
-  it('解析数值型 retry-after（秒 → 毫秒）', async () => {
+  it('parses numeric retry-after (seconds → milliseconds)', async () => {
     adapter._backendUrl = 'http://localhost:3000/api';
     vi.mocked(window.fetch).mockResolvedValue(make429Response({ 'retry-after': '120' }));
 
@@ -47,7 +47,7 @@ describe('backendAdapter 429 Retry-After 解析', () => {
     });
   });
 
-  it('解析 HTTP-date 型 retry-after', async () => {
+  it('parses HTTP-date retry-after', async () => {
     adapter._backendUrl = 'http://localhost:3000/api';
     const future = new Date(Date.now() + 2 * 60 * 60 * 1000);
     vi.mocked(window.fetch).mockResolvedValue(make429Response({ 'retry-after': future.toUTCString() }));
@@ -59,7 +59,7 @@ describe('backendAdapter 429 Retry-After 解析', () => {
     expect(err.retryAfterMs!).toBeLessThanOrEqual(2 * 60 * 60 * 1000);
   });
 
-  it('无法解析的 retry-after 不设置 retryAfterMs', async () => {
+  it('does not set retryAfterMs for an unparseable retry-after', async () => {
     adapter._backendUrl = 'http://localhost:3000/api';
     vi.mocked(window.fetch).mockResolvedValue(make429Response({ 'retry-after': 'bogus-value' }));
 
@@ -153,7 +153,7 @@ describe('backendAdapter settings hydration', () => {
   });
 });
 
-describe('backendAdapter 后端 URL 安全策略', () => {
+describe('backendAdapter backend URL security policy', () => {
   const adapter = backend as unknown as BackendAdapterLike;
   const STORAGE_KEY = 'github-stars-manager-backend-url';
 
@@ -163,7 +163,7 @@ describe('backendAdapter 后端 URL 安全策略', () => {
     localStorage.removeItem(STORAGE_KEY);
   });
 
-  it('拒绝远程 HTTP 后端：不发起探测请求，也不写入本地存储', async () => {
+  it('rejects remote HTTP backends: sends no probe request and writes nothing to local storage', async () => {
     await backend.init('http://backend.example.com');
 
     expect(window.fetch).not.toHaveBeenCalled();
@@ -172,7 +172,7 @@ describe('backendAdapter 后端 URL 安全策略', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it('拒绝伪装成 loopback 的远程主机（如 127.example.com）', async () => {
+  it('rejects remote hosts disguised as loopback (e.g. 127.example.com)', async () => {
     await backend.init('http://127.example.com');
 
     expect(window.fetch).not.toHaveBeenCalled();
@@ -180,7 +180,7 @@ describe('backendAdapter 后端 URL 安全策略', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it('放行 HTTPS 后端；rememberActiveUrl 之前不写入本地存储', async () => {
+  it('allows HTTPS backends; nothing is written to local storage before rememberActiveUrl', async () => {
     vi.mocked(window.fetch).mockResolvedValue(makeHealthOkResponse());
 
     await backend.init('https://backend.example.com');
@@ -196,7 +196,7 @@ describe('backendAdapter 后端 URL 安全策略', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe('https://backend.example.com/api');
   });
 
-  it('认证请求同样禁止自动重定向', async () => {
+  it('also forbids automatic redirects for authenticated requests', async () => {
     adapter._backendUrl = 'https://backend.example.com/api';
     vi.mocked(window.fetch).mockResolvedValue({ ok: true, status: 200 } as unknown as Response);
 
@@ -208,7 +208,7 @@ describe('backendAdapter 后端 URL 安全策略', () => {
     );
   });
 
-  it('loopback HTTP 后端仍可用于本地开发', async () => {
+  it('loopback HTTP backends remain usable for local development', async () => {
     vi.mocked(window.fetch).mockResolvedValue(makeHealthOkResponse());
 
     await backend.init('http://localhost:3000');
@@ -227,12 +227,12 @@ describe('backendAdapter 后端 URL 安全策略', () => {
   });
 });
 
-describe('backendAdapter 探测源协议（file:// 桌面端不探测同源 /api）', () => {
+describe('backendAdapter probe origin protocol (file:// desktop does not probe same-origin /api)', () => {
   const adapter = backend as unknown as BackendAdapterLike;
   const STORAGE_KEY = 'github-stars-manager-backend-url';
   const originalLocation = window.location;
 
-  // jsdom 的 Location 实例属性不可重定义，但 `window.location` 本身可替换。
+  // jsdom's Location instance properties cannot be redefined, but `window.location` itself can be replaced.
   const setLocation = (protocol: string, origin: string, hostname: string): void => {
     Object.defineProperty(window, 'location', {
       configurable: true,
@@ -248,7 +248,7 @@ describe('backendAdapter 探测源协议（file:// 桌面端不探测同源 /api
     localStorage.removeItem(STORAGE_KEY);
   });
 
-  it('桌面端 file:// 页面：不发起 file:///api/health 探测', async () => {
+  it('desktop file:// page: does not probe file:///api/health', async () => {
     setLocation('file:', 'file://', '');
 
     await backend.init();
@@ -257,7 +257,7 @@ describe('backendAdapter 探测源协议（file:// 桌面端不探测同源 /api
     expect(backend.isAvailable).toBe(false);
   });
 
-  it('HTTP(S) 页面：保留同源 /api 探测', async () => {
+  it('HTTP(S) page: keeps the same-origin /api probe', async () => {
     setLocation('https:', 'https://app.example.com', 'app.example.com');
     vi.mocked(window.fetch).mockResolvedValue(makeHealthOkResponse());
 

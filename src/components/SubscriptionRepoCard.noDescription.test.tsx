@@ -49,17 +49,17 @@ const makeTrendingRepo = (overrides: Partial<DiscoveryRepo> = {}): DiscoveryRepo
 describe('SubscriptionRepoCard description placeholder', () => {
   beforeEach(() => {
     mockedUseAppStore.mockImplementation((selector: (s: unknown) => unknown) =>
-      selector({ language: 'zh', githubToken: 'token' }));
+      selector({ language: 'en', githubToken: 'token' }));
   });
 
   it('shows the localized no-description placeholder when the repo has no description', () => {
     render(<TooltipProvider><SubscriptionRepoCard repo={makeTrendingRepo()} /></TooltipProvider>);
-    expect(screen.getByText('暂无描述')).toBeInTheDocument();
+    expect(screen.getByText('No description available')).toBeInTheDocument();
   });
 
   it('renders the description instead of the placeholder when present', () => {
     render(<TooltipProvider><SubscriptionRepoCard repo={makeTrendingRepo({ description: 'a nice tool' })} /></TooltipProvider>);
     expect(screen.getByText('a nice tool')).toBeInTheDocument();
-    expect(screen.queryByText('暂无描述')).not.toBeInTheDocument();
+    expect(screen.queryByText('No description available')).not.toBeInTheDocument();
   });
 });

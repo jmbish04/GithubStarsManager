@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { logger } from '../services/logger.js';
 
 /**
- * Telegram 频道：服务端代抓 t.me/s/<name> 公开网页预览 HTML。
- * 与 X 推文频道同构：浏览器渲染进程受 CORS 限制无法直连 t.me，桌面端走
- * Electron 主进程 IPC，服务端（fullstack）部署走本路由。只抓公开预览页
- * https://t.me/s/<name>（可选 ?before=<id> 向历史翻页），name 严格校验，
- * 不透传任意 URL。
+ * Telegram channel: server-side scraping of t.me/s/<name> public web preview HTML.
+ * Isomorphic to the X tweet channel: browser renderers cannot directly connect to t.me due to CORS,
+ * the desktop client uses Electron main process IPC, and server (fullstack) deployments use this route.
+ * Only fetches the public preview page https://t.me/s/<name> (optional ?before=<id> for pagination);
+ * name is strictly validated, and arbitrary URLs are not proxied.
  */
 const TG_CHANNEL_PATTERN = /^[A-Za-z0-9_]{3,64}$/;
 const BEFORE_PATTERN = /^\d{1,20}$/;

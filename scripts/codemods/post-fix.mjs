@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * codemod 后清理：
- *  1. 合并 i18n/useT 的重复 import、去重 named imports、移除未使用的 useT/useTPair/TranslateFn
- *  2. 按 tsc 报告的精确行列移除未使用的 language/useCallback 等声明
- * 用法：node scripts/codemods/post-fix.mjs [tsc-output-file]
+ * Post-codemod cleanup:
+ *  1. Merge duplicate i18n/useT imports, dedupe named imports, remove unused useT/useTPair/TranslateFn
+ *  2. Remove unused declarations such as language/useCallback at the exact line/column reported by tsc
+ * Usage: node scripts/codemods/post-fix.mjs [tsc-output-file]
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -64,7 +64,7 @@ function removeUnusedAt(content, line, name) {
   const index = line - 1;
   if (index < 0 || index >= lines.length) return content;
   const original = lines[index];
-  // 整行就是该声明
+  // The whole line is the declaration
   const wholePatterns = [
     new RegExp(`^[ \\t]*${name}: state\\.${name},?[ \\t]*$`),
     new RegExp(`^[ \\t]*${name},?[ \\t]*$`),
@@ -74,7 +74,7 @@ function removeUnusedAt(content, line, name) {
     lines.splice(index, 1);
     return lines.join('\n');
   }
-  // 行内移除单个 token：`foo, language, bar` / `language: state.language, theme`
+  // Remove a single token inline:`foo, language, bar` / `language: state.language, theme`
   let updated = original
     .replace(new RegExp(`(\\b${name}: state\\.${name},)\\s*`), '')
     .replace(new RegExp(`,\\s*\\b${name}: state\\.${name}\\b`), '')
@@ -88,7 +88,7 @@ function removeUnusedAt(content, line, name) {
 for (const [file, issues] of fileIssues) {
   const filePath = path.join(rootDir, file);
   let content = readFileSync(filePath, 'utf8');
-  // 先按 tsc 行号降序移除（避免行号偏移），再归一化 import（会增删行）
+  // Remove in descending tsc line order first (to avoid line-number shifts), then normalize imports (which adds/removes lines)
   for (const { line, name } of [...issues].sort((a, b) => b.line - a.line)) {
     content = removeUnusedAt(content, line, name);
   }

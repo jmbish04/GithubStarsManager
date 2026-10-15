@@ -21,8 +21,8 @@ export interface RpcDownloadLink {
   updatedAt?: string;
 }
 
-// 同一资产更新后 URL 不变但 updatedAt 会变，key 带上版本，
-// 否则旧版本的"已发送 ✓"会错误地残留在新版本上。
+// When an asset is updated, its URL remains the same but updatedAt changes; include the version in the key,
+// otherwise the old version's "Sent ✓" will erroneously linger on the new version.
 export const computeRpcDownloadKey = (link: { url: string; updatedAt?: string }): string =>
   `${link.url}@${link.updatedAt ?? ''}`;
 
@@ -32,13 +32,13 @@ export interface ReleaseArtifactActions {
   sendRpcDownload: (link: RpcDownloadLink) => Promise<void>;
   generateSummary: (release: Release) => Promise<void>;
   cancelSummaryRequests: () => void;
-  /** 清空 summaries 与 RPC 发送状态（sheet 在 loadReleases 时重置，原为其本地 state 置空）。 */
+  /** Clears summaries and RPC download states (reset by sheet during loadReleases, originally clearing its local state). */
   reset: () => void;
 }
 
 /**
- * Release 资产动作（RPC 发送 + AI 总结），规范语义取自 ReleaseCard 版本；
- * useRepositoryReleaseSheet 委托本 hook（ADR 0001：同一逻辑不允许第三份拷贝）。
+ * Release artifact actions (RPC download + AI summary), with canonical semantics from the ReleaseCard version;
+ * useRepositoryReleaseSheet delegates to this hook (ADR 0001: no third copy of the same logic).
  */
 export const useReleaseArtifactActions = (): ReleaseArtifactActions => {
   const { language, backendApiSecret, aiConfigs, activeAIConfig } = useAppStore(useShallow((state) => ({
@@ -51,9 +51,9 @@ export const useReleaseArtifactActions = (): ReleaseArtifactActions => {
   const t = useT('app');
 
   const [summaries, setSummaries] = useState<Record<number, ReleaseArtifactSummaryState>>({});
-  // 渲染态用 useState Record 取代原 ReleaseCard 的 refs + forceUpdate（渲染等价）；
-  // 同步镜像 ref 保留原 ref 的同步短路语义：同一事件循环内的快速连点不会被
-  // setState 的异步批处理放过，避免重复发送。
+  // Render state uses a useState Record replacing the original ReleaseCard refs + forceUpdate (render equivalent);
+  // synchronous mirror ref retains synchronous short-circuit semantics: rapid consecutive clicks within the same event
+  // loop are not slipped through by async setState batching, avoiding duplicate sends.
   const rpcDownloadStatesRef = useRef<Record<string, RpcDownloadState>>({});
   const [rpcDownloadStates, setRpcDownloadStates] = useState<Record<string, RpcDownloadState>>({});
   const applyRpcDownloadState = useCallback((key: string, state: RpcDownloadState) => {
@@ -71,8 +71,8 @@ export const useReleaseArtifactActions = (): ReleaseArtifactActions => {
   useEffect(() => cancelSummaryRequests, [cancelSummaryRequests]);
 
   const reset = useCallback(() => {
-    // 先取消进行中的总结请求再清空：否则刷新（sheet 的 loadReleases）后，
-    // 迟到的完成会回写旧结果到刚清空的状态里。
+    // Cancel in-flight summary requests before clearing: otherwise after a refresh (sheet's loadReleases),
+    // late completions would write stale results back into the freshly cleared state.
     cancelSummaryRequests();
     setSummaries({});
     rpcDownloadStatesRef.current = {};
@@ -81,11 +81,11 @@ export const useReleaseArtifactActions = (): ReleaseArtifactActions => {
 
   const sendRpcDownload = useCallback(async (link: RpcDownloadLink) => {
     const key = computeRpcDownloadKey(link);
-    // 仅在发送进行中时短路，允许发送完成后再次点击重新发送
+    // Only short-circuit while sending is in flight, allowing users to re-send once completed
     if (rpcDownloadStatesRef.current[key] === 'sending') return;
 
-    // 重试开始即清除旧的成功态：若本次失败/异常，行内不得残留 ✓，
-    // 否则卡片会把失败的重试报告成成功。
+    // Clear old success state when retry begins: if this attempt fails or throws, ✓ must not remain inline,
+    // otherwise the card would report a failed retry as success.
     applyRpcDownloadState(key, 'sending');
     try {
       const result = await sendToRpcDownload(link.url, link.name, backendApiSecret || undefined);
@@ -109,8 +109,8 @@ export const useReleaseArtifactActions = (): ReleaseArtifactActions => {
 
   const generateSummary = useCallback(async (release: Release) => {
     const existing = summaries[release.id];
-    // 前置守卫：loading 中或已有结论时不重跑。ReleaseCard 按钮在 loading 期间本就
-    // disabled（原实现的"取消上一请求"由此不可达，此处守卫化并兼容 sheet 委托）。
+    // Pre-guard: do not re-run if loading or already finished. The ReleaseCard button is already
+    // disabled during loading (making the original "cancel previous request" unreachable; guarded here and compatible with sheet delegation).
     if (existing?.status === 'loading' || (existing?.status === 'done' && existing.content)) return;
 
     const activeConfig = aiConfigs.find((config) => config.id === activeAIConfig);
@@ -122,13 +122,12 @@ export const useReleaseArtifactActions = (): ReleaseArtifactActions => {
       return;
     }
 
-    // 同步门卫：loading 守卫读的是渲染快照，同一事件循环内的连续调用（双击/重复
-    // 触发）拿到的还是旧快照、会双双通过；summaryAbortRefs 同步更新，可挡住并发
-    // 双请求。
+    // Synchronous guard: the loading guard reads a render snapshot, so consecutive invocations in the same event loop (double-click/retrigger)
+    // would both see the stale snapshot and pass; summaryAbortRefs updates synchronously to block concurrent duplicate requests.
     if (summaryAbortRefs.current[release.id]) return;
 
-    // 请求取消仅经由 cancelSummaryRequests（unmount / reset）；同步门卫 + loading
-    // 守卫使同 id 并发不可达，无需"取消上一请求"。
+    // Request cancellation only goes through cancelSummaryRequests (unmount / reset); synchronous guard + loading guard
+    // make concurrent requests with the same ID unreachable, removing the need to "cancel previous request".
     const controller = new AbortController();
     summaryAbortRefs.current[release.id] = controller;
 
@@ -145,12 +144,12 @@ export const useReleaseArtifactActions = (): ReleaseArtifactActions => {
         },
         controller.signal
       );
-      // 对齐原 sheet 的 post-await 守卫：服务不响应 signal 而迟到 resolve 时
-      // （如 reset()/unmount 之后），丢弃过期结果，不得回写刚清空的状态。
+      // Aligns with original sheet's post-await guard: if the service ignores signal and resolves late
+      // (e.g. after reset()/unmount), discard stale results and do not overwrite the freshly cleared state.
       if (controller.signal.aborted) return;
       setSummaries((previous) => ({ ...previous, [release.id]: { status: 'done', content } }));
     } catch (error) {
-      // 主动取消（卸载/重置）时静默处理，不更新状态、不弹错误
+      // Silently handle intentional cancellations (unmount/reset) without updating state or showing errors
       if ((error instanceof Error && error.name === 'AbortError') || controller.signal.aborted) {
         return;
       }

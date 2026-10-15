@@ -42,7 +42,7 @@ export const GlobalChatHistorySheet: React.FC<GlobalChatHistorySheetProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pendingDeletion, setPendingDeletion] = useState<RepositoryChatSession | null>(null);
-  // 重叠刷新只允许最新请求提交，避免旧结果覆盖新状态。
+  // Overlapping refreshes only allow the latest request to commit, preventing stale results from overwriting newer state.
   const requestIdRef = useRef(0);
 
   const repositoryById = useMemo(() => {

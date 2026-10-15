@@ -1,10 +1,11 @@
 'use strict';
 
 /**
- * 社区插件注册表的校验（开发守则 §17 / §18）。
+ * Community plugin registry schema validation (Development Guidelines §17 / §18).
  *
- * 注册表是从网络拿到的 JSON：**一条坏记录不能拖垮整个列表**——逐条校验，坏的丢弃并带上
- * 原因，好的照常返回。字段与取值域与 `registry/schemas/*.schema.json` 保持一致。
+ * The registry is JSON fetched from the network: **a single bad entry must not break the whole list**.
+ * Validate entry by entry; drop bad entries with a reason and keep valid ones.
+ * Fields and value domains stay in sync with `registry/schemas/*.schema.json`.
  */
 
 const PLUGIN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{1,126}[A-Za-z0-9]$/;
@@ -14,7 +15,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const HOST_RE = /^[a-z0-9.-]+$/;
 const SUPPORTED_API_VERSIONS = new Set(['1']);
 
-/** 与 manifestSchema 的权限枚举保持一致；注册表里出现未知权限就拒绝该条。 */
+/** Kept in sync with manifestSchema permission enums; unknown permissions reject the entry. */
 const PLUGIN_PERMISSIONS = new Set([
   'repositories:read',
   'repositories:write',
@@ -43,7 +44,7 @@ const isHttpsGitHubUrl = (value) => {
 };
 
 /**
- * 校验一条插件注册记录。
+ * Validates a single plugin registry entry.
  * @returns {{ ok: true, value: object } | { ok: false, code: string, message: string }}
  */
 function validateRegistryEntry(value) {
@@ -100,7 +101,7 @@ function validateRegistryEntry(value) {
   };
 }
 
-/** 校验一条撤销记录。 */
+/** Validates a single revocation/removal entry. */
 function validateRemovedEntry(value) {
   if (!isPlainObject(value)) return { ok: false, code: 'REGISTRY_ENTRY_INVALID', message: 'Entry is not an object' };
   if (typeof value.id !== 'string' || !PLUGIN_ID_RE.test(value.id)) {
@@ -131,7 +132,7 @@ function validateRemovedEntry(value) {
   };
 }
 
-/** 逐条校验一个数组，坏的进 `rejected`。 */
+/** Validates an array entry-by-entry; invalid entries are placed in `rejected`. */
 function validateList(value, validator) {
   if (!Array.isArray(value)) return { accepted: [], rejected: [{ code: 'REGISTRY_NOT_ARRAY', message: 'Registry list is not an array' }] };
   const accepted = [];

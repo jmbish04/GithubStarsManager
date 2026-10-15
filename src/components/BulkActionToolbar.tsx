@@ -147,7 +147,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
   const shakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 处理可见性变化，播放动画后再卸载
+  // Handle visibility changes: play animation before unmounting
   React.useEffect(() => {
     if (isVisible) {
       setShouldRender(true);
@@ -156,12 +156,12 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
       setIsClosing(true);
       const timer = setTimeout(() => {
         setShouldRender(false);
-      }, 300); // 动画持续时间
+      }, 300); // Animation duration
       return () => clearTimeout(timer);
     }
   }, [isVisible]);
 
-  // 清理 shake timeout 和 confirm timeout on unmount
+  // Clear shake, confirm, and tooltip timeouts on unmount
   React.useEffect(() => {
     return () => {
       if (shakeTimeoutRef.current) {
@@ -176,7 +176,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
     };
   }, []);
 
-  // 触发抖动动画
+  // Trigger shake animation
   const triggerShake = () => {
     setIsShaking(true);
     if (shakeTimeoutRef.current) {
@@ -214,7 +214,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
       }
       setShowConfirm(action);
 
-      // 显示弱气泡提示
+      // Show subtle tooltip bubble
       if (e) {
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const actionLabels: Record<string, { zh: string; en: string }> = {
@@ -259,9 +259,9 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
     }, 300);
   };
 
-  // 处理点击工具栏背景（非按钮区域）
+  // Handle clicks on the toolbar background (non-button area)
   const handleToolbarClick = (e: React.MouseEvent) => {
-    // 如果点击的是工具栏背景本身（不是按钮），触发抖动提示
+    // If clicking the toolbar background itself (not a button), trigger shake feedback
     if (e.target === e.currentTarget) {
       triggerShake();
     }
@@ -502,7 +502,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
         </div>
       </div>
 
-      {/* 弱气泡提示 */}
+      {/* Subtle tooltip bubble */}
       {tooltip && (
         <div
           role="status"

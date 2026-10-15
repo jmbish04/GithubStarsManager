@@ -66,7 +66,7 @@ test('Electron health facts keep unknown values null instead of guessing', () =>
   assert.equal(withoutReleases.has_releases, null);
   assert.equal(withoutReleases.releases_fetched, false);
 
-  // 后端 schema 不存储 GitHub 原生状态字段时必须保持 null（未知），不能断言「未归档」。
+  // When backend schema does not store GitHub native status fields, must remain null (unknown) rather than asserting "unarchived".
   const withoutStatus = deriveRepositoryHealthFacts(repo(), [], NOW);
   assert.equal(withoutStatus.archived, null);
   assert.equal(withoutStatus.disabled, null);
@@ -74,7 +74,7 @@ test('Electron health facts keep unknown values null instead of guessing', () =>
   assert.equal(withoutStatus.is_template, null);
   assert.equal(withoutStatus.signals.includes('archived'), false);
 
-  // 有了事实就照实上报
+  // Report facts truthfully when present
   const archived = deriveRepositoryHealthFacts(repo({ archived: true }), [], NOW);
   assert.equal(archived.archived, true);
   assert.equal(archived.signals.includes('archived'), true);
@@ -120,7 +120,7 @@ test('Electron filter predicates match the renderer semantics', () => {
   assert.equal(isArchivedRepository({ archived: true }), true);
   assert.equal(hasRecentActivity({ pushed_at: '2026-09-10T00:00:00.000Z' }, NOW), true);
   assert.equal(hasRecentActivity({ pushed_at: '2024-01-01T00:00:00.000Z' }, NOW), false);
-  // 时间不可解析时不算「近期活跃」，且阈值就是 12 个月
+  // If time cannot be parsed, does not count as "recently active"; the threshold is exactly 12 months
   assert.equal(hasRecentActivity({ pushed_at: '', updated_at: '' }, NOW), false);
   assert.equal(typeof NO_RECENT_ACTIVITY_DAYS, 'number');
 });

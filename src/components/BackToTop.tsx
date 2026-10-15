@@ -12,7 +12,7 @@ export const BackToTop: React.FC = () => {
     const t = useT('app');
   const [isVisible, setIsVisible] = useState(false);
   const [isBouncing, setIsBouncing] = useState(false);
-  // 当 README 模态框打开时隐藏按钮，避免遮挡模态框内容
+  // Hide the button when the README modal is open to avoid obstructing modal content
   const readmeModalOpen = useAppStore(state => state.readmeModalOpen);
   const reduceMotion = useAppStore(state => state.themeTokens.animation === 'reduced');
   const bounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,7 +34,7 @@ export const BackToTop: React.FC = () => {
     });
   }, [reduceMotion]);
 
-  // 触发跳跃动画
+  // Trigger bounce animation
   const triggerBounce = useCallback(() => {
     if (bounceTimeoutRef.current) {
       clearTimeout(bounceTimeoutRef.current);
@@ -53,7 +53,7 @@ export const BackToTop: React.FC = () => {
     };
   }, [toggleVisibility]);
 
-  // 监听全局跳跃动画事件
+  // Listen for global bounce animation events
   useEffect(() => {
     const handleBounceEvent = () => {
       if (isVisible) {

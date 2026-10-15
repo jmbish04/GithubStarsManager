@@ -12,8 +12,8 @@ export interface StarSyncActions {
 
 /** Encapsulates the confirmed GitHub Lists synchronization workflow. */
 export const useStarSyncActions = (): StarSyncActions => {
-  // 本 hook 的文案都在 settings 命名空间；面板传入的 t 绑定 app 命名空间，
-  // 查不到 key 会原样渲染（历史 bug），故自行绑定 settings。
+  // This hook's strings are in the settings namespace; the panel passes t bound to the app namespace,
+  // where missing keys would render verbatim (historical bug), so bind to settings directly.
   const t = useT('settings');
   const { githubToken, pushCategoriesToLists, setListsPushError } = useAppStore(useShallow((state) => ({
     githubToken: state.githubToken,

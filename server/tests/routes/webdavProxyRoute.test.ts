@@ -9,7 +9,7 @@ vi.mock('../../src/db/connection.js', () => ({
     prepare: (sql: string) => ({
       get: (keyOrId: string) => {
         if (sql.includes('FROM webdav_configs')) {
-          // 模拟"配置尚未同步到后端"：该 id 在库中不存在
+          // Simulate "config has not yet synced to backend": ID does not exist in DB
           if (keyOrId === 'not-synced-yet') return undefined;
           return {
             id: keyOrId,
@@ -93,7 +93,7 @@ describe('WebDAV proxy route', () => {
       .send({ configId: 'webdav-1', method: 'PROPFIND', path: '/backup', headers: { Depth: '1' } })
       .expect(207);
 
-    // 原样透传：不能被 res.json() 二次编码成带引号的 JSON 字符串
+    // Pass through as-is: must not be double-encoded by res.json() into a quoted JSON string
     expect(res.text).toBe(xml);
     expect(res.headers['content-type']).toMatch(/application\/xml/);
     expect(proxyRequestMock.mock.calls[0][0].preserveRawResponse).toBe(true);

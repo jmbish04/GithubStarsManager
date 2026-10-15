@@ -313,8 +313,8 @@ export const RepositoryReleaseSheet: React.FC<RepositoryReleaseSheetProps> = ({
         </div>
         <RepositoryHealthPanel
           repository={repository}
-          // 拉取中/拉取失败时不把「本地没有 Release」当成事实——那样会把网络故障
-          // 误报成「该仓库没有 Release」。此时相关事实显示为「未知」。
+          // While fetching or on error, do not treat "no local releases" as a fact—that would
+          // misreport a network failure as "this repo has no releases". Relevant facts display as "Unknown" instead.
           releases={isLoading || error ? undefined : releases}
           language={language}
         />

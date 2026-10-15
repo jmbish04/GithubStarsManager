@@ -13,17 +13,17 @@ import {
 } from '../ui/alert-dialog';
 
 interface PluginUninstallDialogProps {
-  /** 卸载目标；null 时不渲染。 */
+  /** Uninstallation target; does not render when null. */
   target: InstalledPlugin | null;
   t: TranslateFn;
   onClose: () => void;
-  /** removePluginData 表示是否连同插件的存储数据与日志一起删除。 */
+  /** removePluginData indicates whether to delete stored plugin data and logs along with the plugin. */
   onUninstall: (removePluginData: boolean) => void;
 }
 
 /**
- * 插件卸载确认弹窗：本地插件与插件市场共用。
- * 三个出口——取消、保留数据卸载、连同数据卸载。
+ * Plugin uninstallation confirmation dialog: shared by local plugins and the marketplace.
+ * Three actions: cancel, uninstall while keeping data, uninstall and delete data.
  */
 export const PluginUninstallDialog: React.FC<PluginUninstallDialogProps> = ({ target, t, onClose, onUninstall }) => (
   <AlertDialog open={target !== null} onOpenChange={(open) => { if (!open) onClose(); }}>

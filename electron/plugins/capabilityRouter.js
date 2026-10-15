@@ -2,9 +2,9 @@
 
 const { protocolError } = require('./pluginProtocol');
 
-// 页面 Bridge 的系统输出操作（剪贴板、宿主下载）由宿主注入实现；路由器只做
-// 权限检查与参数解码。Worker 侧的 router 不注入 hostOperations，因此这些
-// capability 对 Worker 不可用。
+// System output operations for page bridges (clipboard, host downloads) are injected by the host.
+// The router only handles permission checks and argument decoding. The Worker-side router
+// does not inject hostOperations, so these capabilities remain unavailable to Workers.
 function createCapabilityRouter({ storage, logger, catalog, hostOperations = null }) {
   function requireHostOperation(capability, operation) {
   const handler = hostOperations?.[operation];
@@ -72,8 +72,8 @@ function createCapabilityRouter({ storage, logger, catalog, hostOperations = nul
         if (request.operation !== 'request') {
           throw protocolError('PLUGIN_CAPABILITY_UNKNOWN', `Unknown network operation '${request.operation}'`);
         }
-        // 按 `network:<host>` 逐主机授权；host/path 白名单在 page bridge 已校验，
-        // Worker 调用没有这道前置校验，因此这里仍要求 host 是非空字符串。
+        // Authorize per host via `network:<host>`. The host/path allowlist is validated in the page bridge;
+        // Worker invocations do not have that pre-validation, so we still require host to be a non-empty string here.
         const host = request.args?.host;
         if (typeof host !== 'string' || !host || !permissions.includes(`network:${host}`)) {
           throw protocolError('PLUGIN_PERMISSION_DENIED', `Permission 'network:<host>' is required`);

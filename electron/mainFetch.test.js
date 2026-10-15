@@ -10,9 +10,9 @@ const {
   toFailureResult,
 } = require('./mainFetch');
 
-describe('summarizeFetchError: 还原 undici "fetch failed" 的 cause 链', () => {
-  it('提取最深层 cause 的 code 与 message', () => {
-    // undici 形态：TypeError('fetch failed') -> cause: Error(code=ECONNREFUSED)
+describe('summarizeFetchError: unwraps undici "fetch failed" cause chain', () => {
+  it('extracts code and message from deepest cause', () => {
+    // undici shape: TypeError('fetch failed') -> cause: Error(code=ECONNREFUSED)
     const cause = new Error('connect ECONNREFUSED 127.0.0.1:5006');
     cause.code = 'ECONNREFUSED';
     const err = new TypeError('fetch failed', { cause });
@@ -26,7 +26,7 @@ describe('summarizeFetchError: 还原 undici "fetch failed" 的 cause 链', () =
     assert.equal(summary.timedOut, false);
   });
 
-  it('cause 链去重（外层与 cause 文案相同只保留一次）', () => {
+  it('deduplicates cause chain (identical text kept once)', () => {
     const cause = new Error('getaddrinfo ENOTFOUND dav.lan');
     cause.code = 'ENOTFOUND';
     const err = new TypeError('fetch failed', { cause });
@@ -39,7 +39,7 @@ describe('summarizeFetchError: 还原 undici "fetch failed" 的 cause 链', () =
     );
   });
 
-  it('AggregateError（Happy Eyeballs）展开子错误', () => {
+  it('AggregateError (Happy Eyeballs) unpacks sub-errors', () => {
     const a = new Error('connect ETIMEDOUT 203.0.113.1:443');
     a.code = 'ETIMEDOUT';
     const b = new Error('connect ENETUNREACH 2001:db8::1:443');
@@ -53,7 +53,7 @@ describe('summarizeFetchError: 还原 undici "fetch failed" 的 cause 链', () =
     assert.equal(summary.timedOut, true);
   });
 
-  it('AggregateError 自身的 cause 不被丢弃', () => {
+  it('preserves AggregateError own cause', () => {
     const own = new Error('aggregate own cause');
     own.code = 'EOWN';
     const sub = new Error('sub');
@@ -66,11 +66,11 @@ describe('summarizeFetchError: 还原 undici "fetch failed" 的 cause 链', () =
     assert.ok(codes.includes('EOWN'));
   });
 
-  it('跨递归边界的环形 cause 不会栈溢出', () => {
+  it('does not overflow stack on circular causes across recursion boundaries', () => {
     const agg = new AggregateError([], 'agg');
     const sub = new Error('loopy');
     agg.errors.push(sub);
-    sub.cause = agg; // 子错误反向引用父错误
+    sub.cause = agg; // Sub-error circularly references parent error
 
     const chain = extractCauseChain(agg);
 
@@ -78,12 +78,12 @@ describe('summarizeFetchError: 还原 undici "fetch failed" 的 cause 链', () =
     assert.ok(chain.length < 10);
   });
 
-  it('TimeoutError / AbortError 归一为超时', () => {
+  it('normalizes TimeoutError / AbortError as timedOut', () => {
     assert.equal(summarizeFetchError(new DOMException('signal timed out', 'TimeoutError')).timedOut, true);
     assert.equal(summarizeFetchError(new DOMException('aborted', 'AbortError')).timedOut, true);
   });
 
-  it('UND_ERR_*_TIMEOUT 出现在 cause 上也算超时', () => {
+  it('treats UND_ERR_*_TIMEOUT on cause as timedOut', () => {
     const cause = new Error('connect timeout');
     cause.code = 'UND_ERR_CONNECT_TIMEOUT';
     const err = new TypeError('fetch failed', { cause });
@@ -91,10 +91,10 @@ describe('summarizeFetchError: 还原 undici "fetch failed" 的 cause 链', () =
   });
 });
 
-describe('fetchAcrossStacks: 多网络栈回退', () => {
+describe('fetchAcrossStacks: multiple network stack fallback', () => {
   const fakeResponse = (status) => ({ status, ok: status < 400 });
 
-  it('主栈抛异常时回退到下一个栈', async () => {
+  it('falls back to next stack when primary stack throws exception', async () => {
     const calls = [];
     const { response, stack } = await fetchAcrossStacks([
       {
@@ -112,7 +112,7 @@ describe('fetchAcrossStacks: 多网络栈回退', () => {
     assert.equal(response.status, 200);
   });
 
-  it('HTTP 错误状态也算成功（不触发回退）', async () => {
+  it('treats HTTP error status as success (does not trigger fallback)', async () => {
     let fallbackCalled = false;
     const { response } = await fetchAcrossStacks([
       { name: 'undici', run: async () => fakeResponse(401) },
@@ -123,7 +123,7 @@ describe('fetchAcrossStacks: 多网络栈回退', () => {
     assert.equal(fallbackCalled, false);
   });
 
-  it('全部失败时合并各栈明细并带结构化 cause', async () => {
+  it('merges failure details across stacks with structured causes on all failures', async () => {
     const cause = new Error('getaddrinfo ENOTFOUND dav.lan');
     cause.code = 'ENOTFOUND';
 
@@ -135,14 +135,14 @@ describe('fetchAcrossStacks: 多网络栈回退', () => {
       assert.match(err.message, /undici: fetch failed <- ENOTFOUND: getaddrinfo ENOTFOUND dav\.lan/);
       assert.match(err.message, /chromium: net::ERR_NAME_NOT_RESOLVED/);
       assert.equal(err.timedOut, false);
-      assert.equal(err.causeCode, undefined); // 最后一个栈（chromium）没有 code
+      assert.equal(err.causeCode, undefined); // Last stack (chromium) has no code
       assert.equal(err.failures.length, 2);
       assert.equal(err.failures[0].summary.causeCode, 'ENOTFOUND');
       return true;
     });
   });
 
-  it('timedOut 仅当所有栈都超时', async () => {
+  it('timedOut is true only when all stacks timed out', async () => {
     await assert.rejects(fetchAcrossStacks([
       { name: 'a', run: async () => { throw new DOMException('t', 'TimeoutError'); } },
       { name: 'b', run: async () => { throw new DOMException('t', 'TimeoutError'); } },
@@ -154,14 +154,14 @@ describe('fetchAcrossStacks: 多网络栈回退', () => {
     ]), (err) => err.timedOut === false);
   });
 
-  it('超时预算耗尽后不再尝试下一个栈', async () => {
+  it('does not attempt next stack once timeout budget is exhausted', async () => {
     let fallbackCalled = false;
     await assert.rejects(fetchAcrossStacks([
       {
         name: 'undici',
         run: async ({ remainingMs }) => {
           assert.ok(remainingMs <= 300 && remainingMs > 250);
-          await new Promise((r) => setTimeout(r, 350)); // 烧光预算再失败
+          await new Promise((r) => setTimeout(r, 350)); // Exhaust budget before failing
           throw new TypeError('fetch failed');
         },
       },
@@ -171,7 +171,7 @@ describe('fetchAcrossStacks: 多网络栈回退', () => {
     assert.equal(fallbackCalled, false);
   });
 
-  it('总预算不足最小单栈预算时一个栈都不执行', async () => {
+  it('executes no stacks when total budget is below minimum single-stack budget', async () => {
     const calls = [];
     await assert.rejects(fetchAcrossStacks([
       { name: 'undici', run: async () => { calls.push('undici'); return fakeResponse(200); } },
@@ -181,10 +181,10 @@ describe('fetchAcrossStacks: 多网络栈回退', () => {
   });
 });
 
-describe('fetchAcrossStacks: onResponseRetryable 响应级让位', () => {
+describe('fetchAcrossStacks: onResponseRetryable response-level delegation', () => {
   const fakeResponse = (status) => ({ status, ok: status < 400 });
 
-  it('命中谓词的响应让位给下一栈（如 x.com 边缘按 TLS 指纹 403 undici）', async () => {
+  it('delegates to next stack when response matches predicate (e.g. x.com edge 403s undici by TLS fingerprint)', async () => {
     const calls = [];
     const { response, stack } = await fetchAcrossStacks([
       {
@@ -203,7 +203,7 @@ describe('fetchAcrossStacks: onResponseRetryable 响应级让位', () => {
     assert.equal(response.status, 200);
   });
 
-  it('谓词不命中的响应照常直接返回，不触发回退', async () => {
+  it('returns non-matching responses directly without triggering fallback', async () => {
     let fallbackCalled = false;
     const { response } = await fetchAcrossStacks([
       {
@@ -221,7 +221,7 @@ describe('fetchAcrossStacks: onResponseRetryable 响应级让位', () => {
     assert.equal(fallbackCalled, false);
   });
 
-  it('所有栈的响应都被判未命中时返回最后一个响应而不抛错', async () => {
+  it('returns last response without throwing when all stacks are deemed misses', async () => {
     const { response, stack } = await fetchAcrossStacks([
       {
         name: 'undici',
@@ -239,7 +239,7 @@ describe('fetchAcrossStacks: onResponseRetryable 响应级让位', () => {
     assert.equal(stack, 'chromium');
   });
 
-  it('被覆盖或被丢弃的未命中响应会取消其响应体（归还 undici 连接）', async () => {
+  it('cancels response bodies of superseded or discarded miss responses (returning undici connections)', async () => {
     const cancels = [];
     const fakeWithBody = (status) => {
       const response = fakeResponse(status);
@@ -264,20 +264,20 @@ describe('fetchAcrossStacks: onResponseRetryable 响应级让位', () => {
     ]);
 
     assert.equal(response.status, 200);
-    // 403 被 429 覆盖时取消；429 在拿到 200 后被丢弃时取消；200 正常返回不取消
+    // 403 cancelled when superseded by 429; 429 cancelled when discarded on 200; 200 returned normally without cancel
     assert.deepEqual(cancels, [403, 429]);
   });
 });
 
 describe('timeoutSignalFromBudget', () => {
-  it('用剩余预算构造信号；无预算时退回固定值；下限 1000ms', () => {
+  it('constructs signal from remaining budget; falls back to fixed value; min 1000ms', () => {
     assert.equal(timeoutSignalFromBudget(5000, 20000).aborted, false);
     assert.equal(timeoutSignalFromBudget(undefined, 20000).aborted, false);
-    assert.equal(timeoutSignalFromBudget(-5, 20000).aborted, false); // 负预算被钳到 1000ms
+    assert.equal(timeoutSignalFromBudget(-5, 20000).aborted, false); // Negative budget clamped to 1000ms
   });
 });
 
-describe('followRedirectsManually: 凭据不随跨域跳转泄露', () => {
+describe('followRedirectsManually: credentials do not leak across origins', () => {
   const respond = (status, location) => ({
     status,
     headers: { get: (k) => (k.toLowerCase() === 'location' ? location ?? null : null) },
@@ -291,7 +291,7 @@ describe('followRedirectsManually: 凭据不随跨域跳转泄露', () => {
     return { calls, fetchImpl };
   };
 
-  it('2xx 直接返回，不触发跳转逻辑', async () => {
+  it('returns 2xx directly without triggering redirect logic', async () => {
     const { calls, fetchImpl } = recorder(() => respond(200));
     const res = await followRedirectsManually(fetchImpl, 'https://dav.example.com/b/f.json', {
       method: 'PUT', headers: { Authorization: 'Basic abc' }, body: 'x',
@@ -300,7 +300,7 @@ describe('followRedirectsManually: 凭据不随跨域跳转泄露', () => {
     assert.equal(calls.length, 1);
   });
 
-  it('同源 307 保留方法与 Authorization', async () => {
+  it('preserves method and Authorization on same-origin 307', async () => {
     const { calls, fetchImpl } = recorder((i) =>
       i === 0 ? respond(307, 'https://dav.example.com/backup/') : respond(201));
     const res = await followRedirectsManually(fetchImpl, 'https://dav.example.com/backup', {
@@ -312,7 +312,7 @@ describe('followRedirectsManually: 凭据不随跨域跳转泄露', () => {
     assert.equal(calls[1].options.headers.Authorization, 'Basic abc');
   });
 
-  it('跨域 302 剥离 Authorization 与 Cookie', async () => {
+  it('strips Authorization and Cookie on cross-origin 302', async () => {
     const { calls, fetchImpl } = recorder((i) =>
       i === 0 ? respond(302, 'https://evil.example/harvest') : respond(200));
     await followRedirectsManually(fetchImpl, 'https://dav.example.com/f.json', {
@@ -324,7 +324,7 @@ describe('followRedirectsManually: 凭据不随跨域跳转泄露', () => {
     assert.equal(calls[1].options.headers['X-Other'], 'keep');
   });
 
-  it('跳转到非 http(s) 协议被拒绝', async () => {
+  it('rejects redirects to non-http(s) protocols', async () => {
     const { fetchImpl } = recorder(() => respond(302, 'file:///etc/passwd'));
     await assert.rejects(
       followRedirectsManually(fetchImpl, 'https://dav.example.com/f.json', { method: 'GET' }),
@@ -332,7 +332,7 @@ describe('followRedirectsManually: 凭据不随跨域跳转泄露', () => {
     );
   });
 
-  it('超过跳转上限抛错', async () => {
+  it('throws when exceeding redirect limit', async () => {
     const { fetchImpl } = recorder(() => respond(302, 'https://dav.example.com/loop'));
     await assert.rejects(
       followRedirectsManually(fetchImpl, 'https://dav.example.com/f.json', { method: 'GET' }, { maxRedirects: 3 }),
@@ -340,14 +340,14 @@ describe('followRedirectsManually: 凭据不随跨域跳转泄露', () => {
     );
   });
 
-  it('302 无 Location 时把 3xx 响应原样返回', async () => {
+  it('returns 3xx response as-is when 302 has no Location header', async () => {
     const { calls, fetchImpl } = recorder(() => respond(302, null));
     const res = await followRedirectsManually(fetchImpl, 'https://dav.example.com/f.json', { method: 'GET' });
     assert.equal(res.status, 302);
     assert.equal(calls.length, 1);
   });
 
-  it('303 把 PUT 降级为 GET，并剥离 body 与 Content-* 请求头', async () => {
+  it('303 degrades PUT to GET, stripping body and Content-* request headers', async () => {
     const { calls, fetchImpl } = recorder((i) =>
       i === 0 ? respond(303, 'https://dav.example.com/done') : respond(200));
     await followRedirectsManually(fetchImpl, 'https://dav.example.com/f.json', {
@@ -359,12 +359,12 @@ describe('followRedirectsManually: 凭据不随跨域跳转泄露', () => {
     assert.equal(calls[1].options.body, undefined);
     assert.equal(calls[1].options.headers['Content-Type'], undefined);
     assert.equal(calls[1].options.headers['Content-Length'], undefined);
-    assert.equal(calls[1].options.headers.Authorization, 'Basic abc'); // 同源保留凭据
+    assert.equal(calls[1].options.headers.Authorization, 'Basic abc'); // Same-origin preserves credentials
   });
 });
 
-describe('toFailureResult: IPC 失败返回体归一', () => {
-  it('透传 fetchAcrossStacks 合并错误的结构化 cause', async () => {
+describe('toFailureResult: IPC failure return normalization', () => {
+  it('passes through structured cause from fetchAcrossStacks combined errors', async () => {
     const cause = new Error('connect ECONNREFUSED 10.0.0.5:5006');
     cause.code = 'ECONNREFUSED';
     let combined;
@@ -385,7 +385,7 @@ describe('toFailureResult: IPC 失败返回体归一', () => {
     assert.equal(result.timedOut, false);
   });
 
-  it('普通异常走 summarize 兜底', () => {
+  it('standard exceptions fall back to summarize', () => {
     const result = toFailureResult(new Error('boom'));
     assert.equal(result.success, false);
     assert.equal(result.error, 'boom');
@@ -393,7 +393,7 @@ describe('toFailureResult: IPC 失败返回体归一', () => {
     assert.equal(result.causeCode, undefined);
   });
 
-  it('全部栈超时归一为 timedOut', async () => {
+  it('normalizes timedOut when all stacks time out', async () => {
     let combined;
     try {
       await fetchAcrossStacks([

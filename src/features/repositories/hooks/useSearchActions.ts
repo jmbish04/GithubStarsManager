@@ -14,9 +14,9 @@ import { isReservedCategoryName } from '../../../utils/categoryUtils';
 import { performBasicTextSearch } from '../../../utils/repoSearch';
 import { assignIdentityMatches } from '../../../utils/repositoryIdentity';
 
-// ===== 提纯纯函数（来源逐字对应 SearchBar 基线行号） =====
+// ===== Pure Helper Functions (Source corresponds line-by-line to SearchBar baseline line numbers) =====
 
-// SearchBar 446-459：轻量关键词加分 + scoreMap 构造。
+// SearchBar 446-459: Lightweight keyword boosting + scoreMap construction.
 export const buildSearchPatch = (
   query: string,
   vectorResults: VectorQueryResult[],
@@ -36,30 +36,30 @@ export const buildSearchPatch = (
 };
 
 /**
- * 星标同步的分配结果：与 `newRepos` 一一对齐（`undefined` = 新增）。
+ * Star sync assignment results: 1-to-1 aligned with `newRepos` (`undefined` = newly added).
  *
- * 规则本体在 `utils/repositoryIdentity`（id 优先，合成 id 的名称兜底其次），
- * 与 `addRepository` 共用同一份实现，避免两处口径漂移。
+ * The core rule resides in `utils/repositoryIdentity` (id takes priority, followed by synthetic id name fallback),
+ * sharing the same implementation as `addRepository` to prevent discrepancy between the two.
  */
 const assignStarredRepositories = (
   newRepos: Repository[],
   storeRepos: Repository[],
 ): Array<Repository | undefined> => assignIdentityMatches(newRepos, storeRepos);
 
-/** 统计本次同步中真正新增的仓库数（与合并口径一致）。 */
+/** Counts the number of truly newly added repositories in this sync (matching the merge criteria). */
 export const countNewStarredRepositories = (
   newRepos: Repository[],
   storeRepos: Repository[],
 ): number => assignStarredRepositories(newRepos, storeRepos)
   .filter(assignment => assignment === undefined).length;
 
-// SearchBar 725-750：星标同步结果与本地仓库逐字段合并（license `?? null` 回填）。
+// SearchBar 725-750: Field-by-field merge of star sync results with local repositories (backfilling license `?? null`).
 export const mergeStarredRepositories = (
   newRepos: Repository[],
   storeRepos: Repository[],
 ): Repository[] => {
-  // 与 countNewStarredRepositories 共用同一套分配结果，保证「合并」与
-  // 「新增计数」口径一致，且名称兜底不会把同一份本地记录重复用掉。
+  // Shares the same assignment results with countNewStarredRepositories to ensure "merge"
+  // and "new count" criteria are identical, and name fallback does not reuse the same local record.
   const assignments = assignStarredRepositories(newRepos, storeRepos);
   return newRepos.map((newRepo, index) => {
     const existing = assignments[index];
@@ -79,10 +79,10 @@ export const mergeStarredRepositories = (
         starred_at: newRepo.starred_at,
         owner: newRepo.owner,
         topics: newRepo.topics,
-        // 回填历史仓库缺失的 license 字段（GitHub 源元数据，跟随 newRepo）
+        // Backfill missing license field for historical repositories (GitHub source metadata, follows newRepo)
         license: newRepo.license ?? null,
-        // GitHub 原生状态字段：跟随 newRepo 刷新（归档/停用状态会随上游变化）。
-        // 源缺失时保留本地已获得的值，避免把已有 Health 事实退化成「未知」。
+        // GitHub native status fields: refreshed from newRepo (archived/disabled status follows upstream changes).
+        // Preserves locally acquired value when source is missing, avoiding demoting known Health facts to "unknown".
         archived: newRepo.archived ?? existing.archived,
         disabled: newRepo.disabled ?? existing.disabled,
         fork: newRepo.fork ?? existing.fork,
@@ -95,16 +95,16 @@ export const mergeStarredRepositories = (
   });
 };
 
-// SearchBar 774-799：构造"list 名(小写) → 本地分类"映射并为云端 list 规划缺失的自定义分类。
-// makeCategoryId 由 hook 注入（原实现内联 `custom-sync-${Date.now()}-${idx}`），保持可测性。
+// SearchBar 774-799: Construct "list name (lowercase) -> local category" mapping and plan missing custom categories for cloud lists.
+// makeCategoryId is injected by the hook (original implementation inlined `custom-sync-${Date.now()}-${idx}`), maintaining testability.
 export const planListCategories = (
   lists: GitHubList[],
   localCategories: Category[],
   makeCategoryId: (idx: number) => string,
 ): { toCreate: Category[]; categoryByLowerName: Map<string, string> } => {
-  // 值使用本地分类的原始名称（保留其大小写），而非 list 名：
-  // 锁定分类的筛选用精确相等比较，若直接存 GitHub 侧的大小写，
-  // 仓库会从分类结果中消失（如 list 名为 "web apps" 而分类为 "Web Apps"）。
+  // Values use the original name of local categories (preserving their casing), rather than the list name:
+  // locked category filtering uses strict equality; if directly storing GitHub side casing,
+  // the repository would disappear from category results (e.g., list name "web apps" vs category "Web Apps").
   const categoryByLowerName = new Map(
     localCategories
       .filter(c => c.id !== 'all' && !isReservedCategoryName(c.name))
@@ -121,13 +121,13 @@ export const planListCategories = (
       isCustom: true,
       keywords: [],
     });
-    // 纳入本次运行使用的映射，使后续 listMatchesCategory 命中、可设分类并加锁
+    // Add to the mapping used in this run, allowing subsequent listMatchesCategory hits to set category and lock
     categoryByLowerName.set(lower, list.name);
   });
   return { toCreate, categoryByLowerName };
 };
 
-// SearchBar 807-868：preExistingLocked 集 + 打标签/设分类/加锁循环 + last_edited。
+// SearchBar 807-868: preExistingLocked set + tagging/category assignment/locking loop + last_edited.
 export const applyListsToRepositories = (
   repositories: Repository[],
   lists: GitHubList[],
@@ -136,12 +136,12 @@ export const applyListsToRepositories = (
   const listRepoMap = new Map(repositories.map(repo => [repo.full_name.toLowerCase(), repo]));
   const appliedTagsCount: Record<string, number> = {};
 
-  // DEC-4：只判定锁定状态。
-  // 区分"本次同步开始前已存在"的锁定与"本次运行中新产生"的锁定：
-  // - 预存在的锁定：不覆盖其分类与锁定，但仍追加本次命中的 list 名为
-  //   custom_tags（修复 #273：否则一旦仓库被锁过，之后云端 list 的任何
-  //   变化都被跳过，导致"无法将云端 list 拉取到本地"）。
-  // - 本次运行中被前面的 list 刚锁定：保留已分配的分类/锁定，继续追加后续 list 的标签
+  // DEC-4: Only evaluate locked status.
+  // Distinguish between locks that "existed before this sync started" and locks "newly created in this run":
+  // - Pre-existing locks: do not overwrite their category and lock state, but still append matched list names
+  //   as custom_tags (fixes #273: otherwise once a repo was locked, subsequent cloud list changes were skipped,
+  //   causing "unable to pull cloud lists to local").
+  // - Newly locked by an earlier list in this run: retain assigned category/lock state, continue appending tags for subsequent lists
   const preExistingLocked = new Set(
     repositories
       .filter(r => r.category_locked)
@@ -160,10 +160,10 @@ export const applyListsToRepositories = (
         customTags.push(list.name);
       }
 
-      // 预存在锁定：不覆盖其分类与锁定，仅追加 list 名为标签，让云端
-      // list 关系仍能反映到本地（修复 #273）。
+      // Pre-existing lock: do not overwrite category and lock; only append list name as tag
+      // so cloud list relationships are reflected locally (fixes #273).
       if (preExistingLocked.has(key)) {
-        // 仅当标签确有变化才写回，避免无谓的 last_edited 抖动
+        // Only write back when tags actually change, avoiding unnecessary last_edited jitter
         if (customTags.length !== (repo.custom_tags?.length ?? 0)) {
           listRepoMap.set(key, { ...repo, custom_tags: customTags });
         }
@@ -171,14 +171,14 @@ export const applyListsToRepositories = (
         continue;
       }
 
-      // 本次运行中刚被锁定的仓库：保留已分配的分类与锁定，仅追加标签
+      // Repository just locked in this run: retain assigned category and lock, only append tag
       if (repo.category_locked) {
         listRepoMap.set(key, { ...repo, custom_tags: customTags });
         appliedCount++;
         continue;
       }
 
-      // 若 list 名对应某个本地分类：设置分类并加锁；否则仅加标签（多分类靠标签匹配）
+      // If list name matches a local category: set category and lock; otherwise only add tag (multiple categories matched via tags)
       const listMatchesCategory = categoryByLowerName.has(list.name.toLowerCase());
       const updatedRepo: Repository = listMatchesCategory
         ? {
@@ -214,10 +214,10 @@ export const applyListsToRepositories = (
 export interface SearchActions {
   isSearching: boolean;
   searchPhase: string | null;
-  // 渲染相关 ref：View 的过滤 effect 仍要读写，故以 RefObject 暴露。
-  // 实体挂 hook、以 RefObject 暴露给 View 原样读写——写点在 aiSearch（本 hook），
-  // 读点在 View 的过滤 effect（依赖 View 本地 applyFilters 闭包），整体搬入 hook
-  // 会扩大改动面、引入漂移风险，"只搬运不改语义"约束下这是风险最低的切法。
+  // Rendering-related refs: View's filtering effect still needs to read/write them, hence exposed as RefObject.
+  // The entity lives in the hook and is exposed to View as RefObject for unchanged read/write — write point in aiSearch (this hook),
+  // read point in View's filtering effect (depends on View's local applyFilters closure). Moving everything into the hook
+  // would widen the blast radius and introduce drift risks; under the "move only, don't change semantics" constraint, this is the lowest-risk approach.
   vectorScoreMapRef: MutableRefObject<{ query: string; scores: Map<string, number> } | null>;
   skipNextTextSearchRef: MutableRefObject<boolean>;
   aiSearch: (query: string, applyFilters: (repos: Repository[]) => Repository[]) => Promise<void>;
@@ -271,7 +271,7 @@ export const useSearchActions = (): SearchActions => {
   const [searchPhase, setSearchPhase] = useState<string | null>(null);
   const vectorScoreMapRef = useRef<{ query: string; scores: Map<string, number> } | null>(null);
   const skipNextTextSearchRef = useRef(false);
-  // 当前在途 AI 搜索的控制器：新搜索启动时中止旧请求（超代语义）
+  // Controller for current in-flight AI search: aborts previous request when a new search starts (superseding semantics)
   const aiSearchAbortRef = useRef<AbortController | null>(null);
   const t = useT('repositories');
 
@@ -286,7 +286,7 @@ export const useSearchActions = (): SearchActions => {
     let aiOrdered = false;
     if (activeConfig) {
       try {
-        // 无向量降级链：查询扩展+意图复述 → 词法候选召回 → LLM 精选排序
+        // Non-vector fallback chain: query expansion + intent rewriting -> lexical candidate retrieval -> LLM curated ranking
         setSearchPhase(t('useSearchActions.ai-semantic-analysis'));
         const aiService = new AIService(activeConfig, language);
         const aiResults = await aiService.searchRepositoriesWithSelection(repositories, query, {
@@ -297,7 +297,7 @@ export const useSearchActions = (): SearchActions => {
               : t('useSearchActions.ai-semantic-analysis'));
           },
           onFallback: (reason) => {
-            // 端点抖动/配置问题时用户看到的不能只是"空结果"：明确告知已降级
+            // On endpoint jitter/configuration issues, users shouldn't just see "empty results": clearly inform about fallback
             if (reason === 'ai_failed') {
               toast(t('useSearchActions.ai-request-failed-fell-back-to-local-lexical-sea'), 'warning');
             }
@@ -307,7 +307,7 @@ export const useSearchActions = (): SearchActions => {
         filtered = aiResults;
         aiOrdered = true;
       } catch (error) {
-        // 取消不是失败：向上传播交给 aiSearch 静默结束，不产出兜底结果
+        // Cancellation is not a failure: propagate up to aiSearch to finish silently without producing fallback results
         if (isAbortError(error)) throw error;
         console.warn('❌ AI search failed, falling back to basic search:', error);
         toast(t('useSearchActions.ai-request-failed-fell-back-to-local-lexical-sea'), 'warning');
@@ -322,16 +322,16 @@ export const useSearchActions = (): SearchActions => {
     // Apply other filters and update results
     const finalFiltered = applyFilters(filtered);
     if (aiOrdered) {
-      // AI 返回的顺序（LLM 精选序或词法兜底序）就是相关性顺序；applyFilters 会按
-      // 排序控件重排（默认 star 降序），这里恢复 AI 顺序——与向量路径的
-      // rerankOrder 恢复逻辑同构。
+      // The order returned by AI (LLM curated order or lexical fallback order) is the relevance order; applyFilters
+      // will re-sort according to UI sorting controls (default star descending). Here we restore the AI order — isomorphic
+      // to the rerankOrder restoration logic in the vector path.
       const aiOrder = new Map(filtered.map((repo, index) => [String(repo.id), index]));
       finalFiltered.sort((a, b) =>
         (aiOrder.get(String(a.id)) ?? Number.MAX_SAFE_INTEGER)
         - (aiOrder.get(String(b.id)) ?? Number.MAX_SAFE_INTEGER));
-      // 下面 setSearchFilters({ query }) 会触发 SearchBar 的过滤 effect，用基础
-      // 文本搜索+star 排序重设结果——LLM 精选的顺序、子集与显式空态都会被覆盖。
-      // 与向量路径同用 skipNextTextSearchRef 挡掉这次 effect（含空结果场景）。
+      // setSearchFilters({ query }) below will trigger SearchBar's filtering effect, resetting results with basic
+      // text search + star sorting — overriding LLM curated order, subset, and explicit empty state.
+      // Shared with vector path: use skipNextTextSearchRef to block this effect (including empty result cases).
       skipNextTextSearchRef.current = true;
     }
     setSearchResults(finalFiltered);
@@ -346,8 +346,8 @@ export const useSearchActions = (): SearchActions => {
   ): Promise<void> => {
     if (!query.trim()) return;
 
-    // 新搜索接管：中止上一次仍在途的 AI 请求（搜索进行中按 Enter 可再次触发），
-    // 防止过期结果落盘覆盖新结果。被取代的搜索在 finally 里不复位搜索状态。
+    // New search takes over: abort previous in-flight AI request (pressing Enter during an ongoing search can re-trigger),
+    // preventing stale results from writing to storage and overwriting new results. Superseded searches do not reset search state in finally.
     aiSearchAbortRef.current?.abort();
     const controller = new AbortController();
     aiSearchAbortRef.current = controller;
@@ -358,8 +358,8 @@ export const useSearchActions = (): SearchActions => {
     console.log('🔍 Starting AI search for query:', query);
 
     try {
-      // ====== 向量搜索分支 ======
-      // 保持原时机：非响应式 getState() 读取（原文件如此，不改成响应式 selector）
+      // ====== Vector Search Branch ======
+      // Preserve original timing: non-reactive getState() read (original file behaves this way; do not change to reactive selector)
       const vsConfig = useAppStore.getState().vectorSearchConfig;
       const embConfigs = useAppStore.getState().embeddingConfigs;
       const activeEmbConfig = embConfigs.find(c => c.id === vsConfig?.embeddingConfigId);
@@ -369,7 +369,7 @@ export const useSearchActions = (): SearchActions => {
           const embeddingClient = new EmbeddingClient(activeEmbConfig);
           const vectorService = new VectorSearchService(vsConfig);
 
-          // 1. HyDE 查询预处理：用 LLM 生成理想仓库描述再嵌入（可选，5 秒超时降级）
+          // 1. HyDE query preprocessing: use LLM to generate hypothetical repo description then embed (optional, 5-second timeout fallback)
           let embeddingQuery = query;
           const hydeConfig = aiConfigs.find(config => config.id === activeAIConfig);
           if (vsConfig.enableHyDE !== false && hydeConfig) {
@@ -398,11 +398,11 @@ export const useSearchActions = (): SearchActions => {
             }
           }
 
-          // 2. 前端调用 Embedding API 生成查询向量
+          // 2. Frontend calls Embedding API to generate query vector
           setSearchPhase(t('useSearchActions.generating-query-vector'));
           const queryVectors = await embeddingClient.embed([embeddingQuery], 'query');
           if (queryVectors && queryVectors.length > 0) {
-            // 2. 前端将查询向量发送到 Worker
+            // 2. Frontend sends query vector to Worker
             setSearchPhase(t('useSearchActions.searching-vector-index'));
             const vectorResults = await vectorService.query(queryVectors[0], {
               topK: vsConfig.searchTopK ?? 30,
@@ -410,10 +410,10 @@ export const useSearchActions = (): SearchActions => {
             });
 
             if (vectorResults.length > 0) {
-              // 3. 轻量关键词加分：精确匹配的字段给予分数微调
+              // 3. Lightweight keyword boosting: fine-tune scores for exact matching fields
               const scoreMap = buildSearchPatch(query, vectorResults);
 
-              // 4. 从本地仓库数据中取出匹配结果，按相似度排序
+              // 4. Fetch matched results from local repo data, sorted by similarity
               const scoredRepos = repositories
                 .filter(repo => scoreMap.has(String(repo.id)))
                 .map(repo => ({
@@ -424,7 +424,7 @@ export const useSearchActions = (): SearchActions => {
                 .map(item => item.repo);
 
               if (scoredRepos.length > 0) {
-                // 4. AI 语义重排序：用 LLM 对向量搜索结果做真正的语义排序
+                // 4. AI semantic reranking: use LLM for true semantic ranking of vector search results
                 let reranked = scoredRepos;
                 let rerankSucceeded = false;
                 const rerankConfig = aiConfigs.find(config => config.id === activeAIConfig);
@@ -440,13 +440,13 @@ export const useSearchActions = (): SearchActions => {
                   }
                 }
 
-                // 保存 LLM 重排序顺序，applyFilters 可能按 UI 排序覆盖它
+                // Save LLM reranking order; applyFilters may override it based on UI sort
                 const rerankOrder = rerankSucceeded
                   ? new Map(reranked.map((repo, index) => [String(repo.id), index]))
                   : null;
                 const finalFiltered = applyFilters([...reranked]);
                 if (rerankOrder) {
-                  // 恢复 LLM 语义排序顺序
+                  // Restore LLM semantic ranking order
                   finalFiltered.sort((a, b) =>
                     (rerankOrder.get(String(a.id)) ?? Number.MAX_SAFE_INTEGER)
                     - (rerankOrder.get(String(b.id)) ?? Number.MAX_SAFE_INTEGER)
@@ -463,25 +463,25 @@ export const useSearchActions = (): SearchActions => {
               }
             }
           }
-          // 向量搜索无结果 → 继续走关键词搜索
+          // Vector search returned no results -> continue to keyword search
           console.log('⚠️ Vector search returned no results, falling back to keyword search');
         } catch (vectorError) {
           console.warn('❌ Vector search failed, falling back to keyword search:', vectorError);
         }
       }
-      // ====== 向量搜索分支结束 ======
+      // ====== Vector Search Branch End ======
 
       await keywordSearch(query, applyFilters, { signal: controller.signal });
     } catch (error) {
-      // 取消不是失败：静默结束当前搜索（不产出结果），不当作可恢复的 AI 失败
+      // Cancellation is not a failure: silently end current search (without producing results), do not treat as recoverable AI failure
       if (isAbortError(error)) {
         console.log('🚫 AI search cancelled');
         return;
       }
       console.error('💥 Search failed:', error);
     } finally {
-      // 仅当本次搜索仍是"当前搜索"时才复位状态：被新搜索取代的旧搜索
-      // 不把新搜索的 isSearching/searchPhase 状态清掉
+      // Only reset state if this search is still the "current search": an old search superseded by a new search
+      // should not clear the new search's isSearching/searchPhase state
       if (aiSearchAbortRef.current === controller) {
         aiSearchAbortRef.current = null;
         setIsSearching(false);
@@ -504,10 +504,10 @@ export const useSearchActions = (): SearchActions => {
       const storeRepos = useAppStore.getState().repositories;
       const mergedRepositories = mergeStarredRepositories(newRepositories, storeRepos);
 
-      // 解析本次同步范围：
-      // - 'auto'：跟随持久化配置 syncMode
-      // - 'stars-only'：强制仅星标（忽略 syncMode，供下拉菜单显式选择）
-      // - 'stars-and-lists'：强制星标及 list（供下拉菜单显式选择）
+      // Parse current sync scope:
+      // - 'auto': follows persistent config syncMode
+      // - 'stars-only': force stars only (ignores syncMode, for explicit dropdown selection)
+      // - 'stars-and-lists': force stars and lists (for explicit dropdown selection)
       const syncLists = mode === 'stars-and-lists' || (mode === 'auto' && syncMode === 'stars-and-lists');
       let finalRepositories = mergedRepositories;
 
@@ -521,12 +521,12 @@ export const useSearchActions = (): SearchActions => {
           }
           const lists = await listsApi.getUserLists(login);
 
-          // allCategories 与 View 的 useMemo 同源同值（getAllCategories 四参口径）
+          // allCategories shares the same source and values as View's useMemo (getAllCategories 4-param scope)
           const allCategories = getAllCategories(customCategories, language, hiddenDefaultCategoryIds, defaultCategoryOverrides);
-          // 为云端存在、但本地无同名分类的 list 自动创建自定义分类。
-          // 修复"GitHub list 有很多新分类但本地从没拉到过"——原逻辑只贴 custom_tags
-          // 标签，不建分类，导致左侧分类树永远只有历史分类。
-          // 用每 list 递增的下标做 id 后缀，避免同一毫秒内多个 list 撞 id。
+          // Automatically create custom categories for cloud lists that do not have matching local categories.
+          // Fixes "GitHub lists have many new categories but local never pulled them" — original logic only added custom_tags
+          // and did not create categories, causing the left category tree to only ever display historical categories.
+          // Use incrementing index per list as id suffix to prevent duplicate ids across multiple lists within the same millisecond.
           const { toCreate, categoryByLowerName } = planListCategories(
             lists,
             allCategories,
@@ -550,19 +550,19 @@ export const useSearchActions = (): SearchActions => {
               : '';
             toast(t('useSearchActions.synced-v1-lists-applied-to-appliedtotal-unlocked', { v1: lists.length, appliedTotal: appliedTotal, listSummary: listSummary, createdHint: createdHint }), 'info');
           } else if (createdCategoriesCount > 0) {
-            // 命中数为 0，但本次新建了分类（云端 list 与本地无交集但仍有其名分类）
+            // 0 matches, but new categories were created in this run (cloud lists had no overlapping repos but created named categories)
             toast(t('useSearchActions.list-sync-complete', { lists: lists.length, newCount: createdCategoriesCount }), 'info');
           }
         } catch (listError) {
           console.error('List sync failed:', listError);
           toast(t('useSearchActions.list-sync-failed-starred-repositories-were-synce'), 'error');
-          // 不中断：星标同步结果仍然生效
+          // Do not interrupt: star sync results still take effect
         }
       }
 
-      // 「新增仓库」计数必须与 mergeStarredRepositories 用同一套匹配口径
-      // （id 优先，full_name 兜底）：否则被 full_name 兜底救回的存量仓库
-      // 会被误报为新增，弹出「发现 N 个新仓库」的错误提示。
+      // "New repositories" count must use the same matching scope as mergeStarredRepositories
+      // (id first, full_name fallback): otherwise existing repositories rescued by full_name fallback
+      // would be falsely reported as new, triggering an erroneous "Found N new repositories" notification.
       const newRepoCount = countNewStarredRepositories(newRepositories, storeRepos);
 
       setRepositories(finalRepositories);

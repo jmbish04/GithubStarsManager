@@ -85,7 +85,7 @@ function matchesRepoFilters(repo, filters = {}) {
   }
   if (filters.minStars !== undefined && (repo.stargazers_count || 0) < filters.minStars) return false;
   if (filters.maxStars !== undefined && (repo.stargazers_count || 0) > filters.maxStars) return false;
-  // Repository Health 事实过滤：与 src/utils/repoSearch.ts 同一套语义，保证 UI 与 MCP 结果一致。
+  // Repository Health fact filtering: identical semantics to src/utils/repoSearch.ts to ensure UI and MCP consistency.
   if (filters.healthArchived !== undefined && isArchivedRepository(repo) !== filters.healthArchived) {
     return false;
   }
@@ -139,7 +139,7 @@ function searchRepositories(repos, filters = {}) {
   if (filters.query?.trim()) result = performBasicTextSearch(result, filters.query);
   result = applyRepoFilters(result, filters);
   const total = result.length;
-  // 与后端 searchRepositories 相同的 ?? 语义：offset/limit 为 0 时按 0 处理而非回退默认值
+  // Identical ?? semantics to backend searchRepositories: treats offset/limit of 0 as 0 rather than falling back to defaults
   const offset = Math.max(0, filters.offset ?? 0);
   const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
   return { items: result.slice(offset, offset + limit), total, offset, limit };
@@ -241,14 +241,14 @@ function buildRepoEvidence(repo, latestRelease, releases) {
       ? 'failed'
       : 'analyzed'
     : 'not_analyzed';
-  // Repository Health 客观事实：与 UI / 插件同源（见 repoHealth.js）。
-  // 传 releases 时补全 Release 相关事实；不传时这些字段为 null（未知）而不是 0。
-  // 每仓只取最新 500 条，与后端 getRepositoryReleases 上限一致，避免 limitations 撒谎。
+  // Repository Health objective facts: shared source with UI / plugins (see repoHealth.js).
+  // When releases are provided, populates Release-related facts; otherwise these fields are null (unknown) rather than 0.
+  // Takes at most the latest 500 entries per repository, matching the backend getRepositoryReleases cap to avoid misrepresenting limitations.
   const cappedReleases = Array.isArray(releases)
     ? releasesForRepository(releases, repo.id).slice(0, MAX_RELEASES_PER_REPO_EVIDENCE)
     : releases;
   const health = deriveRepositoryHealthFacts(repo, cappedReleases);
-  // archived 只在记录中确实存在该布尔值时才断言，否则保持 null 并声明限制。
+  // archived is asserted only when the boolean actually exists on the record; otherwise remains null and declares a limitation.
   const hasArchivedFlag = typeof repo.archived === 'boolean';
   return {
     repository: projectRepo(repo, 2000),
@@ -289,11 +289,11 @@ function buildRepoEvidence(repo, latestRelease, releases) {
         ],
       },
       limitations: [
-        // 只有本地确实没有该事实时才声明这项限制；有了就不要再谎称拿不到。
+        // Declares this limitation only when the fact is genuinely missing locally; if present, do not claim it is unavailable.
         ...(hasArchivedFlag ? [] : ['archived is not stored locally']),
         'health facts cover the stored repository record and locally cached releases only',
-        // 明确声明每仓 500 条的上限：否则 release_count / releases_per_year 会被低估，
-        // 而调用方无从知道这些数字是按截断后的集合算出来的。
+        // Explicitly declares the 500 entries per repo cap: otherwise release_count / releases_per_year would be underestimated,
+        // and callers would have no way of knowing these figures were computed from a truncated set.
         'health facts use at most 500 locally cached releases per repository',
         'contributors, closed issues, security policy, CI and README presence require extra GitHub requests and are not stored locally',
         'release evidence is limited to locally cached releases',

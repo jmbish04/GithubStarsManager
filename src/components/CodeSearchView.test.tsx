@@ -67,7 +67,7 @@ describe('CodeSearchView', () => {
   beforeEach(() => {
     mockedStore.mockImplementation(
       ((selector: (s: unknown) => unknown) =>
-        selector({ repositories: [createRepository({})], language: 'zh' })) as unknown as typeof useAppStore
+        selector({ repositories: [createRepository({})], language: 'en' })) as unknown as typeof useAppStore
     );
     mockedSearch.mockResolvedValue(mockResult);
   });
@@ -78,20 +78,20 @@ describe('CodeSearchView', () => {
 
   it('renders the idle empty state without fetching', () => {
     render(<CodeSearchView />);
-    expect(screen.getByText('代码搜索')).toBeInTheDocument();
+    expect(screen.getByText('Code Search')).toBeInTheDocument();
     expect(mockedSearch).not.toHaveBeenCalled();
   });
 
   it('does not search for queries shorter than 2 chars', async () => {
     render(<CodeSearchView />);
-    fireEvent.change(screen.getByLabelText('代码搜索关键词'), { target: { value: 'a' } });
+    fireEvent.change(screen.getByLabelText('Code search keywords'), { target: { value: 'a' } });
     await new Promise((resolve) => setTimeout(resolve, 650));
     expect(mockedSearch).not.toHaveBeenCalled();
   });
 
   it('debounces input and renders hits with encoded file links', async () => {
     render(<CodeSearchView />);
-    fireEvent.change(screen.getByLabelText('代码搜索关键词'), { target: { value: 'hello' } });
+    fireEvent.change(screen.getByLabelText('Code search keywords'), { target: { value: 'hello' } });
     expect(mockedSearch).not.toHaveBeenCalled();
     await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(1));
     expect(mockedSearch).toHaveBeenCalledWith(
@@ -99,25 +99,25 @@ describe('CodeSearchView', () => {
       expect.anything()
     );
     expect(await screen.findByRole('link', { name: 'facebook/react' })).toBeInTheDocument();
-    // 路径含空格需做分段编码
+    // Encode path with spaces segment by segment
     const fileLink = await screen.findByText('a file with spaces.ts');
     expect(fileLink.getAttribute('href')).toContain('a%20file%20with%20spaces.ts');
-    // 已收藏仓库打出 Starred 徽章
-    expect(screen.getByText('已收藏')).toBeInTheDocument();
+    // Render Starred badge for starred repositories
+    expect(screen.getByText('Starred')).toBeInTheDocument();
   });
 
   it('starred-only switch filters out non-starred hits', async () => {
     render(<CodeSearchView />);
-    fireEvent.change(screen.getByLabelText('代码搜索关键词'), { target: { value: 'hello' } });
+    fireEvent.change(screen.getByLabelText('Code search keywords'), { target: { value: 'hello' } });
     await screen.findByRole('link', { name: 'other/repo' });
-    fireEvent.click(screen.getByLabelText('只显示我收藏的仓库'));
+    fireEvent.click(screen.getByLabelText('Starred only'));
     await waitFor(() => expect(screen.queryByRole('link', { name: 'other/repo' })).not.toBeInTheDocument());
     expect(screen.getByRole('link', { name: 'facebook/react' })).toBeInTheDocument();
   });
 
   it('facet selection re-searches with f.* params', async () => {
     render(<CodeSearchView />);
-    fireEvent.change(screen.getByLabelText('代码搜索关键词'), { target: { value: 'hello' } });
+    fireEvent.change(screen.getByLabelText('Code search keywords'), { target: { value: 'hello' } });
     await screen.findByRole('link', { name: 'facebook/react' });
     fireEvent.click(screen.getByTitle('TypeScript (2)'));
     await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(2));
@@ -129,14 +129,14 @@ describe('CodeSearchView', () => {
 
   it('shows retryable error on rate limit but keeps previous results', async () => {
     render(<CodeSearchView />);
-    fireEvent.change(screen.getByLabelText('代码搜索关键词'), { target: { value: 'hello' } });
+    fireEvent.change(screen.getByLabelText('Code search keywords'), { target: { value: 'hello' } });
     await screen.findByRole('link', { name: 'facebook/react' });
     const rateLimit = new Error('limited');
     (rateLimit as { status?: number }).status = 429;
     mockedSearch.mockRejectedValueOnce(rateLimit);
     fireEvent.click(screen.getByTitle('TypeScript (2)'));
-    await screen.findByText(/限流/);
-    // 旧结果保留可见
+    await screen.findByText(/rate limited/i);
+    // Keep previous results visible
     expect(screen.getByRole('link', { name: 'facebook/react' })).toBeInTheDocument();
   });
 });

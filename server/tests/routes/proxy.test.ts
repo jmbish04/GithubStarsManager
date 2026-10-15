@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
 import { proxyRequest } from '../../src/services/proxyService.js';
 
-// 确定性测试：mock axios，避免对真实外网的依赖（原测试依赖网络连通性，环境不通时随机失败）。
+// Deterministic tests: mock axios to avoid relying on external network access (original tests failed intermittently when offline).
 vi.mock('axios', () => {
   const fn = vi.fn();
   fn.isAxiosError = (e: unknown): boolean =>
@@ -74,7 +74,7 @@ describe('proxyRequest', () => {
 
     const cfg = mockAxios.mock.calls[0][0];
     expect(cfg.method).toBe('post');
-    expect(cfg.data).toEqual(requestBody); // 对象 body 保持原样透传
+    expect(cfg.data).toEqual(requestBody); // Object body is forwarded as-is
   });
 
   it('should forward POST request with string body', async () => {

@@ -62,11 +62,11 @@ export const GistView: React.FC = () => {
   }), [gists, starredGists, user?.login]);
 
   const currentCategoryItems = categoryItems[selectedGistCategory];
-  // 标记最近一次是 AI 重排序结果，避免随后的 query 同步触发 effect 把它覆盖掉。
+  // Flags whether the most recent update was an AI reranking result, preventing subsequent query synchronization effects from overwriting it.
   const aiRerankedRef = useRef(false);
 
   useEffect(() => {
-    // AI 重排序结果由 aiSearch 直接写入；这里跳过紧接着的一次覆盖。
+    // AI rerank results are written directly by aiSearch; skip the immediate subsequent overwrite here.
     if (aiRerankedRef.current) {
       aiRerankedRef.current = false;
       return;

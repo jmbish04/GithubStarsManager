@@ -26,9 +26,9 @@ interface RepositoryChatSheetProps {
   onClose: () => void;
   onCloseAutoFocus?: () => void;
   repository: Repository;
-  /** 从全局问答历史进入时，直接选中该会话。 */
+  /** Directly selects this session when entered from global Q&A history. */
   initialSessionId?: string | null;
-  /** 从全局问答历史进入时，返回历史列表。 */
+  /** Returns to the history list when entered from global Q&A history. */
   onBack?: () => void;
 }
 
@@ -141,7 +141,7 @@ const ExecutionTimeline: React.FC<{ events: RepositoryChatToolEvent[]; language:
   );
 };
 
-/** 助手消息正文：行内引用渲染为 CitationBadge；按内容 + 证据 + 语言做 memo，避免流式期间全量重渲。 */
+/** Assistant message body: renders inline citations as CitationBadge; memoized by content + evidence + language to avoid full rerenders during streaming. */
 const AssistantMessageBody = React.memo<{ content: string; evidenceIds: string[]; evidenceById: Record<string, ToolEvidence>; language: AppLanguage; baseUrl?: string }>(({ content, evidenceIds, evidenceById, language, baseUrl }) => {
   const renderInlineCode = useCallback((text: string) => {
     const evidences = evidenceIds
@@ -224,7 +224,7 @@ const RepositoryChatSheet: React.FC<RepositoryChatSheetProps> = ({
     }
   }, [isOpen, repository]);
 
-  // 吸底滚动：流式输出期间自动跟随；用户向上滚动后暂停，可点按钮回到底部。
+  // Pin-to-bottom scroll: follows automatically during streaming; pauses when user scrolls up, button available to jump back down.
   useEffect(() => {
     const element = messageRegionRef.current;
     if (!element || !isPinnedToBottom) return;
@@ -251,7 +251,7 @@ const RepositoryChatSheet: React.FC<RepositoryChatSheetProps> = ({
     setShowHistory(false);
   };
 
-  // 从全局问答历史进入：会话列表就绪后直接选中目标会话。
+  // Entering from global Q&A history: directly select target session once the session list is ready.
   const initialSessionAppliedRef = useRef<string | null>(null);
   useEffect(() => {
     initialSessionAppliedRef.current = null;
@@ -295,7 +295,7 @@ const RepositoryChatSheet: React.FC<RepositoryChatSheetProps> = ({
 
   const lastMessage = messages[messages.length - 1];
 
-  // 仅在回答从流式进入终态时向屏幕阅读器通报一次，避免 aria-live 在流式期间反复朗读。
+  // Announce to screen readers only once when the answer transitions from streaming to final state, avoiding repetitive aria-live readouts during streaming.
   const lastAssistantStatus = lastMessage?.role === 'assistant' ? lastMessage.status : '';
   const statusAnnouncement = useTurnStatusAnnouncement(lastAssistantStatus, language);
 

@@ -14,7 +14,7 @@ import { GITHUB_LISTS_NAME_MAX_LENGTH } from '../store/helpers/listsPushPlan';
 
 // Complete emoji collection for categories
 const availableIcons = [
-  // 笑脸和人物
+  // Smileys & People
   { name: '😀', icon: '😀' },
   { name: '😃', icon: '😃' },
   { name: '😄', icon: '😄' },
@@ -117,7 +117,7 @@ const availableIcons = [
   { name: '👾', icon: '👾' },
   { name: '🤖', icon: '🤖' },
   
-  // 手势和身体部位
+  // Gestures & Body Parts
   { name: '👋', icon: '👋' },
   { name: '🤚', icon: '🤚' },
   { name: '🖐️', icon: '🖐️' },
@@ -170,7 +170,7 @@ const availableIcons = [
   { name: '👅', icon: '👅' },
   { name: '👄', icon: '👄' },
   
-  // 人物和职业
+  // People & Professions
   { name: '👶', icon: '👶' },
   { name: '🧒', icon: '🧒' },
   { name: '👦', icon: '👦' },
@@ -272,7 +272,7 @@ const availableIcons = [
   { name: '🛀', icon: '🛀' },
   { name: '🛌', icon: '🛌' },
   
-  // 文件和文档
+  // Files & Documents
   { name: '📁', icon: '📁' },
   { name: '📂', icon: '📂' },
   { name: '📄', icon: '📄' },
@@ -289,7 +289,7 @@ const availableIcons = [
   { name: '🗄️', icon: '🗄️' },
   { name: '📇', icon: '📇' },
   
-  // 技术和开发
+  // Tech & Development
   { name: '💻', icon: '💻' },
   { name: '🖥️', icon: '🖥️' },
   { name: '⌨️', icon: '⌨️' },
@@ -310,7 +310,7 @@ const availableIcons = [
   { name: '🖱️', icon: '🖱️' },
   { name: '🖲️', icon: '🖲️' },
   
-  // 网络和通信
+  // Network & Communication
   { name: '🌐', icon: '🌐' },
   { name: '🌍', icon: '🌍' },
   { name: '🌎', icon: '🌎' },
@@ -332,7 +332,7 @@ const availableIcons = [
   { name: '📢', icon: '📢' },
   { name: '📣', icon: '📣' },
   
-  // 多媒体
+  // Multimedia
   { name: '🎵', icon: '🎵' },
   { name: '🎶', icon: '🎶' },
   { name: '🎤', icon: '🎤' },
@@ -359,7 +359,7 @@ const availableIcons = [
   { name: '📍', icon: '📍' },
   { name: '🖋️', icon: '🖋️' },
   
-  // 游戏和娱乐
+  // Gaming & Entertainment
   { name: '🎮', icon: '🎮' },
   { name: '🕹️', icon: '🕹️' },
   { name: '🎯', icon: '🎯' },
@@ -372,8 +372,7 @@ const availableIcons = [
   { name: '🎪', icon: '🎪' },
   { name: '🎨', icon: '🎨' },
   
-  // 安全和保护
-  // 安全和保护
+  // Security & Protection
   { name: '🔒', icon: '🔒' },
   { name: '🔓', icon: '🔓' },
   { name: '🔐', icon: '🔐' },
@@ -383,7 +382,7 @@ const availableIcons = [
   { name: '🔰', icon: '🔰' },
   { name: '⚔️', icon: '⚔️' },
   
-  // 搜索和导航
+  // Search & Navigation
   { name: '🔍', icon: '🔍' },
   { name: '🔎', icon: '🔎' },
   { name: '🧭', icon: '🧭' },
@@ -395,7 +394,7 @@ const availableIcons = [
   { name: '⛓️', icon: '⛓️' },
   { name: '🧭', icon: '🧭' },
   
-  // 云和存储
+  // Cloud & Storage
   { name: '☁️', icon: '☁️' },
   { name: '⛅', icon: '⛅' },
   { name: '🌤️', icon: '🌤️' },
@@ -407,7 +406,7 @@ const availableIcons = [
   { name: '🗄️', icon: '🗄️' },
   { name: '🗑️', icon: '🗑️' },
   
-  // 人物和社交
+  // People & Social
   { name: '👤', icon: '👤' },
   { name: '👥', icon: '👥' },
   { name: '👨‍💻', icon: '👨‍💻' },
@@ -419,7 +418,7 @@ const availableIcons = [
   { name: '👫', icon: '👫' },
   { name: '👬', icon: '👬' },
   
-  // 符号和标记
+  // Symbols & Badges
   { name: '⭐', icon: '⭐' },
   { name: '🌟', icon: '🌟' },
   { name: '✨', icon: '✨' },
@@ -447,7 +446,7 @@ const availableIcons = [
   { name: '🥉', icon: '🥉' },
   { name: '🏅', icon: '🏅' },
   
-  // 箭头和方向
+  // Arrows & Directions
   { name: '⬆️', icon: '⬆️' },
   { name: '⬇️', icon: '⬇️' },
   { name: '⬅️', icon: '⬅️' },
@@ -469,7 +468,7 @@ const availableIcons = [
   { name: '🔂', icon: '🔂' },
   { name: '▶️', icon: '▶️' },
   
-  // 其他常用
+  // Other Common
   { name: '📅', icon: '📅' },
   { name: '📆', icon: '📆' },
   { name: '🗓️', icon: '🗓️' },
@@ -494,7 +493,7 @@ const availableIcons = [
   { name: '⚫', icon: '⚫' },
   { name: '⚪', icon: '⚪' },
   
-  // 动物和自然
+  // Animals & Nature
   { name: '🐶', icon: '🐶' },
   { name: '🐱', icon: '🐱' },
   { name: '🐭', icon: '🐭' },
@@ -604,7 +603,7 @@ const availableIcons = [
   { name: '🐿️', icon: '🐿️' },
   { name: '🦔', icon: '🦔' },
   
-  // 植物和食物
+  // Plants & Food
   { name: '🌲', icon: '🌲' },
   { name: '🌳', icon: '🌳' },
   { name: '🌴', icon: '🌴' },
@@ -699,7 +698,7 @@ const availableIcons = [
   { name: '🥠', icon: '🥠' },
   { name: '🥡', icon: '🥡' },
   
-  // 交通工具
+  // Travel & Vehicles
   { name: '🚗', icon: '🚗' },
   { name: '🚕', icon: '🚕' },
   { name: '🚙', icon: '🚙' },
@@ -902,7 +901,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
         formData.keywords !== (effectiveCategory.keywords?.join(', ') || '')
       );
 
-  // 推送的是已保存的分类：有未保存修改时禁用；先关闭弹窗再确认，避免对话框叠加
+  // Push only operates on saved categories: disabled when there are unsaved changes. Close modal before confirming to prevent stacked dialogs.
   const canPush = !isCreating && !!category;
   const handlePush = () => {
     if (!category) return;

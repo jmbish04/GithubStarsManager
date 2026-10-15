@@ -83,7 +83,7 @@ const baseStoreState = () => ({
   forks: [personalFork, orgFork],
   readForks: new Set<number>(),
   githubToken: 'token',
-  language: 'zh' as const,
+  language: 'en' as const,
   setForks: vi.fn(),
   markForkAsRead: vi.fn(),
   forkSearchQuery: '',
@@ -141,7 +141,7 @@ describe('ForkTimeline owner filtering', () => {
   it('shows only personal-account forks by default', async () => {
     render(<ForkTimeline />);
 
-    await screen.findByRole('combobox', { name: '拥有者:' });
+    await screen.findByRole('combobox', { name: 'Owner:' });
 
     expect(screen.getByText('personal-fork')).toBeInTheDocument();
     expect(screen.queryByText('org-fork')).not.toBeInTheDocument();
@@ -151,7 +151,7 @@ describe('ForkTimeline owner filtering', () => {
     render(<ForkTimeline />);
 
     const user = userEvent.setup();
-    const ownerSelector = await screen.findByRole('combobox', { name: '拥有者:' });
+    const ownerSelector = await screen.findByRole('combobox', { name: 'Owner:' });
     await user.click(ownerSelector);
     await user.click(await screen.findByRole('option', { name: 'team-org' }));
 
@@ -164,7 +164,7 @@ describe('ForkTimeline owner filtering', () => {
 
     render(<ForkTimeline />);
 
-    fireEvent.click(screen.getByRole('button', { name: '刷新' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
     await waitFor(() => {
       expect(storeState.forks).toHaveLength(1);
@@ -200,7 +200,7 @@ describe('ForkTimeline owner filtering', () => {
     } as unknown as GitHubApiService; });
 
     const { rerender } = render(<ForkTimeline />);
-    fireEvent.click(screen.getByRole('button', { name: '刷新' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
     await waitFor(() => {
       expect(storeState.forks).toHaveLength(1);
@@ -230,7 +230,7 @@ describe('ForkTimeline owner filtering', () => {
     } as unknown as GitHubApiService; });
 
     render(<ForkTimeline />);
-    fireEvent.click(screen.getByRole('button', { name: '刷新' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
     await waitFor(() => {
       expect(storeState.forks).toHaveLength(1);
@@ -248,7 +248,7 @@ describe('ForkTimeline owner filtering', () => {
     render(<ForkTimeline />);
 
     await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith('组织列表加载失败，请检查 GitHub token 权限。', 'error');
+      expect(toastMock).toHaveBeenCalledWith('Failed to load organizations. Please check GitHub token permissions.', 'error');
     });
   });
 });
@@ -299,7 +299,7 @@ describe('ForkTimeline async session and sync contracts', () => {
     } as unknown as GitHubApiService; });
 
     const { rerender } = render(<ForkTimeline />);
-    fireEvent.click(screen.getByRole('button', { name: '刷新' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(getUserForks).toHaveBeenCalledOnce());
 
     const originalUser = storeState.user;
@@ -313,7 +313,7 @@ describe('ForkTimeline async session and sync contracts', () => {
 
     await waitFor(() => expect(storeState.forks).toEqual([]));
     expect(storeState.setForkIsRefreshing).toHaveBeenLastCalledWith(false);
-    expect(toastMock).not.toHaveBeenCalledWith('刷新完成！', expect.anything());
+    expect(toastMock).not.toHaveBeenCalledWith('Refresh completed!', expect.anything());
   });
 
   it('closes the upstream-sync modal and reports a localized error when branches cannot load', async () => {
@@ -323,19 +323,19 @@ describe('ForkTimeline async session and sync contracts', () => {
     } as unknown as GitHubApiService; });
 
     render(<ForkTimeline />);
-    fireEvent.click(await screen.findByRole('button', { name: '更新分支' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Update branch' }));
 
     await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith('加载分支失败，请检查网络连接后重试。', 'error');
+      expect(toastMock).toHaveBeenCalledWith('Failed to load branches. Please check your network connection and try again.', 'error');
     });
-    expect(screen.queryByText('同步上游代码 (Sync upstream)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sync Upstream')).not.toBeInTheDocument();
   });
 
   it('persists synced upstream time and read state to avoid re-reporting the same update', async () => {
     render(<ForkTimeline />);
-    fireEvent.click(await screen.findByRole('button', { name: '更新分支' }));
-    await screen.findByText('同步上游代码 (Sync upstream)');
-    fireEvent.click(screen.getByRole('button', { name: '确认同步' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Update branch' }));
+    await screen.findByText('Sync Upstream');
+    fireEvent.click(screen.getByRole('button', { name: 'Sync Branch' }));
 
     await waitFor(() => {
       expect(storeState.forks.find(fork => fork.id === personalFork.id)).toMatchObject({
@@ -393,27 +393,27 @@ describe('ForkTimeline branch request ordering', () => {
     } as unknown as GitHubApiService; });
 
     render(<ForkTimeline />);
-    fireEvent.click(await screen.findByRole('button', { name: '刷新' }));
-    fireEvent.click(await screen.findByRole('button', { name: '更新分支' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Update branch' }));
 
-    fireEvent.click(screen.getByText('tamina（个人）'));
+    fireEvent.click(screen.getByText('tamina (Personal)'));
     fireEvent.click(await screen.findByRole('option', { name: 'team-org' }));
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
-    await screen.findByText('管理 team-org 的 1 个Fork仓库');
-    const refreshButton = screen.getByText('刷新').closest('button');
+    await screen.findByText('Manage 1 forked repositories for team-org');
+    const refreshButton = screen.getByText('Refresh').closest('button');
     expect(refreshButton).not.toBeNull();
     fireEvent.click(refreshButton!);
     await waitFor(() => {
       expect(checkForkSyncNeeded).toHaveBeenCalledWith('team-org', 'org-fork', 'main', 'upstream/org-fork');
     });
-    fireEvent.click(await screen.findByRole('button', { name: '更新分支' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Update branch' }));
 
     rejectFirstRequest(new Error('stale branch request'));
 
     await waitFor(() => {
       expect(screen.getAllByText(/team-org\/org-fork/).length).toBeGreaterThan(0);
-      expect(screen.getByText('加载分支列表中…')).toBeInTheDocument();
+      expect(screen.getByText('Loading branches…')).toBeInTheDocument();
     });
-    expect(toastMock).not.toHaveBeenCalledWith('加载分支失败，请检查网络连接后重试。', 'error');
+    expect(toastMock).not.toHaveBeenCalledWith('Failed to load branches. Please check your network connection and try again.', 'error');
   });
 });

@@ -17,7 +17,7 @@ export const ScrollToBottom: React.FC<ScrollToBottomProps> = ({
 }) => {
     const t = useT('app');
   const [isVisible, setIsVisible] = useState(false);
-  // 当 README 模态框打开时隐藏按钮，避免遮挡模态框内容
+  // Hide the button when the README modal is open to avoid obstructing modal content
   const readmeModalOpen = useAppStore(state => state.readmeModalOpen);
   const containerRef = useRef<HTMLElement | null>(null);
 

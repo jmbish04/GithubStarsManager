@@ -34,7 +34,7 @@ function toggleInSet(prev: Set<string>, value: string): Set<string> {
   return next;
 }
 
-/** 分面筛选组：渲染带计数的多选 chips，超限可展开。 */
+/** Facet filter group: renders multiselect chips with counts, expandable when exceeding limit. */
 const FacetGroup: React.FC<{
   title: string;
   buckets: GrepFacetBucket[];
@@ -84,7 +84,7 @@ const FacetGroup: React.FC<{
   );
 };
 
-/** 单条代码命中卡片：消毒后的 snippet 经 innerHTML 渲染，链接均指向 GitHub。 */
+/** Single code hit card: sanitized snippet rendered via innerHTML, all links point to GitHub. */
 const HitCard: React.FC<{ hit: GrepCodeHit; isStarred: boolean; t: TranslateFn }> = ({
   hit,
   isStarred,
@@ -92,7 +92,7 @@ const HitCard: React.FC<{ hit: GrepCodeHit; isStarred: boolean; t: TranslateFn }
 }) => {
   const repo = hit.repo.trim();
   const branch = hit.branch.trim() || 'main';
-  // 路径按段编码，避免空格 / # / ? 等字符破坏链接
+  // Encode path segments to prevent spaces / # / ? from breaking the link
   const encodedPath = hit.path
     .split('/')
     .map((segment) => encodeURIComponent(segment))
@@ -159,13 +159,13 @@ const HitCard: React.FC<{ hit: GrepCodeHit; isStarred: boolean; t: TranslateFn }
   );
 };
 
-/** 代码高级搜索视图：实时防抖查询 + 匹配模式 + 分面筛选 + 收藏过滤 + 分页。 */
+/** Advanced code search view: live debounced query + match modes + facet filters + starred filter + pagination. */
 export const CodeSearchView: React.FC = () => {
   const { repositories } = useAppStore(
     useShallow((state) => ({ repositories: state.repositories }))
   );
   const t = useT('app');
-  // 错误文案经 ref 读取，避免纯语言切换触发网络重搜
+  // Error message read via ref to avoid language toggle triggering network re-search
   const tRef = useRef(t);
   tRef.current = t;
 
@@ -252,7 +252,7 @@ export const CodeSearchView: React.FC = () => {
     [query, mode, caseSensitive, selectedLangs, selectedRepos, selectedPaths]
   );
 
-  // 实时搜索：输入防抖后自动请求第 1 页
+  // Live search: automatically fetch page 1 after input debounce
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (query.trim().length < MIN_QUERY_LENGTH) {
@@ -297,7 +297,7 @@ export const CodeSearchView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* 搜索框 */}
+      {/* Search box */}
       <div className="ui-toolbar space-y-3 p-4">
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
@@ -341,7 +341,7 @@ export const CodeSearchView: React.FC = () => {
           </Button>
         </div>
 
-        {/* 匹配模式 */}
+        {/* Match mode */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
           <RadioGroup
             value={mode}
@@ -383,7 +383,7 @@ export const CodeSearchView: React.FC = () => {
           </div>
         </div>
 
-        {/* 动态过滤器 */}
+        {/* Dynamic filters */}
         {result && (result.repoFacets.length > 0 || result.langFacets.length > 0 || result.pathFacets.length > 0) && (
           <div className="space-y-3 border-t border-border/60 pt-3">
             <div className="flex items-center justify-between">
@@ -426,7 +426,7 @@ export const CodeSearchView: React.FC = () => {
         )}
       </div>
 
-      {/* 状态区 */}
+      {/* Status area */}
       {loading && !result && (
         <div className="flex flex-col items-center justify-center gap-3 py-14">
           <Loader2 className="h-7 w-7 animate-spin text-primary" />

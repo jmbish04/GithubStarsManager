@@ -60,7 +60,7 @@ const createStoreState = () => ({
     model: 'ai-model',
   }],
   activeAIConfig: 'ai-config',
-  language: 'zh' as const,
+  language: 'en' as const,
   setGists: vi.fn(),
   setStarredGists: vi.fn(),
   updateGist: vi.fn(),
@@ -111,18 +111,18 @@ describe('useGistActions card actions', () => {
       const { result, rerender } = renderHook(() => useGistActions());
       await act(async () => { await result.current.analyzeOne(gist); });
       expect(mocks.toast).toHaveBeenCalledTimes(1);
-      expect(mocks.toast).toHaveBeenCalledWith('GitHub token 未找到，请重新登录。', 'error');
+      expect(mocks.toast).toHaveBeenCalledWith('GitHub token not found. Please login again.', 'error');
 
       storeState.githubToken = 'github-token';
       storeState.aiConfigs = [];
       rerender();
       await act(async () => { await result.current.analyzeOne(gist); });
-      expect(mocks.toast).toHaveBeenLastCalledWith('请先在设置中配置AI服务。', 'error');
+      expect(mocks.toast).toHaveBeenLastCalledWith('Please configure AI service in settings first.', 'error');
 
       storeState.aiConfigs = [{ id: 'ai-config', name: 'Broken', baseUrl: '', apiKey: '', model: '' }];
       rerender();
       await act(async () => { await result.current.analyzeOne(gist); });
-      expect(mocks.toast).toHaveBeenLastCalledWith('AI服务配置不完整，请检查设置。', 'error');
+      expect(mocks.toast).toHaveBeenLastCalledWith('AI service configuration is incomplete. Please check settings.', 'error');
       expect(mocks.getGistForAnalysis).not.toHaveBeenCalled();
     });
 
@@ -133,8 +133,8 @@ describe('useGistActions card actions', () => {
       const { result } = renderHook(() => useGistActions());
       await act(async () => { await result.current.analyzeOne(analyzedGist); });
       expect(mocks.confirm).toHaveBeenCalledWith(
-        '重新分析确认',
-        '此 gist 已经分析过，是否覆盖现有摘要？',
+        'Re-analyze Confirmation',
+        'This gist has already been analyzed. Overwrite the existing summary?',
         { type: 'warning' },
       );
       expect(mocks.getGistForAnalysis).not.toHaveBeenCalled();
@@ -157,9 +157,9 @@ describe('useGistActions card actions', () => {
       expect(patch.analyzed_at).toEqual(expect.any(String));
       expect(patch.analysis_failed).toBe(false);
       expect(patch.analysis_error).toBeUndefined();
-      // 成功 patch 以拉取到的 detail 为底（内容比列表缓存更完整）
+      // Successful patch uses the fetched detail as the base (more complete content than list cache)
       expect(patch.files['a.ts'].content).toBe('const a = 1; // full');
-      expect(mocks.toast).toHaveBeenCalledWith('Gist AI分析完成', 'success');
+      expect(mocks.toast).toHaveBeenCalledWith('Gist AI analysis completed', 'success');
       expect(mocks.forceSyncToBackend).not.toHaveBeenCalled();
     });
 
@@ -173,7 +173,7 @@ describe('useGistActions card actions', () => {
       expect(patch.analyzed_at).toEqual(expect.any(String));
       expect(patch.analysis_failed).toBe(true);
       expect(patch.analysis_error).toBe('boom');
-      expect(mocks.toast).toHaveBeenCalledWith('Gist AI分析失败', 'error');
+      expect(mocks.toast).toHaveBeenCalledWith('Gist AI analysis failed', 'error');
       expect(storeState.setAnalyzingGist).toHaveBeenLastCalledWith('gist-1', false);
     });
   });
@@ -205,7 +205,7 @@ describe('useGistActions card actions', () => {
       const updateOrder = storeState.updateGist.mock.invocationCallOrder[0];
       expect(onUnstarredOrder).toBeLessThan(updateOrder);
       expect(storeState.updateGist).toHaveBeenCalledWith({ ...gist, starred: false });
-      expect(mocks.toast).toHaveBeenCalledWith('已取消收藏', 'success');
+      expect(mocks.toast).toHaveBeenCalledWith('Unstarred', 'success');
     });
 
     it('toasts failure without store update when the api call rejects', async () => {
@@ -217,7 +217,7 @@ describe('useGistActions card actions', () => {
 
       expect(onUnstarred).not.toHaveBeenCalled();
       expect(storeState.updateGist).not.toHaveBeenCalled();
-      expect(mocks.toast).toHaveBeenCalledWith('取消收藏失败', 'error');
+      expect(mocks.toast).toHaveBeenCalledWith('Failed to unstar', 'error');
     });
   });
 
@@ -241,9 +241,9 @@ describe('useGistActions card actions', () => {
       const { result } = renderHook(() => useGistActions());
       await act(async () => { await result.current.deleteGist(gist, vi.fn()); });
       expect(mocks.confirm).toHaveBeenCalledWith(
-        '删除 Gist',
-        '确定要删除这个 gist 吗？此操作不可撤销。',
-        { type: 'danger', confirmText: '删除' },
+        'Delete Gist',
+        'Are you sure you want to delete this gist? This cannot be undone.',
+        { type: 'danger', confirmText: 'Delete' },
       );
       expect(mocks.deleteGist).not.toHaveBeenCalled();
     });
@@ -258,7 +258,7 @@ describe('useGistActions card actions', () => {
       const storeDeleteOrder = storeState.deleteGist.mock.invocationCallOrder[0];
       const onDeletedOrder = onDeleted.mock.invocationCallOrder[0];
       expect(storeDeleteOrder).toBeLessThan(onDeletedOrder);
-      expect(mocks.toast).toHaveBeenCalledWith('Gist 已删除', 'success');
+      expect(mocks.toast).toHaveBeenCalledWith('Gist deleted', 'success');
     });
 
     it('maps permission errors into the scoped hint toast', async () => {
@@ -268,7 +268,7 @@ describe('useGistActions card actions', () => {
       await act(async () => { await result.current.deleteGist(gist, vi.fn()); });
 
       expect(mocks.toast).toHaveBeenCalledWith(
-        '删除 Gist 失败：403 forbidden（请确认 token 已勾选 gist 权限，并在设置中重新输入 token 登录）',
+        'Failed to delete gist: 403 forbidden (Please confirm the token has gist scope, then re-enter the token in Settings to log in again)',
         'error',
       );
     });
@@ -279,7 +279,7 @@ describe('useGistActions card actions', () => {
       storeState.githubToken = null;
       const { result } = renderHook(() => useGistActions());
       await expect(result.current.fetchGistFileRaw('https://raw.example/x')).rejects.toThrow(
-        '未配置 GitHub token，无法加载文件内容',
+        'GitHub token not configured, cannot load file content',
       );
       expect(mocks.getGistFileRaw).not.toHaveBeenCalled();
     });

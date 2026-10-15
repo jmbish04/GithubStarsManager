@@ -22,9 +22,9 @@ interface XTweetSettingsModalProps {
 }
 
 /**
- * X 推文频道的配置弹窗：关注博主列表（可增删）、可选登录鉴权 Cookie
- * 与真实"测试连接"。数据由应用内置抓取器直连 x.com 获取（桌面版走主进程、
- * 网页端走服务端），无需用户配置任何第三方实例。
+ * Configuration modal for X tweet channels: followed accounts list (add/remove), optional login auth cookies,
+ * and live "Test Connection". Data is fetched directly from x.com by the built-in scraper (via main process on desktop,
+ * server-side on web), requiring no third-party instance configuration from the user.
  */
 export const XTweetSettingsModal: React.FC<XTweetSettingsModalProps> = ({ isOpen, onClose }) => {
   const xTweetFollows = useAppStore(state => state.xTweetFollows);

@@ -37,7 +37,7 @@ vi.mock('../services/routeMode', () => ({
 
 const createStoreState = () => ({
   githubToken: 'github-token' as string | null,
-  language: 'zh' as const,
+  language: 'en' as const,
 });
 
 let storeState = createStoreState();
@@ -100,7 +100,7 @@ describe('useReadmeFetch.fetchReadmeContent', () => {
     storeState.githubToken = null;
     const { result } = renderHook(() => useReadmeFetch({ owner: 'owner', name: 'repo' }));
     await act(async () => {
-      await expect(result.current.fetchReadmeContent(defaultVariant)).rejects.toThrow('未登录且后端不可用，无法加载 README');
+      await expect(result.current.fetchReadmeContent(defaultVariant)).rejects.toThrow('Not logged in and backend unavailable, cannot load README');
     });
     expect(mocks.getRepositoryReadme).not.toHaveBeenCalled();
   });
@@ -268,7 +268,7 @@ describe('useReadmeFetch.fetchReadmeCandidates', () => {
     act(() => {
       void result.current.fetchReadmeCandidates('main');
     });
-    // 仅 resolve 第一个（已被取代的）请求；第二个保持挂起，不影响断言
+    // Only resolve the first (superseded) request; the second remains pending, not affecting the assertion
     resolvers[0]([{ name: 'stale.md', path: 'stale.md' }]);
     await act(async () => {
       await expect(first).rejects.toMatchObject({ name: 'AbortError' });

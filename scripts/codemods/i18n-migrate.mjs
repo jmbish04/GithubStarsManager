@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * i18n 全量迁移 codemod。
+ * Full i18n migration codemod.
  *
- * 转换内容（仅限白名单目录，services 层分流另行手工处理）：
- *  1. 局部 `const t = (zh, en) => language === 'zh' ? zh : en` 定义 → `const t = useT('<ns>')`
- *  2. `t('中文', 'English')` → `t('<component>.<slug>')`，双语写入 src/locales/{zh,en}/<ns>.json
- *  3. 模板字符串参数 → `t(key, { p: expr })` + 字典中的 {{p}} 占位
- *  4. `language === 'zh' ? 'A' : 'B'`（双侧字符串字面量）→ `t(key)`；必要时向宿主函数插入 useT
- *  5. 文本级：t prop 类型 `(zh: string, en: string) => string` → `TranslateFn`
+ * Transformations (allowlisted directories only; the services layer is handled separately by hand):
+ *  1. Local `const t = (zh, en) => language === 'zh' ? zh : en` definition → `const t = useT('<ns>')`
+ *  2. `t('Chinese text', 'English')` → `t('<component>.<slug>')`, with both languages written to src/locales/{zh,en}/<ns>.json
+ *  3. Template-string arguments → `t(key, { p: expr })` + with a {{p}} placeholder in the dictionary
+ *  4. `language === 'zh' ? 'A' : 'B'` (string literals on both sides) → `t(key)`; inserts useT into the host function when needed
+ *  5. Text-level: t prop type `(zh: string, en: string) => string` → `TranslateFn`
  *
- * 无法安全转换的写法写入 scripts/codemods/i18n-migrate.report.json。
- * 用法：node scripts/codemods/i18n-migrate.mjs [--write]
+ * Patterns that cannot be converted safely are written to scripts/codemods/i18n-migrate.report.json.
+ * Usage: node scripts/codemods/i18n-migrate.mjs [--write]
  */
 import { Project, SyntaxKind, Node } from 'ts-morph';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -194,7 +194,7 @@ function addI18nImport(sourceFile, filePath, extraTypes = []) {
   });
 }
 
-/** 在宿主组件/hook 中插入符号声明（useT / useTPair），宿主已有该符号则跳过 */
+/** Inserts a symbol declaration (useT / useTPair) into the host component/hook; skipped if the host already has the symbol */
 function ensureSymbolInScope(sourceFile, node, symbolName, declText, importNames, ns, filePath) {
   let cur = node.getParent();
   let fallback = undefined;
@@ -242,7 +242,7 @@ const ensureTInScope = (sourceFile, node, ns, filePath) =>
   ensureSymbolInScope(sourceFile, node, 't', `const t = useT('${ns}');`, ['useT'], ns, filePath);
 
 
-/** 单趟占位符重映射：en 模板的参数名对齐到 zh 模板（按位序），避免链式 replaceAll 的名称碰撞 */
+/** Single-pass placeholder remap: aligns en template parameter names to the zh template (by position), avoiding name collisions from chained replaceAll */
 function renamePlaceholders(text, enNames, zhNames) {
   return text.replace(/\{\{(\w+)\}\}/g, (matched, name) => {
     const index = enNames.indexOf(name);
@@ -252,7 +252,7 @@ function renamePlaceholders(text, enNames, zhNames) {
 }
 
 
-/** 校验 t 标识符来自受支持的翻译函数来源（本地定义/useT/TranslateFn 参数），避免误改同名函数 */
+/** Verifies that the t identifier comes from a supported translation-function source (local definition / useT / TranslateFn parameter) to avoid modifying a same-named function by mistake */
 function isSupportedTSource(sourceFile, call) {
   const expr = call.getExpression();
   const definition = expr.getDefinitionNodes?.()[0] ?? expr.getDefinition?.()[0]?.getDeclarationNode?.();
@@ -271,7 +271,7 @@ function isSupportedTSource(sourceFile, call) {
   return false;
 }
 
-/** 找到第一个匹配的 t 双参调用并改写；返回是否找到 */
+/** Finds the first matching two-argument t call and rewrites it; returns whether one was found */
 function rewriteOneTCall(sourceFile, ns, componentKey, filePath) {
   for (const call of sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)) {
     if (call.wasForgotten()) continue;
@@ -280,7 +280,7 @@ function rewriteOneTCall(sourceFile, ns, componentKey, filePath) {
     if (!isSupportedTSource(sourceFile, call)) continue;
     const args = call.getArguments();
     if (args.length < 2) continue;
-    if (args.length === 2 && Node.isObjectLiteralExpression(args[1])) continue; // 已转换的插值调用
+    if (args.length === 2 && Node.isObjectLiteralExpression(args[1])) continue; // already-converted interpolation call
     const zhSide = extractSide(args[0]);
     const enSide = extractSide(args[1]);
     const convertible = zhSide.ok && enSide.ok && zhSide.params.length === enSide.params.length
@@ -289,7 +289,7 @@ function rewriteOneTCall(sourceFile, ns, componentKey, filePath) {
     void convertible;
     const canKeyify = zhSide.ok && enSide.ok && zhSide.params.length === enSide.params.length && args.length === 2;
     if (!canKeyify) {
-      // 动态文案对（labelZh/labelEn、运行时拼接）：走 tPair 兼容通道，zh/en 行为不变
+      // Dynamic copy pairs (labelZh/labelEn, runtime concatenation): go through the tPair compatibility path; zh/en behavior is unchanged
       ensureSymbolInScope(sourceFile, call, 'tPair', 'const tPair = useTPair();', ['useTPair'], ns, filePath);
       call.replaceWithText(`tPair(${args.map((a) => a.getText().replace(/\s+/g, ' ')).join(', ')})`);
       stats.pairCalls += 1;
@@ -374,7 +374,7 @@ function rewriteOneTDef(sourceFile, ns, filePath) {
 const rootSrcPrefix = srcDir.length + 1;
 for (const sourceFile of project.getSourceFiles()) {
   const filePath = sourceFile.getFilePath().replaceAll('\\', '/');
-  // 相对仓库根的路径（含 src/ 前缀），SKIP 与命名空间规则都按它匹配
+  // Path relative to the repo root (including the src/ prefix); both SKIP and namespace rules match against it
   const relPath = filePath.slice(filePath.indexOf('/src/') + 1);
   if (SKIP.some((pattern) => pattern.test(relPath))) continue;
   stats.files += 1;
@@ -390,7 +390,7 @@ for (const sourceFile of project.getSourceFiles()) {
   }
 }
 
-// ---------- 文本级后处理：t prop 类型 → TranslateFn ----------
+// ---------- Text-level post-processing: t prop type → TranslateFn ----------
 const PROP_TYPE = /\bt(\?)?: \(zh: string, en: string\) => string\b/g;
 let propTypeCount = 0;
 for (const sourceFile of project.getSourceFiles()) {

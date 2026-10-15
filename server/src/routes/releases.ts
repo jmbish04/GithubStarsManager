@@ -145,8 +145,8 @@ router.put('/api/releases', (req, res) => {
       let count = 0;
       for (const release of releases) {
         const repository = release.repository as { id?: number; full_name?: string; name?: string } | undefined;
-        // 合并 UPSERT：仅更新数据列，保留库中已有的 is_read 已读状态，避免整行替换把已读清空。
-        // 仅当请求显式携带 is_read（如导入/同步完整快照）时才覆盖已读状态。
+        // Merging UPSERT: only updates data columns, preserving existing is_read status in the DB to avoid clearing read states on full-row replacement.
+        // Overwrite is_read only when explicitly provided in the request (e.g. importing/syncing a full snapshot).
         const hasExplicitIsRead = typeof release.is_read === 'boolean';
         const stmt = hasExplicitIsRead ? stmtOverwriteIsRead : stmtPreserveIsRead;
         stmt.run(

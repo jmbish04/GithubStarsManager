@@ -5,12 +5,12 @@ import { config } from '../config.js';
 
 const router = Router();
 
-/** 与前端 NOASSERTION_KEYS 对齐：空白 / NOASSERTION / Other / none 等落 null。 */
+/** Aligned with frontend NOASSERTION_KEYS: whitespace / NOASSERTION / Other / none resolve to null. */
 const NO_LICENSE_KEYS = new Set(['', 'noassertion', 'other', 'none', 'no-license']);
 
 /**
- * 把导入的 license 字符串规范为 SPDX id 或 null。
- * trim 后若为空或落入「无 license」集合则返回 null，否则返回 trim 后的原值。
+ * Canonicalize an imported license string into an SPDX id or null.
+ * Returns null if empty after trimming or belonging to the "no license" set; otherwise returns the trimmed string.
  */
 function canonicalizeLicenseString(value: string): string | null {
   const trimmed = value.trim();
@@ -104,14 +104,14 @@ router.post('/api/sync/import', (req, res) => {
     const data = req.body as Record<string, unknown>;
     const counts: Record<string, number> = {};
 
-    // 验证必要的数据结构
+    // Validate required data structure
     if (!data || typeof data !== 'object') {
       res.status(400).json({ error: 'Invalid data format', code: 'INVALID_DATA_FORMAT' });
       return;
     }
 
-    // 导入前校验 releases：id / repo_id / repo_full_name / repo_name 均非空，
-    // 避免 NOT NULL 列绑 null 导致整笔事务 500。
+    // Validate releases before import: id / repo_id / repo_full_name / repo_name must be non-null
+    // to avoid NOT NULL column constraint failures throwing a 500 error on the whole transaction.
     const importRels = data.releases as Record<string, unknown>[] | undefined;
     if (Array.isArray(importRels)) {
       for (const r of importRels) {
@@ -166,13 +166,13 @@ router.post('/api/sync/import', (req, res) => {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         for (const r of repos) {
-          // 验证必需的字段
+          // Validate required fields
           if (!r.id || typeof r.id !== 'number') {
             throw new Error(`Invalid repository data: missing or invalid id`);
           }
-          // license：兼容旧备份（无该列→null）、GitHub 对象形态、已规范化的 SPDX 字符串。
-          // 候选字符串 trim 后，空白 / NOASSERTION / Other / none 统一落 null（与
-          // 前端 normalizeLicense 的「无 license」语义对齐），保证 DB 只存 SPDX-or-null。
+          // license: compatible with legacy backups (missing column -> null), GitHub object shapes, and normalized SPDX strings.
+          // After trimming candidate strings, whitespace / NOASSERTION / Other / none consistently resolve to null (aligned with
+          // frontend normalizeLicense "no license" semantics), ensuring the DB only stores SPDX-or-null.
           const rawLicense = (r as Record<string, unknown>).license;
           let licenseValue: string | null = null;
           if (typeof rawLicense === 'string') {
@@ -183,8 +183,8 @@ router.post('/api/sync/import', (req, res) => {
             const key = typeof obj.key === 'string' ? obj.key.trim() : '';
             licenseValue = canonicalizeLicenseString(spdx || key);
           }
-          // vector_indexed_license 与 license 同一套 SPDX-or-null 规则，避免指纹与当前
-          // license 语义分裂（例如 "NOASSERTION" 原样入库后增量谓词永远判定为变更）。
+          // vector_indexed_license shares the same SPDX-or-null rules as license, preventing fingerprint vs. current
+          // license divergence (e.g. "NOASSERTION" stored verbatim would cause incremental predicates to always flag changes).
           const rawVectorLicense = (r as Record<string, unknown>).vector_indexed_license;
           const vectorIndexedLicense = typeof rawVectorLicense === 'string'
             ? canonicalizeLicenseString(rawVectorLicense)
@@ -206,8 +206,8 @@ router.post('/api/sync/import', (req, res) => {
             r.subscribed_to_releases ? 1 : 0,
             r.vector_indexed_at ?? null,
             licenseValue,
-            // INSERT OR REPLACE 会整行替换，故备份无此列时落 null（影响：增量谓词会
-            // 触发一次重索引回填指纹），合预期。
+            // INSERT OR REPLACE replaces the entire row, so backups missing this column store null (triggering
+            // a one-time re-indexing to backfill fingerprints), which is expected.
             vectorIndexedLicense
           );
         }
@@ -215,9 +215,9 @@ router.post('/api/sync/import', (req, res) => {
       }
 
       // Releases
-      // 合并 UPSERT：冲突时仅更新数据列，保留库中已有的 is_read 已读状态。
-      // 仅当快照显式携带 is_read 布尔值时才覆盖已读状态（stmtOverwriteIsRead）；
-      // 否则走保留分支，避免导入/回退把已读状态误清空。
+      // Merging UPSERT: on conflict only updates data columns, preserving existing is_read status in the DB.
+      // Overwrites is_read only when the snapshot explicitly includes an is_read boolean (stmtOverwriteIsRead);
+      // otherwise takes the preservation branch to prevent imports/rollbacks from inadvertently clearing read status.
       const rels = data.releases as Record<string, unknown>[] | undefined;
       if (Array.isArray(rels) && rels.length > 0) {
         const relStmtPreserveIsRead = db.prepare(`
@@ -274,8 +274,8 @@ router.post('/api/sync/import', (req, res) => {
             r.id, r.tag_name ?? null, r.name ?? null, r.body ?? null,
             r.html_url ?? null, r.published_at ?? null,
             r.prerelease ? 1 : 0, r.draft ? 1 : 0,
-            // 保留分支下仍落 0（非空），与 releases 表 is_read DEFAULT 0 语义一致，
-            // 避免新导入行写入 NULL 导致 unread 过滤（is_read = 0）漏行。
+            // Under the preservation branch still default to 0 (non-null), matching releases table is_read DEFAULT 0 semantics
+            // to avoid newly imported rows storing NULL which would cause unread filtering (is_read = 0) to omit them.
             hasExplicitIsRead ? (r.is_read ? 1 : 0) : 0,
             typeof r.assets === 'string' ? r.assets : JSON.stringify(r.assets ?? []),
             r.repo_id ?? repository?.id ?? null,

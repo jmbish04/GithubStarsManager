@@ -179,7 +179,7 @@ export const PluginSettingsPanel: React.FC<PluginSettingsPanelProps> = ({ t }) =
           </Button>
         </div>
       </div>
-      {/* 社区插件注册表：入口卡片，插件的浏览/安装与源的管理在市场弹窗里完成 */}
+      {/* Community plugin registry: entry card; plugin browsing/installation and source management are handled in the marketplace dialog */}
       <PluginRegistrySection
         t={t}
         onOpenMarketplace={() => setMarketplaceOpen(true)}
@@ -322,7 +322,7 @@ export const PluginSettingsPanel: React.FC<PluginSettingsPanelProps> = ({ t }) =
         isOpen={marketplaceOpen}
         onClose={() => {
           setMarketplaceOpen(false);
-          // 源数量/插件统计可能在弹窗里被改动，关闭时让入口卡片重读本地状态。
+          // Source count and plugin stats may change in the dialog; refresh the entry card's local state on close.
           setMarketplaceReloadSignal((signal) => signal + 1);
         }}
         t={t}

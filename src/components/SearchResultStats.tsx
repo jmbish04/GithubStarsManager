@@ -31,7 +31,7 @@ export const SearchResultStats: React.FC<SearchResultStatsProps> = ({
   const foundRepos = filteredRepositories.length;
   const filterRate = totalRepos > 0 ? ((foundRepos / totalRepos) * 100).toFixed(1) : '0';
 
-  // 计算搜索结果的统计信息
+  // Compute search result statistics
   const stats = {
     languages: [...new Set(filteredRepositories.map(r => r.language).filter(Boolean))],
     avgStars: filteredRepositories.length > 0 
@@ -128,7 +128,7 @@ export const SearchResultStats: React.FC<SearchResultStatsProps> = ({
         </div>
       </div>
 
-      {/* 搜索查询显示 */}
+      {/* Search query display */}
       <div className="mt-3 pt-3 border-t border-border">
         <div className="flex items-center space-x-2 text-sm">
           <span className="text-muted-foreground dark:text-muted-foreground">

@@ -157,7 +157,7 @@ export const useBackupActions = (): BackupActions => {
           useAppStore.setState({ readReleases: new Set(values) });
         }
       } catch (error) {
-        console.warn('恢复 Release 订阅与已读状态时发生问题：', error);
+        console.warn('Failed to restore release subscriptions and read states:', error);
       }
 
       try {
@@ -180,7 +180,7 @@ export const useBackupActions = (): BackupActions => {
           }
         }
       } catch (error) {
-        console.warn('恢复自定义分类时发生问题：', error);
+        console.warn('Failed to restore custom categories:', error);
       }
 
       try {
@@ -201,7 +201,7 @@ export const useBackupActions = (): BackupActions => {
           }
         }
       } catch (error) {
-        console.warn('恢复 AI 配置时发生问题：', error);
+        console.warn('Failed to restore AI configs:', error);
       }
 
       try {
@@ -222,7 +222,7 @@ export const useBackupActions = (): BackupActions => {
           }
         }
       } catch (error) {
-        console.warn('恢复 WebDAV 配置时发生问题：', error);
+        console.warn('Failed to restore WebDAV configs:', error);
       }
 
       try {
@@ -234,7 +234,7 @@ export const useBackupActions = (): BackupActions => {
           });
         }
       } catch (error) {
-        console.warn('恢复代理配置时发生问题：', error);
+        console.warn('Failed to restore proxy config:', error);
       }
       try {
         if (backupData.rpcDownloadConfig && typeof backupData.rpcDownloadConfig === 'object') {
@@ -245,9 +245,9 @@ export const useBackupActions = (): BackupActions => {
           });
         }
       } catch (error) {
-        console.warn('恢复远程下载配置时发生问题：', error);
+        console.warn('Failed to restore remote download config:', error);
       }
-      // routeMode 是本地偏好：仅接受合法枚举，缺失/非法回退 auto（随 1.2 备份导出）
+      // routeMode is a local preference: accept valid enum only; missing/invalid falls back to auto (exported with 1.2 backup).
       try {
         const restored = backupData.routeMode;
         const next: 'auto' | 'backend' | 'browser' = restored === 'backend' || restored === 'browser' || restored === 'auto'
@@ -257,14 +257,14 @@ export const useBackupActions = (): BackupActions => {
           useAppStore.getState().setRouteMode(next);
         }
       } catch (error) {
-        console.warn('恢复网络路由偏好时发生问题：', error);
+        console.warn('Failed to restore network route preference:', error);
       }
       try {
         if (backupIncludedKeys && backupData.backendApiSecret !== undefined && backupData.backendApiSecret !== '***') {
           state.setBackendApiSecret(typeof backupData.backendApiSecret === 'string' ? backupData.backendApiSecret : null);
         }
       } catch (error) {
-        console.warn('恢复后端 API 密钥时发生问题：', error);
+        console.warn('Failed to restore backend API secret:', error);
       }
       toast(t('useBackupActions.data-restored-from-backup-repositories-v1-releas', { v1: (backupData.repositories as unknown[] | undefined)?.length ?? 0, v2: (backupData.releases as unknown[] | undefined)?.length ?? 0, v3: (backupData.customCategories as unknown[] | undefined)?.length ?? 0 }), 'success');
     } catch (error) {

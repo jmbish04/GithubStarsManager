@@ -71,9 +71,9 @@ describe('GitHubApiService.searchTrending description source', () => {
     const result = await service.searchTrending(10, 'weekly');
 
     expect(result).toHaveLength(1);
-    // stars/forks 非零也必须补全描述
+    // stars/forks must be backfilled even when non-zero
     expect(result[0].description).toBe('Real description');
-    // API 补全确实执行（stars 被响应值覆盖）
+    // API backfill actually ran (stars overwritten by response value)
     expect(result[0].stargazers_count).toBe(10);
   });
 });
@@ -92,7 +92,7 @@ describe('GitHubApiService.getTrendingRepositories description source', () => {
     expect(result.repos).toHaveLength(1);
     expect(result.repos[0].full_name).toBe('owner/repo-a');
     expect(result.repos[0].description).toBeNull();
-    // 其他字段仍由 GitHub API 正常补全
+    // Other fields are still backfilled normally by the GitHub API
     expect(result.repos[0].stargazers_count).toBe(10);
     expect(result.repos[0].language).toBe('TypeScript');
   });

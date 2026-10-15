@@ -210,15 +210,15 @@ async function runVectorSearch(query, args, snapshot) {
   try {
     data = await res.json();
   } catch {
-    // 200 但响应体不是合法 JSON（如网关错误页）；findSimilarRepositories 依赖
-    // runVectorSearch 永不 throw，异常必须折叠进声明的 { available: false } 结果
+    // 200 but response body is not valid JSON (e.g. gateway error page); findSimilarRepositories relies
+    // on runVectorSearch never throwing, so exceptions must fold into the declared { available: false } result
     return {
       available: false,
       reason: 'worker_query_failed',
     };
   }
-  // 与 server/src/mcp/provider.ts 相同的结构校验：JSON null / matches 非数组
-  // 不静默转空结果，统一返回声明的 unavailable 结果
+  // Structural validation matching server/src/mcp/provider.ts: JSON null / non-array matches
+  // do not silently convert to empty results; uniformly return the declared unavailable result
   if (!data || !Array.isArray(data.matches)) {
     return {
       available: false,

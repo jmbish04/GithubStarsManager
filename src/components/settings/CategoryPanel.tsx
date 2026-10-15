@@ -47,7 +47,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
   const [editKeywords, setEditKeywords] = useState('');
   const [isReordering, setIsReordering] = useState(false);
 
-  // 拖拽排序状态
+  // Drag-and-drop reorder state
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const dragItemIndex = useRef<number | null>(null);
@@ -168,7 +168,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
     }
   };
 
-  // 处理分类排序 - 上下移动
+  // Handle category reordering - move up/down
   const handleMoveCategory = (index: number, direction: 'up' | 'down') => {
     const newIndex = direction === 'up' ? index - 1 : index + 1;
     if (newIndex < 0 || newIndex >= allVisibleCategories.length) return;
@@ -181,7 +181,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
     setCategoryOrder([...visibleIds, ...hiddenIds]);
   };
 
-  // 快速置顶
+  // Quick move to top
   const handleMoveToTop = (index: number) => {
     if (index === 0) return;
     const visibleIds = allVisibleCategories.map(c => c.id);
@@ -191,7 +191,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
     setCategoryOrder([...visibleIds, ...hiddenIds]);
   };
 
-  // 快速置底
+  // Quick move to bottom
   const handleMoveToBottom = (index: number) => {
     if (index === allVisibleCategories.length - 1) return;
     const visibleIds = allVisibleCategories.map(c => c.id);
@@ -201,7 +201,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
     setCategoryOrder([...visibleIds, ...hiddenIds]);
   };
 
-  // 重置分类排序
+  // Reset category order
   const handleResetOrder = async () => {
     const confirmed = await confirm(
       t('categoryPanel.reset-category-order'),
@@ -213,19 +213,19 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
     }
   };
 
-  // 拖拽开始
+  // Drag start
   const handleDragStart = useCallback((e: React.DragEvent, index: number, categoryId: string) => {
     dragItemIndex.current = index;
     setDraggingId(categoryId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', categoryId);
-    // 设置拖拽时的透明度
+    // Set opacity during drag
     if (e.currentTarget instanceof HTMLElement) {
       e.currentTarget.style.opacity = '0.5';
     }
   }, []);
 
-  // 拖拽结束
+  // Drag end
   const handleDragEnd = useCallback((e: React.DragEvent) => {
     setDraggingId(null);
     setDragOverId(null);
@@ -235,19 +235,19 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
     }
   }, []);
 
-  // 拖拽经过
+  // Drag over
   const handleDragOver = useCallback((e: React.DragEvent, categoryId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverId(categoryId);
   }, []);
 
-  // 拖拽离开
+  // Drag leave
   const handleDragLeave = useCallback(() => {
     setDragOverId(null);
   }, []);
 
-  // 放置
+  // Drop
   const handleDrop = useCallback((e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
     setDragOverId(null);
@@ -284,7 +284,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
         </Button>
       </div>
 
-      {/* 折叠侧边栏显示设置 */}
+      {/* Collapsed sidebar display settings */}
       <div className="p-4 bg-muted dark:bg-muted/40 rounded-lg border border-border dark:border-border dark:border-border dark:border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -314,7 +314,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
         </div>
       </div>
 
-      {/* 分类匹配模式设置 */}
+      {/* Category matching mode settings */}
       <div className="p-4 bg-muted dark:bg-muted/40 rounded-lg border border-border dark:border-border">
         <div className="flex items-center space-x-3 mb-2">
           <LayoutGrid className="w-5 h-5 text-muted-foreground dark:text-muted-foreground" />
@@ -432,7 +432,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
       )}
 
       <div className="space-y-4">
-        {/* 分类排序区域 */}
+        {/* Category reordering area */}
         <div className="border-t border-border dark:border-border pt-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-medium text-foreground dark:text-foreground flex items-center">
@@ -746,7 +746,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({ t }) => {
           )}
         </div>
 
-        {/* 隐藏的默认分类 */}
+        {/* Hidden default categories */}
         {hiddenDefaultCategories.length > 0 && (
           <div className="border-t border-border dark:border-border pt-4">
             <h4 className="font-medium text-foreground dark:text-foreground mb-3 flex items-center">

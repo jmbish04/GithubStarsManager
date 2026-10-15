@@ -54,7 +54,7 @@ describe('GitHubApiService.getMultipleRepositoryReleases asset refresh', () => {
     const latest = makeRelease(1, '2026-01-03T00:00:00.000Z');
     const older = makeRelease(2, '2026-01-01T00:00:00.000Z');
 
-    // 已同步仓库：水印在 01-02，最新 Release(01-03) 在水印之后（fresh），老 Release 在水印前。
+    // Synced repo: watermark at 01-02, latest Release (01-03) is after the watermark (fresh), older Release is before it.
     vi.spyOn(service, 'getRepositoryReleasesPage').mockResolvedValueOnce(
       releasePage([latest, older]) as never
     );
@@ -67,9 +67,9 @@ describe('GitHubApiService.getMultipleRepositoryReleases asset refresh', () => {
       { includePreRelease: true, refreshExistingAssets: true }
     );
 
-    // 新列表包含水印后的最新 Release
+    // The new list includes the latest Release after the watermark
     expect(result.releases.map(r => r.id)).toEqual([1]);
-    // 最新 Release 也被收集，用于资产指纹比对，且带上了仓库 id
+    // The latest Release is also collected for asset fingerprint comparison, and carries the repo id
     expect(result.latestReleases).toHaveLength(1);
     expect(result.latestReleases![0].id).toBe(1);
     expect(result.latestReleases![0].repository.id).toBe(10);
@@ -77,10 +77,10 @@ describe('GitHubApiService.getMultipleRepositoryReleases asset refresh', () => {
 
   it('collects latest release even when it is below the watermark (already fetched)', async () => {
     const service = new GitHubApiService('token');
-    const latest = makeRelease(1, '2026-01-01T00:00:00.000Z'); // 水印之前
+    const latest = makeRelease(1, '2026-01-01T00:00:00.000Z'); // before the watermark
     const older = makeRelease(2, '2025-12-01T00:00:00.000Z');
 
-    // 返回一页包含两条，都在水印之前，故 releases 为空，但最新条仍应被收集
+    // Returns a page with two entries, both before the watermark, so releases is empty, but the latest entry should still be collected
     vi.spyOn(service, 'getRepositoryReleasesPage').mockResolvedValueOnce(
       releasePage([latest, older]) as never
     );
@@ -119,7 +119,7 @@ describe('GitHubApiService.getMultipleRepositoryReleases asset refresh', () => {
     const prerelease = makeRelease(1, '2026-01-05T00:00:00.000Z', { prerelease: true });
     const stable = makeRelease(2, '2026-01-04T00:00:00.000Z');
 
-    // 第一页第一条是新发布（预发布），其下才是最新的正式发行
+    // First entry on page one is a new (pre-release) publish; the latest stable release is below it
     vi.spyOn(service, 'getRepositoryReleasesPage').mockResolvedValueOnce(
       releasePage([prerelease, stable]) as never
     );
@@ -131,7 +131,7 @@ describe('GitHubApiService.getMultipleRepositoryReleases asset refresh', () => {
       { includePreRelease: false, refreshExistingAssets: true }
     );
 
-    // 最新 Release 应跳过预发布，收集到第一个正式发行
+    // The latest Release should skip pre-releases and collect the first stable release
     expect(result.latestReleases).toHaveLength(1);
     expect(result.latestReleases![0].id).toBe(2);
     expect(result.latestReleases![0].repository.id).toBe(10);
@@ -139,7 +139,7 @@ describe('GitHubApiService.getMultipleRepositoryReleases asset refresh', () => {
 
   it('continues past page one of only prereleases to collect the newest stable release', async () => {
     const service = new GitHubApiService('token');
-    // 第一页 10 条全是预发布（且都在水印之后），第二页才出现正式版
+    // All 10 entries on page one are pre-releases (and all after the watermark); the stable release only appears on page two
     const page1 = Array.from({ length: 10 }, (_, i) =>
       makeRelease(100 + i, `2026-01-${String(20 - i).padStart(2, '0')}T00:00:00.000Z`, { prerelease: true })
     );
@@ -163,7 +163,7 @@ describe('GitHubApiService.getMultipleRepositoryReleases asset refresh', () => {
     expect(result.latestReleases).toHaveLength(1);
     expect(result.latestReleases![0].id).toBe(50);
     expect(result.latestReleases![0].repository.id).toBe(10);
-    // 正式版在水印之后，应进入新列表；预发布被 includePreRelease=false 过滤
+    // The stable release is after the watermark and should enter the new list; pre-releases are filtered by includePreRelease=false
     expect(result.releases.map(r => r.id)).toEqual([50]);
   });
 });
@@ -171,7 +171,7 @@ describe('GitHubApiService.getMultipleRepositoryReleases asset refresh', () => {
 describe('GitHubApiService.getWatchedRepositories', () => {
   it('returns [] when GitHub responds 204 and makeRequest normalizes the body to null', async () => {
     const service = new GitHubApiService('token');
-    // 复现 issue #285：GitHub 对 watched repos 返回 204 空响应体，makeRequest 归一化为 null
+    // Reproduces issue #285: GitHub returns a 204 empty body for watched repos, which makeRequest normalizes to null
     vi.spyOn(service as unknown as { makeRequest: () => Promise<unknown> }, 'makeRequest').mockResolvedValueOnce(null as never);
 
     const repos = await service.getWatchedRepositories();
@@ -200,8 +200,8 @@ describe('GitHubApiService.getWatchedRepositories', () => {
     const repos = await service.getAllWatchedRepositories();
 
     expect(repos).toHaveLength(101);
-    // 固定分页行为与端点序列：只走 /user/subscriptions
-    // （旧的 /users/{login}/subscriptions 并行合并已整体移除，由编译器兜底）
+    // Pin pagination behavior and endpoint sequence: only /user/subscriptions is used
+    // (the old parallel merge of /users/{login}/subscriptions has been removed entirely, enforced by the compiler)
     expect(makeRequestSpy.mock.calls.map((call: unknown[]) => (call[0] as string).split('?')[0])).toEqual([
       '/user/subscriptions',
       '/user/subscriptions',
@@ -242,8 +242,8 @@ describe('GitHubApiService.searchRepositoryIssues', () => {
 
     const endpoint = (makeRequestSpy.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '';
     expect(endpoint.startsWith('/search/issues?q=')).toBe(true);
-    // 固定的仓库范围 + is:issue 之外，只允许纯文本关键词存活：
-    // 限定符（任何位置）、括号分组、-/+ 前缀与布尔操作符全部被剥离。
+    // Beyond the fixed repo scope + is:issue, only plain-text keywords may survive:
+    // qualifiers (anywhere), parenthesized groups, -/+ prefixes, and boolean operators are all stripped.
     const query = decodeURIComponent(endpoint.slice('/search/issues?q='.length).split('&')[0] ?? '');
     expect(query.split(/\s+/)).toEqual(['repo:owner/repo', 'is:issue', 'crash', 'audio', 'crackle']);
   });
@@ -259,7 +259,7 @@ describe('GitHubApiService.searchRepositoryIssues', () => {
       '(repo:github/docs)',
     ])).resolves.toEqual([]);
 
-    // 裸 repo+is:issue 查询会命中仓库内任意 Issue：无纯文本关键词时不得发起请求。
+    // A bare repo+is:issue query would match any Issue in the repo: with no plain-text keywords, no request may be made.
     expect(makeRequestSpy).not.toHaveBeenCalled();
   });
 
@@ -379,7 +379,7 @@ describe('GitHubApiService repository chat read APIs', () => {
   });
 });
 
-describe('GitHubApiService 401 来源区分', () => {
+describe('GitHubApiService 401 source differentiation', () => {
   const makeJsonResponse = (status: number, body: unknown): Response => ({
     ok: status >= 200 && status < 300,
     status,
@@ -397,7 +397,7 @@ describe('GitHubApiService 401 来源区分', () => {
     vi.mocked(window.fetch).mockReset();
   });
 
-  it('代理凭据 401（code=UNAUTHORIZED）抛出 BACKEND_PROXY_UNAUTHORIZED_ERROR', async () => {
+  it('proxy credential 401 (code=UNAUTHORIZED) throws BACKEND_PROXY_UNAUTHORIZED_ERROR', async () => {
     const service = new GitHubApiService('token');
     setBackendProxy(service);
     vi.mocked(window.fetch).mockResolvedValue(makeJsonResponse(401, { error: 'Unauthorized', code: 'UNAUTHORIZED' }));
@@ -406,7 +406,7 @@ describe('GitHubApiService 401 来源区分', () => {
     expect(window.fetch).toHaveBeenCalledWith('http://localhost:3000/api/proxy/github/user', expect.anything());
   });
 
-  it('代理转发的 GitHub 401（无 code 标记）仍映射为 GITHUB_TOKEN_INVALID_ERROR', async () => {
+  it('GitHub 401 forwarded by the proxy (no code marker) still maps to GITHUB_TOKEN_INVALID_ERROR', async () => {
     const service = new GitHubApiService('token');
     setBackendProxy(service);
     vi.mocked(window.fetch).mockResolvedValue(makeJsonResponse(401, { message: 'Bad credentials', documentation_url: 'https://docs.github.com' }));
@@ -414,7 +414,7 @@ describe('GitHubApiService 401 来源区分', () => {
     await expect(service.getCurrentUser()).rejects.toThrow(GITHUB_TOKEN_INVALID_ERROR);
   });
 
-  it('直连 GitHub 401 映射为 GITHUB_TOKEN_INVALID_ERROR', async () => {
+  it('direct-connect GitHub 401 maps to GITHUB_TOKEN_INVALID_ERROR', async () => {
     const service = new GitHubApiService('token');
     vi.mocked(window.fetch).mockResolvedValue(makeJsonResponse(401, { message: 'Bad credentials' }));
 

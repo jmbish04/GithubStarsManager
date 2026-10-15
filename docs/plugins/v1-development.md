@@ -1,23 +1,14 @@
-# V1 本地插件开发指南
+# V1 Local Plugin Development Guide
 
-V1 插件是用户明确安装并授权的本地 Node.js 插件。每个插件运行在独立
-`worker_threads.Worker` 中，用于隔离生命周期、崩溃和超时。
+V1 plugins are local Node.js plugins explicitly installed and authorized by the user. Each plugin executes in an isolated `worker_threads.Worker` to isolate lifecycles, crashes, and timeouts.
 
-Worker 不是安全沙箱。插件代码仍可能直接使用 Node.js 访问本机文件、环境变量和网络，
-因此只能启用已经审查并信任的本地插件。宿主不会主动把 GitHub Token、AI Key、
-Electron API 或 Zustand Store 传给插件。
+A Worker is not a security sandbox. Plugin code can still access local files, environment variables, and networks directly via Node.js; therefore, only enable local plugins you have reviewed and trust. The host never proactively passes GitHub Tokens, AI Keys, Electron APIs, or the Zustand Store to plugins.
 
-V1.1 增加了 Release processor、只读语义化 `github.*` Host API，以及必须由用户确认
-保存位置的 Release Asset 下载。这里的 GitHub API 查询宿主当前已加载的脱敏快照，
-不会把 Token、认证 Header 或任意网络请求能力交给插件。
+V1.1 introduced Release processors, read-only semantic `github.*` Host APIs, and Release Asset downloads requiring explicit user confirmation of save locations. The GitHub API queries sanitized snapshots currently loaded in host memory; it never delegates tokens, authorization headers, or arbitrary networking capabilities to plugins.
 
-V1.2 增加页面贡献。仅含页面、没有 `main` 的插件不会启动 Node Worker；页面在
-`sandbox="allow-scripts allow-same-origin"` iframe 中运行，不能读取宿主 DOM、Electron
-API、Token 或 Zustand Store。`allow-same-origin` 让页面保持 `plugin-page://<插件 id>`
-这个来源，宿主据此拒绝被导航替换的文档；页面与宿主仍是不同源，读不到宿主数据。
-若同时声明 `main`，该 Worker 仍是受信任本地代码，页面隔离不改变其权限。
+V1.2 added page contributions. Page-only plugins without a `main` entry do not launch Node Workers; pages run inside a `sandbox="allow-scripts allow-same-origin"` iframe and cannot read host DOM, Electron APIs, tokens, or the Zustand Store. `allow-same-origin` preserves the `plugin-page://<plugin-id>` origin, enabling the host to reject documents replaced by navigation; the page and host remain cross-origin, preventing pages from reading host data. If a plugin also declares `main`, that Worker remains trusted local code; page isolation does not alter its privileges.
 
-## 最小目录
+## Minimal Directory
 
 ```text
 my-plugin/
@@ -25,29 +16,26 @@ my-plugin/
 └─ worker.js
 ```
 
-可以从设置页的“插件 → 安装本地插件”选择该目录。安装完成后插件默认禁用，
-用户确认 Manifest 中列出的全部权限后才会启动。卸载时宿主会删除插件安装目录，
-并让用户选择“保留数据并卸载”或“卸载并删除数据”；后者会删除该插件的隔离
-Storage 文件和日志。
+Select this directory from "Settings → Plugins → Install Local Plugin". Newly installed plugins are disabled by default and will only start after the user reviews and confirms all permissions listed in the Manifest. Upon uninstallation, the host removes the plugin installation directory and prompts the user to either "Uninstall and keep data" or "Uninstall and delete data"; the latter deletes the plugin's isolated storage files and logs.
 
-## 权限
+## Permissions
 
-V1 接受以下权限。未实现的项可以出现在 Manifest 中，但不会提供对应 Host API：
+V1 accepts the following permissions. Unimplemented permissions can appear in the Manifest, but the corresponding Host APIs will not be provided:
 
-| 权限 | V1 行为 |
+| Permission | V1 Behavior |
 |---|---|
-| `repositories:read` | 读取宿主已加载的仓库快照，**包含私有仓库元数据**。启用时设置页会单独提示。 |
-| `privateRepositories:read` | 预留。当前没有独立过滤；声明后与 `repositories:read` 一样覆盖私有仓库。 |
-| `releases:read` | 读取宿主已加载的 Release / Asset 快照。 |
-| `storage` | 按插件隔离的 JSON 存储。 |
-| `clipboard:write` | 允许 Action 建议复制文本。 |
-| `external:open` | 允许 Action 打开无凭据的 HTTPS URL。 |
-| `downloads:create` | 允许设置页显示“宿主下载”；用户仍需确认保存位置。 |
-| `ai:invoke` | 仅页面 Bridge：逐次确认后调用当前 AI Provider。Worker 不获得该方法。 |
-| `web:search` | 仅页面 Bridge：逐次确认后查询用户配置的 SearXNG。Worker 不获得该方法。 |
-| `repositories:write` | 预留，V1 不提供写入仓库的 Host API。 |
-| `gists:read` | 预留，V1 不提供 Gist 查询。 |
-| `network:<domain>` | 仅页面 Bridge（V1.5）：按主机授权的只读 GET 代理，当前仅支持 `api.github.com` 且端点受白名单限制，见「V1.5 页面网络能力」。Worker 不获得该方法；通用网络请求仍不提供。 |
+| `repositories:read` | Read loaded repository snapshots in the host, **including private repository metadata**. A dedicated notice is displayed in Settings when enabled. |
+| `privateRepositories:read` | Reserved. Currently lacks separate filtering; behaves identically to `repositories:read` covering private repositories. |
+| `releases:read` | Read loaded Release / Asset snapshots in the host. |
+| `storage` | Isolated JSON storage per plugin. |
+| `clipboard:write` | Allows Actions to suggest copying text. |
+| `external:open` | Allows Actions to open credential-free HTTPS URLs. |
+| `downloads:create` | Allows Settings to display "Host download"; user confirmation of destination required. |
+| `ai:invoke` | Page Bridge only: calls current AI Provider after per-invocation confirmation. Not available to Workers. |
+| `web:search` | Page Bridge only: queries user-configured SearXNG after per-invocation confirmation. Not available to Workers. |
+| `repositories:write` | Reserved; V1 does not provide Host APIs for mutating repositories. |
+| `gists:read` | Reserved; V1 does not provide Gist queries. |
+| `network:<domain>` | Page Bridge only (V1.5): host-authorized read-only GET proxy. Currently supports `api.github.com` with allowlisted endpoints only (see "V1.5 Page Network Capabilities"). Not available to Workers; general networking remains unavailable. |
 
 ## Manifest
 
@@ -86,12 +74,11 @@ V1 接受以下权限。未实现的项可以出现在 Manifest 中，但不会�
 }
 ```
 
-插件 ID、版本、权限、贡献点和入口路径都会被严格校验。入口必须位于插件目录中；
-绝对路径、路径穿越和符号链接会被拒绝。
+Plugin ID, version, permissions, contribution points, and entry paths are strictly validated. Entries must reside within the plugin directory; absolute paths, directory traversals, and symlinks are rejected.
 
 ## Worker API
 
-入口使用 CommonJS 导出：
+The entry point exports CommonJS methods:
 
 ```js
 module.exports = {
@@ -104,7 +91,7 @@ module.exports = {
 };
 ```
 
-`activate(context)` 只收到插件 ID、已授权权限、脱敏日志和按插件隔离的 Storage：
+`activate(context)` receives only plugin ID, granted permissions, sanitized logging, and isolated plugin storage:
 
 ```js
 await context.storage.set('settings', { enabled: true });
@@ -113,10 +100,9 @@ await context.storage.delete('settings');
 await context.log.info('Activated', { enabled: settings?.enabled });
 ```
 
-只有声明并获批 `storage` 权限后才会提供 `context.storage`。日志中的常见 Token、
-Authorization Header 和敏感字段会被脱敏，但插件仍不应主动记录隐私数据。
+`context.storage` is provided only when the `storage` permission is declared and granted. Common tokens, Authorization headers, and sensitive fields are redacted from logs, but plugins should not intentionally log private data.
 
-声明 `repositories:read` 或 `releases:read` 后，插件可获得对应的只读查询：
+When declaring `repositories:read` or `releases:read`, plugins receive corresponding read-only query capabilities:
 
 ```js
 const matches = await context.github.searchRepositories('electron', { limit: 20 });
@@ -124,12 +110,11 @@ const repository = await context.github.getRepository(repositoryId);
 const release = await context.github.getRelease(releaseId);
 ```
 
-这些查询只访问宿主内存中的脱敏快照，不会发起实时 GitHub API 请求。
-`repositories:read` 覆盖你已收藏的私有仓库元数据；V1 没有单独的私有仓库过滤。
+These queries inspect sanitized snapshots in host memory without making live GitHub API requests. `repositories:read` includes metadata for starred private repositories; V1 does not apply separate private repository filtering.
 
-## 返回结构
+## Return Structures
 
-Repository Action 返回宿主可理解的意图：
+Repository Actions return structured intents for the host to handle:
 
 ```js
 return { type: 'text', content: '...', suggestedAction: 'copy' };
@@ -137,11 +122,11 @@ return { type: 'notice', level: 'info', message: 'Done' };
 return { type: 'open-external', url: 'https://example.com' };
 ```
 
-- `copy` 需要 `clipboard:write`。
-- `open-external` 需要 `external:open`，且只接受无凭据的 HTTPS URL。
-- 插件不能返回 HTML 或任意宿主命令。
+- `copy` requires `clipboard:write`.
+- `open-external` requires `external:open` and accepts credential-free HTTPS URLs only.
+- Plugins cannot return raw HTML or arbitrary host commands.
 
-Processor 只能返回本次输入中已有仓库 ID 的摘要、标签和分类建议：
+Processors can only return summary, tag, and category suggestions for repository IDs present in the current input:
 
 ```js
 return {
@@ -149,13 +134,13 @@ return {
 };
 ```
 
-Exporter 返回纯文本和可选文件名；宿主根据 Manifest 决定扩展名和 MIME 类型：
+Exporters return plain text and an optional filename; the host determines file extension and MIME type according to the Manifest:
 
 ```js
 return { content: '# Repositories', fileName: 'stars.md' };
 ```
 
-Release processor 返回当前 Release 内的一个 Asset ID、置信度和简短原因：
+Release processors return an Asset ID belonging to the current Release, along with confidence and a concise rationale:
 
 ```js
 return {
@@ -165,24 +150,21 @@ return {
 };
 ```
 
-宿主会验证 Asset 归属。只有插件声明并获批 `downloads:create` 后，推荐结果才显示
-“宿主下载”；用户点击后仍需在原生保存对话框中确认文件名、来源和保存位置。插件拿不到
-下载 URL 与本地路径，也不能自动安装文件。
+The host verifies asset ownership. Only when a plugin declares and receives `downloads:create` will recommendation results display "Host download"; when clicked, users must still confirm filename, source, and destination in a native save dialog. Plugins receive neither the download URL nor the local path, and cannot run installers automatically.
 
-## 限制
+## Limitations
 
-- 单次 Action/Processor/Exporter 最多接收 1000 个仓库。
-- Action/Processor 结果上限 1 MiB，Exporter 文本上限 5 MiB。
-- 单个 Storage 值上限 64 KiB，每个插件总配额 1 MiB。
-- 本地安装包最多 2000 个文件、总计 50 MiB，不允许符号链接。
-- 每次运行时调用默认 5 秒超时；超时或协议错误会终止该插件运行时。
+- Single Action / Processor / Exporter invocations accept at most 1,000 repositories.
+- Action / Processor result payload capped at 1 MiB; Exporter text capped at 5 MiB.
+- Individual Storage values capped at 64 KiB; total quota capped at 1 MiB per plugin.
+- Local installation packages capped at 2,000 files and 50 MiB total; symlinks disallowed.
+- Runtime invocations time out after 5 seconds by default; timeouts or protocol errors terminate the plugin runtime.
 
-完整示例见 `examples/plugins/markdown-exporter` 和
-`examples/plugins/smart-release-recommender`。
+Complete examples available at `examples/plugins/markdown-exporter` and `examples/plugins/smart-release-recommender`.
 
-## V1.2 完整插件页面
+## V1.2 Full Plugin Pages
 
-页面型 Manifest 可省略 `main`：
+Page-only Manifests can omit `main`:
 
 ```json
 {
@@ -198,21 +180,11 @@ return {
 }
 ```
 
-启用后，在“设置 → 插件”点击对应的“打开页面”。宿主通过 `plugin-page:` 本地协议读取
-页面目录内的 HTML、JS、CSS 和图片；禁止路径穿越及越过页面目录的符号链接。iframe 的
-CSP 默认拒绝联网、嵌套页面、Worker、表单和内联脚本。React/Vue 等框架应预先构建成
-静态文件，使用相对资源路径，不应引入 CDN 运行时代码。
+Once enabled, click "Open Page" under "Settings → Plugins". The host serves HTML, JS, CSS, and images from the page directory via the `plugin-page:` custom protocol; path traversals and symlinks escaping the page directory are rejected. The iframe CSP blocks external networking, nested frames, Workers, forms, and inline scripts by default. Frameworks such as React or Vue must be pre-built into static assets using relative paths, avoiding external CDN runtime scripts.
 
-CSP 的 `style-src` 只放行本插件目录下的外链样式表，同样不含 `'unsafe-inline'`：动态
-插入的 `<style>` 元素和 `style` 属性都会被静默拦截，卡片或图表会退化成浏览器默认样式。
-需要运行时生成样式时，使用外链样式表，或用 Constructable Stylesheet
-（`new CSSStyleSheet()` + `replaceSync()` 后挂到 `root.adoptedStyleSheets`）。在 shadow
-DOM 中还应注意 `:root` 匹配不到 shadow tree 里的元素，自定义属性应挂在
-`#card` 之类的实际根元素上。可运行示例见
-`examples/plugins/repo-info-card`。
+The CSP `style-src` directive permits only external stylesheets within the plugin directory and excludes `'unsafe-inline'`: dynamically injected `<style>` elements and `style` attributes are silently blocked, reverting cards or charts to browser defaults. For runtime styles, use external stylesheets or Constructable Stylesheets (`new CSSStyleSheet()` + `replaceSync()`, attached to `root.adoptedStyleSheets`). In Shadow DOM, note that `:root` does not match elements inside the shadow tree; custom properties should be attached to actual root elements like `#card`. A working example is available in `examples/plugins/repo-info-card`.
 
-页面与宿主通过有版本边界的 `postMessage` 协议通信。宿主在加载时发送
-`plugin-page:init`，包含当前页面的临时 token。页面请求格式为：
+Pages communicate with the host via a versioned `postMessage` protocol. Upon loading, the host dispatches `plugin-page:init` containing an ephemeral token for the page session. Requests follow this structure:
 
 ```js
 window.parent.postMessage({
@@ -227,62 +199,36 @@ window.parent.postMessage({
 }, '*');
 ```
 
-宿主窗口的来源不固定（开发时是 `localhost`，打包后是 `file://`），页面发往宿主只能用
-`'*'`，因此消息里必须带上 `origin`，且与 `event.origin` 一致、等于
-`plugin-page://<插件 id>`。宿主发往页面的消息使用该精确来源，不再用 `'*'`。
+Because the host window origin varies (`localhost` in dev, `file://` packaged), the page must target `'*'`. Messages must therefore specify `origin`, matching `event.origin` and equaling `plugin-page://<plugin-id>`. The host dispatches messages to pages using this exact origin rather than `'*'`.
 
-可用方法：`repositories.search`、`repositories.get`、`releases.get`、
-`storage.get`、`storage.set`、`storage.delete`。每次请求都在宿主主进程重新检查
-插件状态、页面声明、参数 schema 和 Manifest 权限。返回的是脱敏后的宿主内存快照，
-并非实时 GitHub API；没有 `repositories:read`、`releases:read` 或 `storage` 权限时，
-对应方法会被拒绝。页面消息还受来源、临时 token、大小、并发数和频率限制。
+Available methods: `repositories.search`, `repositories.get`, `releases.get`, `storage.get`, `storage.set`, `storage.delete`. Every request is re-validated in the Electron main process against plugin state, page declarations, parameter schemas, and Manifest permissions. Returns represent sanitized host memory snapshots rather than live GitHub API calls; without `repositories:read`, `releases:read`, or `storage` permissions, calls are rejected. Page messages are further governed by origin, ephemeral token, payload size, concurrency, and rate limits.
 
-完整可安装示例见 `examples/plugins/repo-insights`。页面关闭、插件停用或卸载后，
-宿主不再提供该页面资源和能力调用。V1.2 仍是本地插件开发功能，不代表插件商店审核
-或对所有恶意本地代码提供完整安全沙箱。
+A complete runnable example is available at `examples/plugins/repo-insights`. When pages close or plugins are disabled or uninstalled, the host terminates page resources and capability access. V1.2 is a local development feature and does not imply marketplace vetting or full security isolation against arbitrary local malicious code.
 
-## V1.3 页面高级能力
+## V1.3 Advanced Page Capabilities
 
-页面型插件可额外声明 `ai:invoke` 和／或 `web:search`。这两项只通过受限页面的
-`postMessage` Bridge 提供，不向插件暴露 AI Key、用户配置的搜索服务凭据、任意
-`fetch` 或 Node API。带 `main` 的本地 Worker 仍是受信任代码；它不会因为声明这些
-权限而获得对应的 Worker `context` 方法。
+Page plugins can optionally declare `ai:invoke` and/or `web:search`. These are exposed solely via the sandboxed page `postMessage` Bridge; AI keys, search credentials, arbitrary `fetch`, and Node APIs are never exposed to plugins. Local Workers with a `main` entry remain trusted local code and do not receive corresponding Worker `context` methods by declaring these permissions.
 
 ```js
-// 每次请求均按 V1.2 的消息格式发送，method / args 换为：
+// Sent using the V1.2 message format, with method and args updated:
 method: 'ai.generate',
 args: { system: 'Summarize this repository', user: 'Public repository details', maxTokens: 500 },
-// 成功时返回 value: 'generated text'
+// On success, returns value: 'generated text'
 
 method: 'web.search',
 args: { query: 'open source alternatives', limit: 5 },
-// 成功时返回 value: [{ title, url, snippet }]
+// On success, returns value: [{ title, url, snippet }]
 ```
 
-宿主先检查插件启用状态、页面声明、参数和 Manifest 权限，再逐次显示完整 AI 输入
-或搜索词，说明目标服务，要求用户确认。拒绝则不会向外发送。AI 仅使用宿主当前
-激活的 Provider；宿主可能通过已配置的后端代理转发，插件只收到生成文本。插件
-AI 请求正文不会写入调试日志；关闭页面会中止进行中的 AI 请求。未配置 Provider
-时 AI 调用失败，不会自动切换到其他服务。
+The host verifies plugin state, page declarations, arguments, and Manifest permissions, then presents the complete AI prompt or search query, explains the target service, and prompts the user for confirmation. If denied, no request is sent. AI requests route exclusively through the user's currently active Provider; requests may be proxied through a configured backend, and the plugin receives only generated text. Plugin AI prompts are never written to debug logs; closing the page aborts active AI requests. Invocations fail without fallback if no Provider is configured.
 
-`ai.generate` 的参数有硬上限：`system` ≤ 2000 字符、`user` ≤ 160000 字符、
-`maxTokens` ≤ 4000。正文的 160000 字符预算（UTF-8 约 480 KB，加 JSON 转义仍
-远低于 1 MiB 的通用请求预算）用于让内容生成类页面把仓库 README 全文原样放进
-提示词，见 `examples/plugins/repo-info-card`；确认弹窗会显示完整正文，超长输入
-仍由用户逐一确认。
+`ai.generate` enforces strict parameter limits: `system` ≤ 2,000 characters, `user` ≤ 160,000 characters, `maxTokens` ≤ 4,000. The 160,000 character user budget (~480 KB UTF-8, well within the 1 MiB request budget even with JSON escaping) allows content generation pages to include full repository README contents verbatim (see `examples/plugins/repo-info-card`); the confirmation modal displays the full text for user review.
 
-网页搜索由用户在“设置 → 插件”填写可信的 SearXNG HTTPS 实例地址；默认关闭，
-没有预设公共实例。该实例须启用 JSON 输出。插件不能指定域名或 URL，只能提交
-最长 200 字符的搜索词及 1～10 条结果上限；宿主拒绝非 HTTPS、带凭据和本地
-地址，联网请求不跟随重定向，并限制超时与响应大小。搜索词会发送给用户所配置的
-实例及其实际使用的搜索引擎，请不要在未经同意时把私有仓库、个人备注或密钥放进
-搜索词。`network:<domain>` 仅是 Manifest 保留声明，V1.3 不提供通用网络请求 API。
+Web searches require users to configure a trusted SearXNG HTTPS instance in "Settings → Plugins"; this feature is disabled by default with no public instances pre-configured. The instance must have JSON output enabled. Plugins cannot specify domains or URLs, and can submit queries up to 200 characters with a limit of 1–10 results. The host rejects non-HTTPS, credentialed, or localhost addresses, does not follow redirects, and enforces timeout and response size limits. Queries are sent to the configured instance and its underlying search engines; do not include private repository information, personal notes, or secret keys in queries without user consent. `network:<domain>` remains a reserved Manifest declaration; V1.3 does not provide general networking APIs.
 
-## V1.4 弹窗动作（opensPage）与页面输出能力
+## V1.4 Modal Actions (opensPage) and Page Output Capabilities
 
-页面型插件可以声明一个「弹窗动作」：用户在仓库卡片 `…` 菜单的“插件操作”里点击
-该动作时，宿主不启动 Worker，而是把动作指向的插件页面装进弹窗（sandboxed
-iframe，能力桥与 V1.2/V1.3 完全一致）。
+Page plugins can declare a "Modal Action": when a user clicks the action under "Plugin Actions" in a repository card's `…` menu, the host does not launch a Worker; instead, it mounts the specified plugin page inside a modal (sandboxed iframe with an identical capability bridge to V1.2/V1.3).
 
 ```json
 {
@@ -290,7 +236,7 @@ iframe，能力桥与 V1.2/V1.3 完全一致）。
     "repositoryActions": [
       {
         "id": "generate-info-card",
-        "title": "生成仓库信息卡",
+        "title": "Generate repo info card",
         "placement": "repository-card",
         "opensPage": "info-card"
       }
@@ -302,84 +248,64 @@ iframe，能力桥与 V1.2/V1.3 完全一致）。
 }
 ```
 
-约束与校验：
+Constraints and Validation:
 
-- `opensPage` 必须指向本插件 `contributes.pages` 中已声明的页面 id，且 `placement`
-  必须是 `repository-card`；引用不存在的页面会被拒绝安装。
-- 声明 `opensPage` 的动作不要求 Manifest 提供 `main`；只含这类动作的插件不会启动
-  Node Worker。含普通动作（无 `opensPage`）的插件仍必须提供 `main`。
-- 仓库贡献的权限要求不变：仍需 `repositories:read`（或 `privateRepositories:read`）。
+- `opensPage` must reference a valid page id declared in `contributes.pages` of the same plugin, and `placement` must be `repository-card`; references to non-existent pages fail installation.
+- Actions declaring `opensPage` do not require a `main` entry in the Manifest; plugins containing only these actions do not spawn Node Workers. Plugins with standard actions (without `opensPage`) must still provide `main`.
+- Repository contribution permissions remain identical: `repositories:read` (or `privateRepositories:read`) is required.
 
-仓库上下文下发：宿主打开弹窗时，在 `plugin-page:init` 消息中附带一次性
-`context` 字段：
+Repository Context Delivery: Upon opening the modal, the host delivers an initial `context` field inside the `plugin-page:init` message:
 
 ```js
 {
   type: 'plugin-page:init', pluginId, pageId, token,
-  context: { repository: { /* 渲染端仓库对象 */ }, readme: '…或 null', language: 'zh' }
+  context: { repository: { /* Renderer repository object */ }, readme: '… or null', language: 'en' }
 }
 ```
 
-`context` 由宿主主动下发，不经过能力桥、不受逐次确认约束；页面访问宿主能力仍
-只能走受权限约束的桥方法。README 由宿主在打开弹窗时抓取，失败则为 `null`，插件
-必须能只依赖元数据工作。页面型插件的 `context` 还会带上 `accountTag`（当前
-GitHub 身份标签），供页面在绘制任何本地缓存之前完成账号校验。
+`context` is proactively dispatched by the host; it bypasses the capability bridge and does not require per-invocation confirmation. Subsequent capability calls from the page must still navigate the permission-gated bridge. README content is fetched by the host when opening the modal (or `null` on failure); plugins must function gracefully using metadata alone. Page plugin `context` also provides `accountTag` (the current GitHub identity tag), allowing pages to namespace local caches before rendering.
 
-页面输出能力（仅页面 Bridge，Worker 不可用）：
+Page Output Capabilities (Page Bridge only, unavailable to Workers):
 
-| 方法 | 参数 | 权限 | 行为 |
+| Method | Arguments | Permission | Behavior |
 |---|---|---|---|
-| `clipboard.write` | `{ text }` | `clipboard:write` | 主进程把文本写入系统剪贴板 |
-| `clipboard.writeImage` | `{ dataBase64 }`（PNG） | `clipboard:write` | 主进程解码并写入剪贴板图像 |
-| `downloads.saveFile` | `{ fileName, dataBase64 }` | `downloads:create` | 弹出宿主原生保存对话框，用户确认后写入 |
+| `clipboard.write` | `{ text }` | `clipboard:write` | Main process writes text to system clipboard |
+| `clipboard.writeImage` | `{ dataBase64 }` (PNG) | `clipboard:write` | Main process decodes and writes image to system clipboard |
+| `downloads.saveFile` | `{ fileName, dataBase64 }` | `downloads:create` | Opens native save dialog; writes file upon user confirmation |
 
-参数上限：`clipboard.writeImage` 与 `downloads.saveFile` 的 base64 载荷放宽到
-10 MiB（其余方法仍为 1 MiB）；`fileName` 不允许路径分隔符或前导点。保存位置
-始终由用户在原生对话框中确认，插件拿不到文件路径。
+Parameter Limits: Base64 payloads for `clipboard.writeImage` and `downloads.saveFile` are permitted up to 10 MiB (other methods remain capped at 1 MiB); `fileName` prohibits path separators and leading dots. Save locations are always confirmed by users in native dialogs; plugins never receive file paths.
 
-完整可安装示例见 `examples/plugins/repo-info-card`。
+A complete runnable example is available at `examples/plugins/repo-info-card`.
 
-## V1.5 页面网络能力（network.request）
+## V1.5 Page Network Capabilities (network.request)
 
-页面型插件可声明 `network:<domain>` 权限（如 `network:api.github.com`），通过
-页面 Bridge 的 `network.request` 方法让宿主代理只读 GET 请求。V1.5 的授权在启用
-确认时一次完成（权限列表会附加说明），不逐次弹窗；执行流程与 `ai.generate` /
-`web.search` 同构：主进程校验参数白名单与 `network:<host>` 权限（授权型返回），
-渲染端用用户自己的 GitHub Token 发起请求，Token 不进 IPC 参数、页面拿不到。
+Page plugins can declare `network:<domain>` permissions (e.g., `network:api.github.com`) to make read-only GET requests proxied by the host via the `network.request` bridge method. In V1.5, authorization is granted once upon enabling the plugin (with descriptive details in the permission dialog), without per-request prompts. Execution mirrors `ai.generate` / `web.search`: the main process validates parameter allowlists and `network:<host>` permissions (returning authorized metadata), and the renderer dispatches requests using the user's GitHub Token. Tokens never enter IPC arguments and are never exposed to pages.
 
 ```js
-// 每次请求均按 V1.2 的消息格式发送，method / args 换为：
+// Dispatched using the V1.2 message format, with method and args updated:
 method: 'network.request',
 args: {
   host: 'api.github.com',
   path: '/repos/facebook/react/stats/commit_activity',
-  query: { per_page: 12 },           // 可选；仅允许 per_page / page（1–100）
-                                     // 与 state（open/closed/all 枚举）
+  query: { per_page: 12 },           // Optional; permits only per_page / page (1–100)
+                                     // and state (open/closed/all enum)
 },
-// 成功时返回 value: { status, body, acct }；acct 是当前 GitHub 身份的标签
-// （Token 的 SHA-256 截断，匿名请求为 'anon'，页面拿不到 Token），用于给本地
-// 缓存按账号做命名空间；202/204 时 body 为 null，
-// HTTP 非 2xx 归一为 success:false（code: 'PLUGIN_NETWORK_HTTP_ERROR'）。
-// 重定向一律拒绝（redirect: 'error'），避免跳转绕过路径白名单。
+// On success, returns value: { status, body, acct }; acct is the current GitHub identity tag
+// (truncated SHA-256 of token, or 'anon' for unauthenticated requests; token unexposed),
+// used to namespace local caches per account; 202/204 responses return body: null,
+// non-2xx HTTP responses normalize to success: false (code: 'PLUGIN_NETWORK_HTTP_ERROR').
+// Redirects are rejected (redirect: 'error') to prevent bypassing path allowlists.
 ```
 
-约束与校验（主进程 `pluginPageBridge` 与渲染端执行器双侧同闸门）：
+Constraints and Validation (Enforced symmetrically across main process `pluginPageBridge` and renderer executor):
 
-- `host` 当前仅接受 `api.github.com`；`path` 必须是纯路径（无查询串、片段、
-  凭据、空白），且匹配只读指标端点白名单：
-  `/repos/{owner}/{repo}`、`/stats/commit_activity`、`/stats/participation`、
-  `/stats/code_frequency`、`/contributors`、`/languages`、`/releases`、`/pulls`、
-  `/tags`、`/stargazers`、`/stargazers/history`、`/community/profile`、
-  `/security-advisories` 与所有者资料 `/users/{login}`。
-- 仅 GET；请求头由宿主固定（`Accept: application/vnd.github+json`、
-  `X-GitHub-Api-Version`、有 Token 时附 `Authorization: Bearer`）。
-- 未配置 Token 时以匿名身份请求（受 GitHub 60 次/小时限额约束）。
-- 响应超时 15 秒、正文上限 4 MiB；页面 Bridge 的并发与频率限制同样适用。
-- Worker 侧不提供该方法（`network` 能力在 Worker 路由中只做授权检查）。
+- `host` currently accepts `api.github.com` only; `path` must be a clean path (no query strings, fragments, credentials, or whitespace) matching an allowlist of read-only metrics endpoints:
+  `/repos/{owner}/{repo}`, `/stats/commit_activity`, `/stats/participation`, `/stats/code_frequency`, `/contributors`, `/languages`, `/releases`, `/pulls`, `/tags`, `/stargazers`, `/stargazers/history`, `/community/profile`, `/security-advisories`, and owner profiles `/users/{login}`.
+- GET only; request headers are fixed by the host (`Accept: application/vnd.github+json`, `X-GitHub-Api-Version`, and `Authorization: Bearer` when token is present).
+- Requests without configured tokens proceed anonymously (subject to GitHub's 60 req/hour limit).
+- Response timeout 15 seconds, body size cap 4 MiB; page Bridge concurrency and rate limits apply.
+- Method unavailable to Workers (`network` capability in Worker routing performs authorization checks only).
 
-`stats/*` 类端点在 GitHub 首次生成缓存时会返回 202（`body: null`），页面应按
-「统计生成中」处理并可稍后重试。
+`stats/*` endpoints return 202 (`body: null`) when GitHub generates caches for the first time; pages should treat this as "statistics generating" and retry later.
 
-完整可安装示例见 `examples/plugins/repo-insights`（仓库洞察看板：仓库体检——摘要、
-作者与贡献者及客观事实，提交活动、代码变更、贡献者、语言、发布节奏、社区健康、
-安全公告、星标趋势与健康度评分，图表使用随插件打包的本地 Chart.js）。
+A complete runnable example is available at `examples/plugins/repo-insights` (Repository Insights dashboard: health check summary, authors, contributors, commit activity, code frequency, languages, release cadence, community health, security advisories, star trends, and health score, using bundled Chart.js).

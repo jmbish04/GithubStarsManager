@@ -61,8 +61,8 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
     setRepositoryViewMode: state.setRepositoryViewMode,
   })));
 
-  // 空状态的"清除全部筛选"出口：只重置筛选条件，保留查询词——查询词是
-  // SearchBar 的本地输入状态，这里不重置以免输入框与结果列表失同步。
+  // Empty state "Clear all filters" exit: resets filter criteria only, preserving query text—
+  // the query text is SearchBar's local input state and is preserved here to avoid desynchronizing input from results.
   const clearAllFilters = useCallback(() => {
     setSearchFilters({
       tags: [],
@@ -80,7 +80,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
   }, [setSearchFilters]);
 
   const hasActiveNonQueryFilters = useMemo(() => {
-    // 契约测试的极简 store 只提供 query 字段；其余字段缺省时视为无筛选。
+    // Minimal store in contract tests only provides query field; remaining fields default to no filter.
     if (!searchFilters) return false;
     return (searchFilters.languages?.length ?? 0) > 0 ||
       (searchFilters.tags?.length ?? 0) > 0 ||
@@ -105,7 +105,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
   const restoreScrollFrameRef = useRef<number | null>(null);
   
 
-  // 批量选择状态
+  // Bulk selection state
   const [selectedRepoIds, setSelectedRepoIds] = useState<Set<number>>(new Set());
   const [showBulkToolbar, setShowBulkToolbar] = useState(false);
   const [showCategorizeModal, setShowCategorizeModal] = useState(false);
@@ -114,7 +114,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
   const selectionExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeChatRepository, setActiveChatRepository] = useState<Repository | null>(null);
   const activeChatTriggerRef = useRef<HTMLElement | null>(null);
-  // 全局问答历史（S4 入口）：抽屉 + 从历史进入单仓会话的目标会话。
+  // Global Q&A history (S4 entry point): drawer + target session when opening single-repo chat from history.
   const [globalHistoryOpen, setGlobalHistoryOpen] = useState(false);
   const [globalChatSessionId, setGlobalChatSessionId] = useState<string | null>(null);
 
@@ -154,14 +154,14 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
     return sortRepositories(categoryRepositories, searchFilters.sortBy, searchFilters.sortOrder);
   }, [repositories, selectedCategory, allCategories, categoryMatchMode, searchFilters.sortBy, searchFilters.sortOrder, similarView?.active]);
 
-  // 根据当前筛选的仓库中是否有AI分析内容来动态设置默认显示模式
+  // Dynamically set default display mode based on whether filtered repos have AI analysis content
   const hasAnalyzedRepos = useMemo(() => 
     filteredRepositories.some(repo => repo.analyzed_at && !repo.analysis_failed),
     [filteredRepositories]
   );
   
-  // 当切换分类时，如果目标分类没有AI分析的仓库，自动切换到原始描述
-  // 注意：不要在搜索/过滤过程中触发，否则会误关用户的显示偏好
+  // When switching categories, automatically revert to original description if target category has no AI-analyzed repos
+  // Note: do not trigger during search/filtering to avoid accidentally overriding user's display preference
   const prevHasAnalyzedRef = useRef(hasAnalyzedRepos);
   const prevCategoryRefForAI = useRef(selectedCategory);
   useEffect(() => {
@@ -174,7 +174,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
     }
   }, [hasAnalyzedRepos, selectedCategory, showAISummary]);
 
-  // Infinite scroll (瀑布流按需加载)
+  // Infinite scroll (waterfall on-demand loading)
   const LOAD_BATCH = 50;
   const [visibleCount, setVisibleCount] = useState(LOAD_BATCH);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -183,13 +183,13 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
   const endIndex = Math.min(visibleCount, filteredRepositories.length);
   const visibleRepositories = filteredRepositories.slice(0, visibleCount);
 
-  // 派生选中的仓库数组，统一用于计数与传递
+  // Derive selected repositories array, used uniformly for counting and passing
   const selectedRepositories = useMemo(() =>
     filteredRepositories.filter(repo => selectedRepoIds.has(repo.id)),
     [filteredRepositories, selectedRepoIds]
   );
 
-  // 使用 useMemo 缓存统计计数，避免每次渲染重新计算
+  // Cache statistics counts using useMemo to avoid recalculation on each render
   const repositoryStats = useMemo(() => {
     let unanalyzedCount = 0;
     let analyzedCount = 0;
@@ -348,8 +348,8 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
 
   const handleStop = () => analysisJob.requestStop();
 
-  // 批量操作处理函数
-  // 使用 useCallback 优化事件处理函数
+  // Bulk action handlers
+  // Optimize event handler with useCallback
   const handleSelectRepo = useCallback((id: number) => {
     setSelectedRepoIds(prev => {
       const newSet = new Set(prev);
@@ -360,7 +360,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
       }
       return newSet;
     });
-    // 使用 requestAnimationFrame 延迟显示工具栏，避免布局抖动
+    // Delay toolbar display using requestAnimationFrame to prevent layout jitter
     requestAnimationFrame(() => {
       setSelectedRepoIds(current => {
         setShowBulkToolbar(current.size > 0);
@@ -392,18 +392,18 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
     if (selectionExitTimerRef.current !== null) clearTimeout(selectionExitTimerRef.current);
   }, []);
 
-  // 处理单击空白处 - 触发回到顶部按钮跳跃动画
+  // Handle click on empty space - trigger back-to-top button bounce animation
   const handleClick = useCallback((e: React.MouseEvent) => {
-    // 检查点击的是否是空白区域（不是卡片或其他元素）
+    // Check if clicked area is blank space (not cards or other elements)
     if (showBulkToolbar && e.target === e.currentTarget) {
-      // 触发自定义事件，让回到顶部按钮跳跃两下
+      // Dispatch custom event to bounce back-to-top button twice
       window.dispatchEvent(new CustomEvent('gsm:back-to-top-bounce'));
     }
   }, [showBulkToolbar]);
 
-  // 处理双击空白处退出多选模式
+  // Handle double click on empty space to exit multi-select mode
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    // 检查点击的是否是空白区域（不是卡片或其他元素）
+    // Check if clicked area is blank space (not cards or other elements)
     if (showBulkToolbar && e.target === e.currentTarget) {
       handleDeselectAll();
     }
@@ -416,7 +416,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
     setActiveChatRepository(repository);
   }, []);
 
-  // S4 全局入口（SearchBar「问答历史」按钮）经窗口事件打开历史抽屉。
+  // S4 global entry point (SearchBar "Q&A History" button) opens history drawer via window event.
   useEffect(() => {
     const handleOpenGlobalHistory = () => setGlobalHistoryOpen(true);
     window.addEventListener('gsm:open-global-chat-history', handleOpenGlobalHistory);
@@ -622,7 +622,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Progress Bar and Controls - 移动端优化 */}
+          {/* Progress Bar and Controls - mobile optimized */}
           {isLoading && analysisProgress.total > 0 && (
             <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="w-20 sm:w-32 bg-accent dark:bg-accent rounded-full h-2">
@@ -654,7 +654,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
             </div>
           )}
 
-          {/* Description Toggle - Radio Style - 移动端优化 */}
+          {/* Description Toggle - Radio Style - mobile optimized */}
           {!isLoading && (
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <span id="repository-display-content-label" className="text-xs sm:text-sm text-muted-foreground dark:text-muted-foreground">

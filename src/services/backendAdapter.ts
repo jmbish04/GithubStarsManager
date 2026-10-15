@@ -67,10 +67,10 @@ const hydrateBackendSettings = (settings: Record<string, unknown>): Record<strin
 };
 
 /**
- * 共享 helper：构造后端 API 鉴权头（fullstack Web 模式下 API_SECRET 的
- * `Authorization: Bearer ...`）。服务端 `authMiddleware` 对所有 `/api/*`
- * （除 health）要求该头，直接 `fetch(backendUrl/...)` 的传输层必须复用它，
- * 否则在配置 API_SECRET 时一律 401。
+ * Shared helper: builds the backend API auth headers (in fullstack Web mode, API_SECRET's
+ * `Authorization: Bearer ...`). The server's `authMiddleware` requires this header on all `/api/*`
+ * routes (except health); transports that call `fetch(backendUrl/...)` directly must reuse it,
+ * otherwise every request returns 401 when API_SECRET is configured.
  */
 export const getBackendAuthHeaders = (): Record<string, string> => {
   let secret = '';
@@ -106,8 +106,8 @@ class BackendAdapter {
   }
 
   /**
-   * 订阅可用性结论变化（init 探测结束或可用性翻转时触发）。返回取消订阅
-   * 函数，供 useSyncExternalStore 等 UI 侧响应式使用。
+   * Subscribes to availability-conclusion changes (fires when the init probe finishes or availability flips). Returns an unsubscribe
+   * function, for reactive UI use such as useSyncExternalStore.
    */
   subscribeAvailability(listener: () => void): () => void {
     this._availabilityListeners.add(listener);
@@ -182,8 +182,8 @@ class BackendAdapter {
       this.commitBackendUrl(null);
       logger.info('backendAdapter', 'Backend not available, using local-only mode');
     } finally {
-      // 探测结束：标记结论已落定并通知订阅者。即使可用性没有翻转
-      // （如纯浏览器模式保持 null），订阅方也需要重新取值。
+      // Probe finished: mark the conclusion as settled and notify subscribers. Even if availability did not flip
+      // (e.g. pure browser mode stays null), subscribers still need to re-read the value.
       setBackendProbed();
       for (const listener of this._availabilityListeners) listener();
     }
@@ -197,7 +197,7 @@ class BackendAdapter {
     return this._backendUrl;
   }
 
-  /** 供直接 fetch 后端路由的传输层复用（公开版 getAuthHeaders）。 */
+  /** Reused by transports that fetch backend routes directly (public version of getAuthHeaders). */
   get backendAuthHeaders(): Record<string, string> {
     return getBackendAuthHeaders();
   }
@@ -376,7 +376,7 @@ class BackendAdapter {
     const error = new Error(detail ? `${translated} - ${detail}` : translated) as Error & { statusCode?: number; code?: string; retryAfterMs?: number };
     error.statusCode = res.status;
     if (code) error.code = code;
-    // 后端透传上游 Retry-After 头后，这里解析成毫秒供限流器使用（retry-after-ms 为毫秒，retry-after 为秒）
+    // After the backend passes through the upstream Retry-After header, parse it into milliseconds for the rate limiter (retry-after-ms is in ms, retry-after is in seconds)
     if (res.status === 429) {
       const retryAfterMsHeader = res.headers.get('retry-after-ms');
       if (retryAfterMsHeader) {
@@ -385,7 +385,7 @@ class BackendAdapter {
       } else {
         const retryAfter = res.headers.get('retry-after');
         if (retryAfter) {
-          // Retry-After 可能是「秒数」或「HTTP-date」；数值解析失败时按日期计算剩余时长
+          // Retry-After may be a number of seconds or an HTTP-date; if numeric parsing fails, compute the remaining time from the date
           const numeric = Number(retryAfter);
           if (Number.isFinite(numeric) && numeric > 0) {
             error.retryAfterMs = Math.round(numeric * 1000);
@@ -671,9 +671,9 @@ class BackendAdapter {
       headers: this.getAuthHeaders(),
       body: JSON.stringify({
         configId, method, path, body, headers,
-        // WebDAV 大文件上传可达 300s；不放宽的话代理会先于调用方超时。
+        // WebDAV large file uploads can take up to 300s; without relaxing this, the proxy would time out before the caller.
         ...(timeoutMs ? { timeoutMs } : {}),
-        // 配置尚未同步到后端时（例如"测试连接"发生在保存之前），由前端直接带上凭据
+        // When config hasn't been synced to the backend yet (e.g. "test connection" before saving), the frontend sends credentials directly
         ...(inlineConfig ? {
           inlineUrl: inlineConfig.url,
           inlineUsername: inlineConfig.username,
@@ -681,8 +681,8 @@ class BackendAdapter {
         } : {}),
       }),
       ...(signal ? { signal } : {}),
-      // 调用方自带的 AbortController 负责业务级超时；这里只兜底一个硬上限，
-      // 避免 signal 缺失时请求无限挂起。
+      // The caller's own AbortController handles business-level timeouts; this is only a hard upper bound as a fallback,
+      // to keep requests from hanging forever when no signal is provided.
     }, timeoutMs ?? 300000);
   }
 

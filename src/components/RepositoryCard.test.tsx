@@ -112,7 +112,7 @@ const storeState = {
   activeAIConfig: null,
   setAnalyzingRepository: vi.fn(),
   language: 'zh' as const,
-  // 卡片可见字段（开发守则 §14）：默认全开，单个用例里按需改
+  // Card visible fields (Dev Guide §14): all enabled by default, modify as needed per test case
   repositoryCardFields: { description: true, tags: true, language: true, stars: true, license: true, lastUpdated: true },
   repositoryCardActions: DEFAULT_REPOSITORY_CARD_ACTIONS.map((item) => ({ ...item })),
   updateRepository: vi.fn(),
@@ -564,7 +564,7 @@ describe('RepositoryCard view modes', () => {
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     expect(await screen.findByRole('dialog', { name: '生成仓库信息卡' })).toBeInTheDocument();
 
-    // 弹窗挂在应用根上：卡片卸载后它仍然在。
+    // The modal is mounted on the app root: it remains present after card unmounts.
     unmount();
     render(<PluginPageHost />);
     expect(screen.getByRole('dialog', { name: '生成仓库信息卡' })).toBeInTheDocument();
@@ -579,7 +579,7 @@ describe('RepositoryCard interactive-element click exemption (issue #353)', () =
       useRepositoryDragStore.getState().startDrag();
     });
 
-    // fireEvent.click 返回 false 表示事件被 preventDefault 取消
+    // fireEvent.click returning false indicates the event was cancelled by preventDefault
     expect(fireEvent.click(screen.getByTitle('在GitHub上查看'))).toBe(true);
     expect(screen.queryByTestId('readme-modal')).not.toBeInTheDocument();
 
@@ -610,8 +610,8 @@ describe('RepositoryCard interactive-element click exemption (issue #353)', () =
     await user.click(screen.getByTitle('编辑仓库信息'));
     const editModal = screen.getByTestId('repository-edit-modal');
 
-    // onOutsideDismiss 记录 dismiss 时间戳后，250ms 窗口内点击链接不被吞
-    // （真实弹窗由 Radix 关闭；mock 无关闭机制，不影响时间窗语义）
+    // After onOutsideDismiss records dismiss timestamp, link clicks within the 250ms window are not swallowed
+    // (real modal is closed by Radix; mock lacks close mechanism, which does not affect window semantics)
     await act(async () => {
       fireEvent.pointerDown(editModal);
       expect(fireEvent.click(screen.getByTitle('在GitHub上查看'))).toBe(true);
@@ -630,8 +630,8 @@ describe('RepositoryCard touch-drag click suppression (CodeRabbit #355)', () => 
     fireEvent.touchMove(handle, { touches: [{ clientX: 60, clientY: 60 }] });
     fireEvent.touchEnd(handle, { touches: [] });
 
-    // 触摸后的兼容鼠标事件序列：mousemove 触发 dragStore 兜底清位，
-    // 但实例级抑制标志必须仍然拦截补发的 click
+    // Compatible mouse event sequence after touch: mousemove triggers dragStore fallback clearing,
+    // but instance-level suppression flag must still intercept the subsequent click
     fireEvent.mouseMove(document.body);
     expect(useRepositoryDragStore.getState().isDragging).toBe(false);
     expect(fireEvent.click(card)).toBe(false);
@@ -667,15 +667,15 @@ describe('RepositoryCard rapid touch drags (CodeRabbit round 2)', () => {
       };
 
       dragOnce();
-      // 第二次拖拽开始时，第一次的复位定时器尚未触发
+      // When second drag starts, reset timer from first drag has not fired yet
       vi.advanceTimersByTime(100);
       dragOnce();
-      // 推进越过第一次定时器的原定触发点：不得提前清掉第二次的抑制标志
+      // Advance past original trigger point of first timer: must not prematurely clear second suppression flag
       vi.advanceTimersByTime(120);
       expect(fireEvent.click(card)).toBe(false);
       expect(screen.queryByTestId('readme-modal')).not.toBeInTheDocument();
 
-      // 抑制窗口正常过期后恢复
+      // Restores after suppression window expires normally
       vi.advanceTimersByTime(200);
       expect(fireEvent.click(card)).toBe(true);
     } finally {
@@ -694,11 +694,11 @@ describe('RepositoryCard rapid touch drags (CodeRabbit round 2)', () => {
     };
     renderRepositoryCard('grid');
 
-    // 关闭的字段不渲染：仓库没有语言/许可证可断言文案，这里断言描述与标签消失
+    // Disabled fields do not render: repo has no language/license text to assert, assert description and tags disappear here
     expect(screen.queryByText('Repository description')).not.toBeInTheDocument();
     expect(screen.queryByText('TypeScript')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'owner/example-repository' })).toBeInTheDocument();
-    // 仍然开着的字段照常显示
+    // Still-enabled fields display as usual
     expect(screen.getByText('128')).toBeInTheDocument();
   });
 

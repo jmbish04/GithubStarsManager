@@ -23,7 +23,7 @@ export const PushCategoriesModal: React.FC<PushCategoriesModalProps> = ({
   const idPrefix = useId();
   const groupLabelId = useId();
 
-  // 记录取消勾选的项：空集合即全选，每次打开重置为全选
+  // Track deselected items: empty set means all selected; resets to all selected on every open
   useEffect(() => {
     if (isOpen) setDeselectedIds(new Set());
   }, [isOpen]);

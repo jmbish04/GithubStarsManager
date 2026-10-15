@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../store/useAppStore', () => ({
   useAppStore: (selector: (state: unknown) => unknown) => selector({
     trendingSnapshots: mocks.snapshots,
-    language: 'zh',
+    language: 'en',
   }),
 }));
 
@@ -63,7 +63,7 @@ describe('TrendingHistoryPanel', () => {
 
     expect(screen.getByTestId('trending-history')).toBeInTheDocument();
     expect(screen.getByTestId('trending-highlight-rising')).toHaveTextContent('owner/up');
-    // 10 → 4 是上升 6 名
+    // 10 → 4 is an increase of 6 ranks
     expect(screen.getByTestId('trending-highlight-rising')).toHaveTextContent('6');
     expect(screen.getByTestId('trending-highlight-falling')).toHaveTextContent('owner/down');
     expect(screen.getByTestId('trending-highlight-new-entry')).toHaveTextContent('owner/new');
@@ -73,9 +73,9 @@ describe('TrendingHistoryPanel', () => {
     mocks.snapshots = twoDays();
     render(<TrendingHistoryPanel period="daily" platform="All" />);
 
-    expect(screen.getByTestId('trending-history')).toHaveTextContent('与上一天的本地记录相比');
-    // "新增 stars" 明确写成"自首次记录"，不是 GitHub 本周新增
-    expect(screen.getByTestId('trending-history')).toHaveTextContent('自首次记录新增');
-    expect(screen.getByTestId('trending-history')).toHaveTextContent('连续 2 天');
+    expect(screen.getByTestId('trending-history')).toHaveTextContent('Compared with the previous recorded day');
+    // "stars gained" explicitly says "since we first recorded it", not GitHub's weekly gains
+    expect(screen.getByTestId('trending-history')).toHaveTextContent('since we first recorded it');
+    expect(screen.getByTestId('trending-history')).toHaveTextContent('2 days in a row');
   });
 });

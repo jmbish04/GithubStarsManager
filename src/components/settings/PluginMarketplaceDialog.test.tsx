@@ -72,7 +72,7 @@ vi.mock('../../hooks/useDialog', () => ({
   useDialog: () => ({ toast: mocks.toast, confirm: mocks.confirm }),
 }));
 
-const t = makeT('zh', 'app');
+const t = makeT('en', 'app');
 
 const sourceEntry = (sourceId: string, url: string, name?: string) => ({
   source: { id: sourceId, url, ...(name ? { name } : {}), addedAt: '2026-10-01T00:00:00.000Z' },
@@ -115,7 +115,7 @@ const installedPlugin = (overrides: Partial<InstalledPlugin> = {}): InstalledPlu
 
 const renderDialog = () => render(<PluginMarketplaceDialog isOpen onClose={() => {}} t={t} />);
 
-/** 等到目录数据真正渲染出第一行插件（列表容器始终存在，不能作为就绪信号）。 */
+/** Wait until catalog data renders the first plugin row (the list container is always present and cannot serve as the ready signal). */
 const waitForCatalog = async () => {
   await waitFor(() => expect(screen.getByTestId('marketplace-plugin-com.example.fixture')).toBeInTheDocument());
 };
@@ -141,7 +141,7 @@ describe('PluginMarketplaceDialog', () => {
     expect(screen.getByTestId('marketplace-plugin-com.example.fixture')).toHaveTextContent('Fixture');
     expect(screen.getByTestId('marketplace-plugin-com.example.fixture')).toHaveTextContent('v1.0.0');
     expect(screen.getByTestId('marketplace-plugin-com.example.fixture')).toHaveTextContent('storage');
-    expect(within(screen.getByTestId('marketplace-plugin-com.example.fixture')).getByRole('button', { name: '安装' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('marketplace-plugin-com.example.fixture')).getByRole('button', { name: 'Install' })).toBeInTheDocument();
   });
 
   it('installs an available plugin and refreshes the installed list', async () => {
@@ -151,7 +151,7 @@ describe('PluginMarketplaceDialog', () => {
     await waitForCatalog();
 
     const row = screen.getByTestId('marketplace-plugin-com.example.fixture');
-    await user.click(within(row).getByRole('button', { name: '安装' }));
+    await user.click(within(row).getByRole('button', { name: 'Install' }));
 
     await vi.waitFor(() => expect(mocks.install).toHaveBeenCalledWith({
       sourceId: 'src-1',
@@ -161,7 +161,7 @@ describe('PluginMarketplaceDialog', () => {
       replace: false,
     }));
     await vi.waitFor(() => expect(mocks.refreshInstalled).toHaveBeenCalled());
-    expect(mocks.toast).toHaveBeenCalledWith('已安装 Fixture，启用前请检查权限。', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('Installed Fixture. Review the permissions before enabling it.', 'success');
   });
 
   it('enables an installed plugin only after the permission confirmation', async () => {
@@ -171,10 +171,10 @@ describe('PluginMarketplaceDialog', () => {
     renderDialog();
     await waitForCatalog();
 
-    await user.click(screen.getByRole('switch', { name: '启用 Fixture' }));
+    await user.click(screen.getByRole('switch', { name: 'Enable Fixture' }));
 
     expect(mocks.confirm).toHaveBeenCalledWith(
-      '启用 Fixture',
+      'Enable Fixture',
       expect.stringContaining('storage'),
       expect.objectContaining({ type: 'warning' }),
     );
@@ -188,7 +188,7 @@ describe('PluginMarketplaceDialog', () => {
     renderDialog();
     await waitForCatalog();
 
-    await user.click(screen.getByRole('switch', { name: '启用 Fixture' }));
+    await user.click(screen.getByRole('switch', { name: 'Enable Fixture' }));
 
     expect(mocks.enable).not.toHaveBeenCalled();
   });
@@ -206,9 +206,9 @@ describe('PluginMarketplaceDialog', () => {
     await waitForCatalog();
 
     const row = screen.getByTestId('marketplace-plugin-com.example.updatable');
-    expect(row).toHaveTextContent('有新版本 2.0.0');
+    expect(row).toHaveTextContent('Version 2.0.0 available');
 
-    await user.click(screen.getByRole('button', { name: '更新' }));
+    await user.click(screen.getByRole('button', { name: 'Update' }));
     await vi.waitFor(() => expect(mocks.install).toHaveBeenCalledWith({
       sourceId: 'src-1',
       directoryName: 'next-version',
@@ -244,10 +244,10 @@ describe('PluginMarketplaceDialog', () => {
     mocks.refresh.mockResolvedValue({ success: true, state: marketplaceState() });
     const user = userEvent.setup();
     renderDialog();
-    // SOURCE_LIST_TIMEOUT 会被映射成用户可读的超时提示，而非透传原始消息。
-    await waitFor(() => expect(screen.getByTestId('marketplace-plugin-list')).toHaveTextContent('请求超时'));
+    // SOURCE_LIST_TIMEOUT is mapped to a user-readable timeout notice rather than passing through the raw message.
+    await waitFor(() => expect(screen.getByTestId('marketplace-plugin-list')).toHaveTextContent('The request timed out'));
 
-    await user.click(screen.getByRole('button', { name: '重试' }));
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
     await vi.waitFor(() => expect(mocks.refresh).toHaveBeenCalledWith({ sourceId: 'src-1' }));
   });
 
@@ -257,7 +257,7 @@ describe('PluginMarketplaceDialog', () => {
       registry: {
         fetchedAt: '',
         plugins: [],
-        removed: [{ id: 'com.example.fixture', versions: ['1.0.0'], reason: '向第三方发送了仓库列表', date: '2026-10-01', action: 'revoke' }],
+        removed: [{ id: 'com.example.fixture', versions: ['1.0.0'], reason: 'Sent repository list to third parties', date: '2026-10-01', action: 'revoke' }],
         rejected: [],
         error: null,
       },
@@ -266,9 +266,9 @@ describe('PluginMarketplaceDialog', () => {
     await waitForCatalog();
 
     const row = screen.getByTestId('marketplace-plugin-com.example.fixture');
-    expect(row).toHaveTextContent('已被撤销');
-    expect(row).toHaveTextContent('向第三方发送了仓库列表');
-    expect(screen.getByRole('button', { name: '安装' })).toBeDisabled();
+    expect(row).toHaveTextContent('Revoked');
+    expect(row).toHaveTextContent('Sent repository list to third parties');
+    expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
   });
 
   it('offers a direct disable for an enabled plugin that was revoked', async () => {
@@ -278,7 +278,7 @@ describe('PluginMarketplaceDialog', () => {
       registry: {
         fetchedAt: '',
         plugins: [],
-        removed: [{ id: 'com.example.fixture', versions: [], reason: '全版本撤销', date: '2026-10-01', action: 'revoke' }],
+        removed: [{ id: 'com.example.fixture', versions: [], reason: 'All versions revoked', date: '2026-10-01', action: 'revoke' }],
         rejected: [],
         error: null,
       },
@@ -288,12 +288,12 @@ describe('PluginMarketplaceDialog', () => {
     renderDialog();
     await waitForCatalog();
 
-    await user.click(screen.getByRole('button', { name: '立即停用' }));
+    await user.click(screen.getByRole('button', { name: 'Disable now' }));
     await vi.waitFor(() => expect(mocks.disable).toHaveBeenCalledWith('com.example.fixture'));
   });
 
   it('surfaces a disable-now prompt for a revoked installed plugin even if no source lists it', async () => {
-    // 插件唯一来源已被删除：市场行不会渲染该插件，但官方撤销提示必须独立出现。
+    // The plugin's sole source was deleted: marketplace rows will not render the plugin, but the official revocation notice must appear independently.
     mocks.setStoreSnapshot({ plugins: [installedPlugin({ enabled: true, status: 'active' })], invalidPlugins: [] });
     mocks.getState.mockResolvedValue({ sources: [], entries: [] });
     mocks.loadOfficialRegistry.mockResolvedValue({
@@ -301,7 +301,7 @@ describe('PluginMarketplaceDialog', () => {
       registry: {
         fetchedAt: '',
         plugins: [],
-        removed: [{ id: 'com.example.fixture', versions: ['1.0.0'], reason: '向第三方发送了仓库列表', date: '2026-10-01', action: 'revoke' }],
+        removed: [{ id: 'com.example.fixture', versions: ['1.0.0'], reason: 'Sent repository list to third parties', date: '2026-10-01', action: 'revoke' }],
         rejected: [],
         error: null,
       },
@@ -311,18 +311,18 @@ describe('PluginMarketplaceDialog', () => {
     renderDialog();
     await waitFor(() => expect(screen.getByTestId('marketplace-revoked-com.example.fixture')).toBeInTheDocument());
 
-    expect(screen.getByTestId('marketplace-revoked-section')).toHaveTextContent('已撤销的已安装插件');
-    expect(screen.getByTestId('marketplace-revoked-com.example.fixture')).toHaveTextContent('向第三方发送了仓库列表');
+    expect(screen.getByTestId('marketplace-revoked-section')).toHaveTextContent('Revoked installed plugins');
+    expect(screen.getByTestId('marketplace-revoked-com.example.fixture')).toHaveTextContent('Sent repository list to third parties');
 
-    await user.click(within(screen.getByTestId('marketplace-revoked-com.example.fixture')).getByRole('button', { name: '立即停用' }));
+    await user.click(within(screen.getByTestId('marketplace-revoked-com.example.fixture')).getByRole('button', { name: 'Disable now' }));
     await vi.waitFor(() => expect(mocks.disable).toHaveBeenCalledWith('com.example.fixture'));
   });
 
   it('shows the empty state with an add-source action when no sources exist', async () => {
     mocks.getState.mockResolvedValue({ sources: [], entries: [] });
     renderDialog();
-    await waitFor(() => expect(screen.getByText('还没有可安装的插件。')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: '添加源' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('No plugins available yet.')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Add source' })).toBeInTheDocument();
   });
 
   it('manages sources through the nested dialog', async () => {
@@ -332,11 +332,11 @@ describe('PluginMarketplaceDialog', () => {
     await waitForCatalog();
 
     await user.click(screen.getByTestId('marketplace-manage-sources'));
-    expect(await screen.findByRole('heading', { name: '管理插件源' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Manage plugin sources' })).toBeInTheDocument();
 
     await user.click(screen.getByTestId('plugin-sources-add'));
-    await user.type(screen.getByLabelText('源地址'), 'https://github.com/owner/other/tree/main/plugins');
-    await user.click(screen.getByRole('button', { name: '保存' }));
+    await user.type(screen.getByLabelText('Source URL'), 'https://github.com/owner/other/tree/main/plugins');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await vi.waitFor(() => expect(mocks.addSource).toHaveBeenCalledWith({
       url: 'https://github.com/owner/other/tree/main/plugins',
@@ -350,10 +350,10 @@ describe('PluginMarketplaceDialog', () => {
 
     await user.click(screen.getByTestId('marketplace-manage-sources'));
     await user.click(screen.getByTestId('plugin-sources-add'));
-    await user.type(screen.getByLabelText('源地址'), 'https://gitlab.com/owner/repo');
-    await user.click(screen.getByRole('button', { name: '保存' }));
+    await user.type(screen.getByLabelText('Source URL'), 'https://gitlab.com/owner/repo');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(screen.getByTestId('plugin-sources-form-error')).toHaveTextContent('请输入有效的 GitHub 仓库目录地址');
+    expect(screen.getByTestId('plugin-sources-form-error')).toHaveTextContent('Enter a valid GitHub repository directory URL.');
     expect(mocks.addSource).not.toHaveBeenCalled();
   });
 });

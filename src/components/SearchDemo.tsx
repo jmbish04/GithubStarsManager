@@ -18,38 +18,38 @@ const searchExamples: SearchExample[] = [
   {
     query: 'react',
     type: 'realtime',
-    description: '实时搜索仓库名称',
-    expectedResults: ['匹配名称包含"react"的仓库']
+    description: 'Real-time repository name search',
+    expectedResults: ['Repositories with names matching "react"']
   },
   {
     query: 'vue',
     type: 'realtime', 
-    description: '快速匹配Vue相关仓库',
-    expectedResults: ['Vue.js相关项目']
+    description: 'Quickly match Vue-related repositories',
+    expectedResults: ['Vue.js related projects']
   },
   {
     query: '查找所有笔记应用',
     type: 'ai',
-    description: 'AI语义搜索中文查询',
-    expectedResults: ['Obsidian', 'Notion', 'Logseq等笔记工具']
+    description: 'AI semantic search with Chinese query',
+    expectedResults: ['Note-taking tools such as Obsidian, Notion, Logseq']
   },
   {
     query: 'find machine learning frameworks',
     type: 'ai',
-    description: 'AI跨语言搜索',
-    expectedResults: ['TensorFlow', 'PyTorch', 'scikit-learn等ML框架']
+    description: 'AI cross-language search',
+    expectedResults: ['ML frameworks such as TensorFlow, PyTorch, scikit-learn']
   },
   {
     query: '代码编辑器',
     type: 'ai',
-    description: 'AI理解中文意图',
-    expectedResults: ['VSCode', 'Vim', 'Emacs等编辑器']
+    description: 'AI understanding Chinese intent',
+    expectedResults: ['Editors such as VSCode, Vim, Emacs']
   },
   {
     query: 'web development tools',
     type: 'ai',
-    description: 'AI匹配开发工具',
-    expectedResults: ['Webpack', 'Vite', 'React等前端工具']
+    description: 'AI matching development tools',
+    expectedResults: ['Front-end tools such as Webpack, Vite, React']
   }
 ];
 
@@ -61,8 +61,8 @@ export const SearchDemo: React.FC = () => {
 
   const handleExampleClick = (example: SearchExample) => {
     setSelectedExample(example);
-    // 这里可以触发实际的搜索演示
-    console.log(`演示搜索: ${example.query} (${example.type})`);
+    // Trigger actual search demo here
+    console.log(`Demo search: ${example.query} (${example.type})`);
   };
 
   if (!showDemo) {
@@ -123,7 +123,7 @@ export const SearchDemo: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* 实时搜索示例 */}
+        {/* Real-time search examples */}
         <div className="space-y-3">
           <div className="flex items-center space-x-2 mb-3">
             <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
@@ -159,7 +159,7 @@ export const SearchDemo: React.FC = () => {
             ))}
         </div>
 
-        {/* AI搜索示例 */}
+        {/* AI search examples */}
         <div className="space-y-3">
           <div className="flex items-center space-x-2 mb-3">
             <Bot className="w-4 h-4 text-muted-foreground dark:text-muted-foreground" />
@@ -196,7 +196,7 @@ export const SearchDemo: React.FC = () => {
         </div>
       </div>
 
-      {/* 选中示例的详细信息 */}
+      {/* Selected example details */}
       {selectedExample && (
         <div className="bg-background dark:bg-muted/20 rounded-lg p-4">
           <div className="flex items-center space-x-2 mb-3">
@@ -236,7 +236,7 @@ export const SearchDemo: React.FC = () => {
         </div>
       )}
 
-      {/* 使用提示 */}
+      {/* Usage tips */}
       <div className="mt-6 pt-6 border-t border-border dark:border-border">
         <h4 className="font-medium text-foreground dark:text-foreground mb-3">
           {t('searchDemo.usage-tips')}

@@ -35,7 +35,7 @@ type AIFormState = {
   supportsToolCalls: boolean;
 };
 
-/** 能力判定唯一来源为 aiService，避免 UI 勾选项与运行时判定漂移。 */
+/** aiService is the single source of truth for capability determination, preventing drift between UI checkboxes and runtime decisions. */
 const isToolCallCapable = (apiType: AIApiType): boolean => isToolCallCapableApiType(apiType);
 
 const MIMO_PLAN_ENDPOINTS: Record<MiMoPlan, string> = {

@@ -240,7 +240,7 @@ const BilingualMarkdownRenderer = forwardRef<BilingualMarkdownRendererHandle, Bi
           'mt-1 pl-3 border-l-2 border-ring/70 dark:border-ring/80 text-muted-foreground dark:text-muted-foreground text-sm leading-relaxed';
 
         if (segments[i].hasInlineCode) {
-          // 修改正则以支持带属性的 code 标签（如 <code class="...">）
+          // Support code tags with attributes (e.g. <code class="...">)
           const codeRegex = /<code(?:\s+[^>]*)?>([\s\S]*?)<\/code>/g;
           let lastIndex = 0;
           let match: RegExpExecArray | null;

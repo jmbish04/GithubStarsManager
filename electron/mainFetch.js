@@ -1,19 +1,19 @@
 'use strict';
 
 /**
- * 主进程统一出站请求 helper（WebDAV、X、Telegram 共用）。
+ * Main process unified outbound request helper (shared by WebDAV, X, Telegram).
  *
- * 背景：Node fetch（undici）的网络层失败一律是 TypeError('fetch failed')，
- * 真实原因（DNS、拒绝连接、证书校验、连接超时）挂在 error.cause 链上；
- * 且 undici 直连不跟随系统代理/系统证书库，常见场景下必然失败而
- * Chromium 网络栈（net.fetch）可以成功。因此：
- * 1. extractCauseChain / summarizeFetchError 把 cause 链还原成可诊断文本；
- * 2. fetchAcrossStacks 按序尝试多个网络栈，HTTP 响应（含 4xx/5xx）视为成功，
- *    只有抛异常（网络层失败）才尝试下一个栈；
- * 3. totalTimeoutMs 把多栈尝试的总耗时收敛在调用方的超时预算内。
+ * Background: Node fetch (undici) network-layer failures are uniformly TypeError('fetch failed'),
+ * while the root cause (DNS, connection refused, cert verification, connect timeout) sits on the error.cause chain;
+ * furthermore, undici direct connections do not follow system proxies/system cert stores, inevitably failing
+ * in common scenarios where the Chromium network stack (net.fetch) succeeds. Therefore:
+ * 1. extractCauseChain / summarizeFetchError unpacks the cause chain into diagnostic text;
+ * 2. fetchAcrossStacks tries multiple network stacks in sequence, treating HTTP responses (including 4xx/5xx) as success,
+ *    and only attempts the next stack when an exception (network layer failure) is thrown;
+ * 3. totalTimeoutMs constrains total duration across multiple stacks within caller's timeout budget.
  */
 
-/** 沿 error.cause 链收集 { code, message }；AggregateError 合并各子错误。 */
+/** Collects { code, message } along error.cause chain; AggregateError merges sub-errors. */
 function extractCauseChain(error, seen = new Set()) {
   const chain = [];
   let current = error;
@@ -22,8 +22,8 @@ function extractCauseChain(error, seen = new Set()) {
     const code = typeof current.code === 'string' ? current.code : undefined;
     const message = typeof current.message === 'string' ? current.message : String(current);
     chain.push({ code, message });
-    // AggregateError（如 Happy Eyeballs 双栈拨号）的子错误挂在 errors 上；
-    // seen 跨递归共享，防止子错误反向引用父错误时无限递归
+    // Sub-errors of AggregateError (e.g. Happy Eyeballs dual-stack dialing) live on errors;
+    // seen is shared across recursion to prevent infinite loops when sub-errors reference parents.
     if (Array.isArray(current.errors)) {
       for (const sub of current.errors) {
         if (sub && typeof sub === 'object') chain.push(...extractCauseChain(sub, seen));
@@ -35,9 +35,9 @@ function extractCauseChain(error, seen = new Set()) {
 }
 
 /**
- * 把任意异常归一成 { message, causeCode, causeMessage, timedOut }。
- * message 形如 "fetch failed <- ECONNREFUSED: connect ECONNREFUSED 10.0.0.5:5006"，
- * causeCode/causeMessage 取 cause 链上最深层（最接近操作系统）的那一条。
+ * Normalizes arbitrary exceptions into { message, causeCode, causeMessage, timedOut }.
+ * message looks like "fetch failed <- ECONNREFUSED: connect ECONNREFUSED 10.0.0.5:5006",
+ * with causeCode/causeMessage taken from the deepest entry on the cause chain (closest to OS).
  */
 function summarizeFetchError(error) {
   const chain = extractCauseChain(error);
@@ -45,7 +45,7 @@ function summarizeFetchError(error) {
   const timedOut =
     name === 'TimeoutError' ||
     name === 'AbortError' ||
-    // 覆盖 UND_ERR_CONNECT_TIMEOUT / ETIMEDOUT / "connect timed out" 等写法
+    // Covers UND_ERR_CONNECT_TIMEOUT / ETIMEDOUT / "connect timed out" etc.
     chain.some((c) => /TIMED[\s_]?OUT|TIMEOUT/i.test(c.code || '')) ||
     /timed[\s_]?out|timeout/i.test(chain.map((c) => c.message).join(' '));
   const distinct = [];
@@ -63,29 +63,29 @@ function summarizeFetchError(error) {
 }
 
 /**
- * 按序尝试多个网络栈。stacks[i] = { name, run(ctx) => Promise<Response> }。
- * ctx.remainingMs 是本次调用剩余的毫秒预算（传入 totalTimeoutMs 时才有定义），
- * 各栈用它设置自己的 AbortSignal.timeout，避免“每个栈各等一个完整超时”。
+ * Tries multiple network stacks in sequence. stacks[i] = { name, run(ctx) => Promise<Response> }.
+ * ctx.remainingMs is remaining millisecond budget for this call (defined only when totalTimeoutMs is provided);
+ * stacks use it to set their own AbortSignal.timeout, preventing each stack from waiting for a full timeout.
  *
- * 可选的 stack.onResponseRetryable(response)：栈对特定响应“视为未命中”，
- * 把机会让给下一栈。用于目标站按 TLS 指纹区别对待网络栈的场景——例如
- * x.com 边缘 WAF 对 Node 网络栈（undici）一律 403 HTML 挑战页，而
- * Chromium 栈可以过；若把 403 当普通响应返回，回退永远轮不到 Chromium。
+ * Optional stack.onResponseRetryable(response): stack treats specific responses as "misses",
+ * delegating to next stack. Used when target sites treat network stacks differently by TLS fingerprint—for example
+ * x.com edge WAF returns 403 HTML challenge pages to Node network stacks (undici) while Chromium passes;
+ * returning 403 as a normal response would prevent fallback from ever reaching Chromium.
  *
- * 返回值：{ response, stack }。任何栈拿到 HTTP 响应即返回，不回退；
- * 若所有栈的响应都被判为未命中，返回最后一个（仍是合法 HTTP 响应）。
- * 全部抛异常时抛出合并错误：err.message 含各栈失败明细；
- * err.timedOut 仅当所有栈都超时；err.failures 保留逐栈摘要。
+ * Return value: { response, stack }. Returns as soon as any stack gets an HTTP response without falling back;
+ * if all stacks' responses are deemed misses, returns the last one (still a valid HTTP response).
+ * If all stacks throw exceptions, throws a combined error: err.message contains failure details per stack;
+ * err.timedOut is true only if all stacks timed out; err.failures retains per-stack summaries.
  */
-/** 单栈最小预算：与 timeoutSignalFromBudget 的信号下限一致，保证不超总预算 */
+/** Minimum budget per stack: aligns with lower bound of timeoutSignalFromBudget to guarantee staying within total budget */
 const MIN_STACK_BUDGET_MS = 1000;
 
-/** 丢弃未消费的响应体：undici 的连接需显式 cancel 才能立即归还连接池 */
+/** Discards unconsumed response body: undici connections require explicit cancel to return to pool immediately */
 async function discardResponseBody(response) {
   try {
     await response?.body?.cancel?.();
   } catch {
-    // 流已被取消/锁定/不支持 cancel：忽略
+    // Stream already cancelled/locked/does not support cancel: ignore
   }
 }
 
@@ -102,7 +102,7 @@ async function fetchAcrossStacks(stacks, options = {}) {
     let remainingMs;
     if (typeof totalTimeoutMs === 'number' && Number.isFinite(totalTimeoutMs)) {
       remainingMs = Math.trunc(totalTimeoutMs) - (Date.now() - startedAt);
-      // 余量不足一次最小拨号尝试就不再进入下一个栈
+      // Do not proceed to next stack if remaining budget is below minimum dial attempt
       if (remainingMs < minStackBudgetMs) break;
     }
     try {
@@ -112,7 +112,7 @@ async function fetchAcrossStacks(stacks, options = {}) {
         retryableMiss = { response, stack: stack.name };
         continue;
       }
-      // 后续栈成功：先前未命中栈的响应被丢弃，取消其响应体归还连接
+      // Subsequent stack succeeded: discard previous miss response, cancelling body to return connection
       await discardResponseBody(retryableMiss?.response);
       return { response, stack: stack.name };
     } catch (error) {
@@ -132,22 +132,23 @@ async function fetchAcrossStacks(stacks, options = {}) {
   throw err;
 }
 
-/** 由剩余预算构造超时信号；无预算信息时退回调用方给的固定毫秒数。 */
+/** Constructs timeout signal from remaining budget; falls back to caller-supplied milliseconds when budget info is absent. */
 function timeoutSignalFromBudget(remainingMs, fallbackMs) {
   const budget = typeof remainingMs === 'number' ? remainingMs : fallbackMs;
   return AbortSignal.timeout(Math.max(MIN_STACK_BUDGET_MS, Math.trunc(budget)));
 }
 
-/** 3xx 里 fetch 规范允许自动跟随的状态码 */
+/** 3xx statuses permitted for automatic following in fetch specification */
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /**
- * 手动跟随重定向。Chromium net.fetch 的 redirect:'follow' 在跨域跳转时不会
- * 剥除 Authorization/Cookie（Electron 44 实测），会破坏 fetch 规范的凭据
- * 隔离——携带凭据的请求（WebDAV Basic）必须走这里而不是直接 follow。
+ * Follows redirects manually. Chromium net.fetch's redirect:'follow' does not strip
+ * Authorization/Cookie headers on cross-origin redirects (verified in Electron 44),
+ * violating fetch specification credential isolation—requests with credentials (WebDAV Basic)
+ * must use this instead of direct follow.
  *
- * 规则与 Fetch 规范对齐：仅 http(s) 目标；跨源跳转剥离 Authorization/Cookie；
- * 303（及 301/302+POST）降级为无 body 的 GET；其余保持原方法与 body。
+ * Rules align with Fetch specification: http(s) targets only; cross-origin redirects strip Authorization/Cookie;
+ * 303 (and 301/302+POST) degrade to GET without body; other methods and bodies preserved.
  */
 async function followRedirectsManually(fetchImpl, url, options, { maxRedirects = 10 } = {}) {
   let currentUrl = url;
@@ -160,7 +161,7 @@ async function followRedirectsManually(fetchImpl, url, options, { maxRedirects =
       ...options,
       redirect: 'manual',
       method,
-      body, // 303/转 GET 后必须显式清掉，否则原始 body 经 ...options 透传
+      body, // Must clear explicitly after 303/transition to GET, otherwise original body is passed through ...options
       headers,
     });
     if (!REDIRECT_STATUSES.has(response.status)) return response;
@@ -175,21 +176,21 @@ async function followRedirectsManually(fetchImpl, url, options, { maxRedirects =
     if (next.protocol !== 'http:' && next.protocol !== 'https:') {
       throw new Error(`redirect to unsupported protocol blocked: ${next.protocol}`);
     }
-    // 跨源跳转剥离凭据头（同源 DAV 跳转如 /path → /path/ 不受影响）
+    // Cross-origin redirects strip credential headers (same-origin DAV redirects like /path → /path/ unaffected)
     if (next.origin !== new URL(currentUrl).origin) {
       for (const key of Object.keys(headers)) {
         const lower = key.toLowerCase();
         if (lower === 'authorization' || lower === 'cookie') delete headers[key];
       }
     }
-    // 303 一律转 GET；301/302 对 POST 转 GET（fetch 规范），其余方法原样保留
+    // 303 converts to GET; 301/302 converts POST to GET (fetch spec); other methods preserved
     const becomeGet = response.status === 303
       ? method !== 'GET' && method !== 'HEAD'
       : (response.status === 301 || response.status === 302) && method === 'POST';
     if (becomeGet) {
       method = 'GET';
       body = undefined;
-      // 降级为 GET 后 body 相关的 Content-* 请求头一并移除（手动跳转不会被 fetch 自动清理）
+      // Remove body-related Content-* headers after degrading to GET (manual redirects not cleaned automatically by fetch)
       for (const key of Object.keys(headers)) {
         if (/^content-(type|length|encoding|language|location)$/i.test(key)) delete headers[key];
       }
@@ -200,9 +201,9 @@ async function followRedirectsManually(fetchImpl, url, options, { maxRedirects =
 }
 
 /**
- * 把 fetchAcrossStacks 的合并错误（或其他异常）归一成 IPC 失败返回体：
+ * Normalizes fetchAcrossStacks combined errors (or other exceptions) into IPC failure return shape:
  * { success:false, timedOut, error, causeCode?, causeMessage? }
- * 供 webdav-request 等处理器的 catch 透传给渲染进程做错误码映射。
+ * Used by handlers like webdav-request to pass to renderer for error code mapping in catch blocks.
  */
 function toFailureResult(error) {
   const summary = error && Array.isArray(error.failures)

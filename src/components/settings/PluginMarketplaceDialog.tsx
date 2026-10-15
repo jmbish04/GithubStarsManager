@@ -28,8 +28,9 @@ interface PluginMarketplaceDialogProps {
 }
 
 /**
- * 把主进程的市场错误码翻译成用户能懂的提示；没有对应文案时回退到原始消息
- * （与本地插件面板展示 pluginManager 错误消息的约定一致）。
+ * Translates main-process marketplace error codes into user-friendly messages;
+ * falls back to the original message when no dedicated translation exists
+ * (consistent with how the local plugin panel displays pluginManager error messages).
  */
 const describeMarketplaceError = (t: TranslateFn, error: PluginError): string => {
   if (error.code.includes('RATE_LIMITED')) return t('pluginSettingsPanel.marketplace-error-rate-limited');
@@ -46,8 +47,10 @@ const describeMarketplaceError = (t: TranslateFn, error: PluginError): string =>
 };
 
 /**
- * 插件市场弹窗：遍历所有插件源并列出插件，支持在线安装、更新、启用/停用、卸载；
- * "管理插件源"打开二级弹窗。官方注册表的撤销/拉黑状态在这里叠加显示。
+ * Plugin marketplace dialog: iterates through all plugin sources and lists plugins,
+ * supporting online installation, updates, enable/disable, and uninstallation;
+ * "Manage Plugin Sources" opens a secondary dialog. Official registry revoked/blocked statuses
+ * are overlaid here.
  */
 export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = ({ isOpen, onClose, t }) => {
   const { confirm, toast } = useDialog();
@@ -66,11 +69,12 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
   const [busyInstallKey, setBusyInstallKey] = useState<string | null>(null);
   const [busyPluginId, setBusyPluginId] = useState<string | null>(null);
   const [officialRegistry, setOfficialRegistry] = useState<PluginRegistry | null>(null);
-  /** 并发刷新计数：归零才清除 loading/initializing。 */
+  /** Concurrent refresh counter: loading/initializing is cleared only when it reaches zero. */
   const pendingRefreshCount = useRef(0);
 
   const refresh = useCallback(async (sourceId?: string) => {
-    // 多个源并发刷新：按未完成计数管理加载态，先完成的源不能提前关掉 loading。
+    // Concurrent refresh across multiple sources: manage loading state by pending count so
+    // earlier-finishing sources do not dismiss the loading indicator prematurely.
     pendingRefreshCount.current += 1;
     setLoading(true);
     try {
@@ -97,8 +101,9 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
     pluginMarketplaceService.getState().then((initial) => {
       if (disposed) return;
       setState(initial);
-      // 只补拉还没有目录缓存的源，避免每次打开都把全部源重新遍历一遍
-      // （GitHub API 匿名配额很有限）。已有缓存则直接展示，用户可手动刷新。
+      // Only fetch sources without catalog caches to avoid re-traversing all sources on every open
+      // (anonymous GitHub API rate limits are restricted). Existing caches display immediately;
+      // users can manually refresh.
       for (const entry of initial.entries) {
         if (entry.status === 'pending') void refresh(entry.source.id);
       }
@@ -106,7 +111,7 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
     }).catch(() => {
       if (!disposed) setInitializing(false);
     });
-    // 官方注册表撤销/拉黑对照：静默加载，失败不阻塞市场。
+    // Official registry revoked/blocked cross-reference: loaded silently; failure does not block the marketplace.
     pluginRegistryService.load().then((result) => {
       if (!disposed && result.success) setOfficialRegistry(result.registry);
     }).catch(() => undefined);
@@ -121,7 +126,7 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
     [snapshot.plugins],
   );
 
-  /** 跨源去重：同一插件 id 只保留先遇到的源里的那份。 */
+  /** Cross-source deduplication: for the same plugin ID, keep only the one from the first-encountered source. */
   const groups = useMemo(() => {
     if (!state) return [];
     const seen = new Set<string>();
@@ -136,9 +141,10 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
   }, [state]);
 
   /**
-   * 已撤销的已安装插件孤儿列表：这些插件不在任何源的目录条目里（源被删或
-   * 目录里下架了），市场行不会渲染它们，但官方注册表仍判了撤销——必须独立
-   * 提示"立即停用"，不能依赖市场行才看见。
+   * Orphaned list of revoked installed plugins: these plugins are not in any source's
+   * catalog entries (source removed or plugin delisted), so marketplace rows won't render
+   * them, but the official registry marked them as revoked. Must independently prompt
+   * "Disable now" rather than relying on marketplace rows.
    */
   const orphanRevoked = useMemo(() => {
     if (!officialRegistry) return [];
@@ -159,8 +165,8 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
     || (plugin.manifest.description ?? '').toLowerCase().includes(query), [query]);
 
   const enable = async (installed: InstalledPlugin) => {
-    // 以本地已安装版本的 manifest 为准：目录里的版本可能更新，权限集不一定相同，
-    // 而 pluginManager.enable 要求与已安装 manifest 的权限完全一致。
+    // Use the locally installed version's manifest: the catalog version may be newer and have a different
+    // permission set, while pluginManager.enable requires exact match with the installed manifest's permissions.
     const prompt = buildPluginEnablePrompt(t, installed.manifest);
     const approved = await confirm(prompt.title, prompt.message, { confirmText: prompt.confirmText, type: 'warning' });
     if (!approved) return;
@@ -222,20 +228,20 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
       const result = await pluginMarketplaceService.install({
         sourceId,
         directoryName: plugin.directoryName,
-        // 绑定用户在界面上看到的插件身份：主进程校验下载到的 manifest 与之一致。
+        // Bind the plugin identity seen by the user: main process verifies the downloaded manifest matches it.
         expectedPluginId: plugin.manifest.id,
         expectedVersion: plugin.manifest.version,
         replace,
       });
       if (!result.success) {
-        // 某些失败路径（如更新后激活失败）会修改本地插件状态，列表也要跟上。
+        // Certain failure paths (e.g. activation failure after update) alter local plugin state; refresh the list.
         await pluginRegistry.refresh();
         toast(describeMarketplaceError(t, result.error), 'error');
         return;
       }
       await pluginRegistry.refresh();
-      // 主进程明确说"替换后仍处于启用"时才展示保持启用的提示；
-      // 其他情况（含停用插件更新、权限变化）提示检查权限后再启用。
+      // Only display the still-enabled notification when the main process explicitly reports "remains enabled after replacement";
+      // otherwise (including disabled plugin updates or permission changes), prompt to review permissions before enabling.
       if (replace && result.keptEnabled === true) {
         toast(t('pluginSettingsPanel.marketplace-update-success-still-enabled-v1', { v1: plugin.manifest.name }), 'success');
       } else {
@@ -256,16 +262,16 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
     const key = `${entry.source.id}:${plugin.directoryName}`;
     const busyInstall = busyInstallKey === key;
     const busyLifecycle = busyPluginId === manifest.id;
-    // 防御纵深：目录遍历阶段的 manifest 校验本就会拒绝不支持的 apiVersion，
-    // 这里再拦一次，保证未来放宽校验时安装按钮不会放行不兼容版本。
+    // Defense-in-depth: manifest validation during catalog traversal already rejects unsupported apiVersions;
+    // check here as well to ensure future relaxed validation never lets the install button pass incompatible versions.
     const apiSupported = SUPPORTED_API_VERSIONS.has(manifest.apiVersion);
     const removal = officialRegistry
       ? findPluginRemoval(officialRegistry.removed, manifest.id, manifest.version)
       : null;
     const updateAvailable = !!installed
       && comparePluginVersions(manifest.version, installed.manifest.version) > 0;
-    // block/revoke 针对的是"这个具体版本"：目标版本命中记录时禁止安装与更新；
-    // 已安装版本被 revoke 时额外提示立即停用（block 不强制停用已装版本）。
+    // block/revoke applies to "this specific version": prevent install and update when target version matches;
+    // prompt to disable immediately when installed version is revoked (block does not force-disable installed versions).
     const installedRemoval = installed
       ? findPluginRemoval(officialRegistry?.removed ?? [], installed.manifest.id, installed.manifest.version)
       : null;
@@ -448,7 +454,7 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
   };
 
   const hasSources = (state?.sources.length ?? 0) > 0;
-  // 没有搜索词时始终渲染源分组：出错或为空的源也要展示各自的错误与空状态。
+  // Always render source groups when there is no search query: errored or empty sources should show their respective error and empty states.
   const anyVisible = query
     ? groups.some((entry) => entry.plugins.some(filterPlugin))
     : groups.length > 0;

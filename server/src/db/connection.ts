@@ -20,7 +20,7 @@ export function getDb(): Database.Database {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
 
-    // 设置超时时间为5秒，防止数据库锁定
+    // Set timeout to 5 seconds to prevent database locks
     db.pragma('busy_timeout = 5000');
 
     return db;

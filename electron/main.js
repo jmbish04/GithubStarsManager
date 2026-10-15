@@ -4,19 +4,18 @@ const fs = require('fs');
 const os = require('os');
 const isDev = process.env.NODE_ENV === 'development';
 const { createMcpLocalServer } = require('./mcpLocalServer');
-// 主进程出站请求的网络栈选择：npm undici@8 的 ProxyAgent（getFetchDispatcher）
-// 与 Node 内置 fetch 的 handler 协议不兼容，混用会在拨号前抛
-// UND_ERR_INVALID_ARG: invalid onRequestStart method——携带 dispatcher 的
-// 调用必须用同版本的 undiciFetch；无代理场景多数目标用内置 fetch 即可，
-// 且 x.com 边缘 WAF 按 TLS 指纹放行内置 undici、403 npm undici@8（详见
-// X 各 handler 内注释）。
+// Network stack selection for main process outbound requests: npm undici@8 ProxyAgent (getFetchDispatcher)
+// is incompatible with the handler protocol of Node's built-in fetch. Mixing them throws before dialing:
+// UND_ERR_INVALID_ARG: invalid onRequestStart method. Invocations carrying a dispatcher must use the matching
+// version of undiciFetch. Most targets work with built-in fetch when no proxy is needed, and x.com edge WAF
+// allows built-in undici based on TLS fingerprint while returning 403 for npm undici@8 (see details in X handlers).
 const { fetch: undiciFetch, ProxyAgent } = require('undici');
 const { summarizeFetchError, fetchAcrossStacks, timeoutSignalFromBudget, followRedirectsManually, toFailureResult } = require('./mainFetch');
-// 诊断抓包装饰器：纯旁路记录（参数/响应/异常原样透传，见 netTap.js）。
-// Chromium 栈（net.fetch）由 session.webRequest 观察者零调用点覆盖
-// （官方文档：net.fetch 默认触发 webRequest handlers），不做双重包装。
-// 新标识符均含大写 Fetch，且 `fetch.bind(` 不匹配 outboundFetchGate 的
-// 裸调用正则（该门禁同时要求本解构行字节级原样保留）。
+// Diagnostics tap wrapper: side-effect free logging (passes arguments, responses, and errors through as-is, see netTap.js).
+// The Chromium stack (net.fetch) is covered at zero call sites via session.webRequest observer
+// (per Electron documentation: net.fetch triggers webRequest handlers by default), avoiding double wrapping.
+// All new identifiers contain uppercase Fetch, and `fetch.bind(` does not match the outboundFetchGate
+// bare-call regex (which also requires the destructuring line below to be preserved byte-for-byte).
 const diagTap = require('./netTap');
 const { createDiagLogger } = require('./diagLogger');
 const { buildSystemInfo } = require('./systemInfo');
@@ -25,7 +24,7 @@ const { setNetworkRecorder } = require('./plugins/webSearch');
 let diagDebug = false;
 const diagLog = createDiagLogger({
   logsDir: path.join(app.getPath('userData'), 'logs', 'diagnostics'),
-  // 调试模式放宽磁盘预算：20MB/日、总量 40MB（普通模式 5MB/日、20MB）
+  // Relax disk budget in debug mode: 20MB/day, 40MB total (normal mode: 5MB/day, 20MB)
   maxFileBytes: () => (diagDebug ? 20 * 1024 * 1024 : 5 * 1024 * 1024),
   maxTotalBytes: () => (diagDebug ? 40 * 1024 * 1024 : 20 * 1024 * 1024),
   maxFiles: 7,
@@ -136,24 +135,24 @@ function createWindow() {
       // Dev may relax for Vite HMR / local services if needed later — keep secure by default.
       webSecurity: true,
       allowRunningInsecureContent: false,
-      // 生产环境也放开 DevTools（菜单 toggleDevTools role 可作为入口）
+      // Keep DevTools enabled in production as well (accessible via menu toggleDevTools role)
       devTools: true,
       preload: path.join(__dirname, 'preload.js')
     },
     icon: path.join(__dirname, '../build/icon.png'),
-    titleBarStyle: 'default', // 使用默认标题栏，避免重叠问题
+    titleBarStyle: 'default', // Use default title bar to avoid overlap issues
     show: false,
-    // Windows/Linux 隐藏原生顶部菜单栏（Edit/View/Window），按 Alt 可临时呼出；
-    // 应用菜单仍通过 Menu.setApplicationMenu 安装，role 快捷键（Ctrl+C/V、Ctrl+Shift+I 等）照常生效。
-    // macOS 顶部菜单为系统级常驻，保持可见。
+    // Windows/Linux hides the native top menu bar (Edit/View/Window), press Alt to reveal temporarily.
+    // Application menus are still installed via Menu.setApplicationMenu, so role shortcuts (Ctrl+C/V, Ctrl+Shift+I, etc.) remain active.
+    // macOS top menu is system-wide and persistent, so keep it visible.
     autoHideMenuBar: process.platform === 'darwin' ? false : true,
-    frame: true, // 保持窗口框架
-    backgroundColor: '#ffffff', // 设置背景色，避免白屏闪烁
-    titleBarOverlay: false, // 禁用标题栏覆盖
-    trafficLightPosition: { x: 20, y: 20 } // macOS 交通灯按钮位置
+    frame: true, // Preserve window frame
+    backgroundColor: '#ffffff', // Set background color to prevent white-screen flicker
+    titleBarOverlay: false, // Disable title bar overlay
+    trafficLightPosition: { x: 20, y: 20 } // macOS traffic light buttons position
   });
 
-  // 添加错误处理和加载事件（fallback 只尝试一次，避免 did-fail-load 死循环）
+  // Error handling and loading events (fallback attempted only once to prevent did-fail-load loop)
   let fallbackAttempted = false;
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     console.error('Failed to load:', errorCode, errorDescription, validatedURL);
@@ -170,13 +169,13 @@ function createWindow() {
 
   mainWindow.webContents.on('dom-ready', () => {
     if (isDev) console.log('DOM ready');
-    // 注入一些基础样式，防止白屏
+    // Inject basic styles to prevent white flash
     mainWindow.webContents.insertCSS('body { background-color: #ffffff; }');
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
     if (isDev) console.log('Page finished loading');
-    // 页面加载完成后显示窗口（--hidden 自启常驻托盘时不闪现）
+    // Show window once page loading finishes (avoids flashing when auto-starting hidden to tray via --hidden)
     if (!startHidden && !mainWindow.isVisible()) {
       mainWindow.show();
     }
@@ -226,7 +225,7 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    // 生产环境：尝试多个可能的路径
+    // Production environment: try multiple potential paths
     const possiblePaths = [
       path.join(__dirname, '../dist/index.html'),
       path.join(process.resourcesPath, 'app.asar/dist/index.html'),
@@ -243,7 +242,7 @@ function createWindow() {
           break;
         }
       } catch (error) {
-        // 忽略文件系统错误，继续尝试下一个路径
+        // Ignore filesystem errors and continue to the next path
         continue;
       }
     }
@@ -252,7 +251,7 @@ function createWindow() {
       console.log('Loading application from:', indexPath);
       mainWindow.loadFile(indexPath).catch(error => {
         console.error('Failed to load file:', error);
-        // 加载失败时显示错误页面
+        // Show error page on load failure
         mainWindow.loadURL('data:text/html,<h1>Application Load Error</h1><p>Could not load the main application. Please restart the app.</p>');
       });
     } else {
@@ -260,7 +259,7 @@ function createWindow() {
       console.log('Checked paths:', possiblePaths);
       console.log('Current directory:', __dirname);
       console.log('Process resources path:', process.resourcesPath);
-      // 显示详细的错误信息
+      // Display detailed error message
       const errorHtml = '<h1>Application Not Found</h1><p>Could not locate the application files.</p><p>Please reinstall the application.</p>';
       mainWindow.loadURL('data:text/html,' + encodeURIComponent(errorHtml));
     }
@@ -270,7 +269,7 @@ function createWindow() {
     if (!startHidden) mainWindow.show();
   });
 
-  // 提供稳定的菜单与编辑快捷键（生产环境）
+  // Provide stable menu and editing shortcuts (production environment)
   const menuTemplate = process.platform === 'darwin' ? [
     {
       label: app.name,
@@ -377,7 +376,7 @@ function createWindow() {
   });
 
   mainWindow.on('close', (event) => {
-    // #345: 关闭默认常驻托盘（设置-通用可改）。真退出只走 isQuitting 路径。
+    // #345: Close minimizes to tray by default (configurable in Settings > General). True quit only occurs via isQuitting.
     if (!isQuitting && desktopPrefs.closeToTray) {
       event.preventDefault();
       mainWindow.hide();
@@ -385,7 +384,7 @@ function createWindow() {
   });
 
   mainWindow.on('minimize', (event) => {
-    // #345: 最小化默认隐藏到托盘。
+    // #345: Minimize hides to tray by default.
     if (desktopPrefs.minimizeToTray) {
       event.preventDefault();
       mainWindow.hide();
@@ -466,7 +465,7 @@ function getFetchDispatcher() {
   return undefined;
 }
 
-// X 推文频道：主进程代抓 x.com 未登录主页
+// X tweet channel: main process fetches unauthenticated x.com home page
 ipcMain.handle('x-fetch-timeline', async (_event, handle) => {
   if (typeof handle !== 'string' || !/^[A-Za-z0-9_]{1,15}$/.test(handle)) {
     return { success: false, error: 'invalid handle' };
@@ -479,10 +478,11 @@ ipcMain.handle('x-fetch-timeline', async (_event, handle) => {
       'Accept-Language': 'en-US,en;q=0.9',
     };
     const { response } = await fetchAcrossStacks([
-      // 首选 Node 栈：无应用代理时用内置 fetch——x.com 边缘 WAF 按 TLS 指纹
-      // 放行内置 undici（#356 起长期可用）却 403 npm undici@8（HTML 挑战页，
-      // 实测）；配置应用代理时内置 fetch 无法接收 undici@8 的 ProxyAgent
-      // （handler 协议不兼容），只能用同版本 undici fetch
+      // Preferred Node stack: when no app proxy is set, use built-in fetch — x.com edge WAF
+      // allows built-in undici based on TLS fingerprinting (viable since #356) but returns
+      // 403 HTML challenge pages for npm undici@8 (verified empirically); when an app proxy
+      // is configured, built-in fetch cannot take undici@8's ProxyAgent (incompatible handler
+      // protocol), so we must use the matching version of undici fetch.
       {
         name: 'undici',
         run: async ({ remainingMs }) => {
@@ -494,10 +494,10 @@ ipcMain.handle('x-fetch-timeline', async (_event, handle) => {
             ...(dispatcher ? { dispatcher } : {}),
           });
         },
-        // 边缘按指纹 403/429 时该栈视为未命中，让位给 Chromium 栈
+        // When edge returns 403/429 based on fingerprinting, consider this stack a miss and fall back to Chromium stack
         onResponseRetryable: (response) => response.status === 403 || response.status === 429,
       },
-      // 回退 Chromium 栈：跟随 session 代理（含“系统代理”），并使用系统证书库
+      // Fallback Chromium stack: follows session proxy (including "system proxy") and uses system certificate trust store
       {
         name: 'chromium',
         run: ({ remainingMs }) => net.fetch(timelineUrl, {
@@ -516,8 +516,8 @@ ipcMain.handle('x-fetch-timeline', async (_event, handle) => {
   }
 });
 
-// Telegram 频道：主进程代抓 t.me/s/<name> 公开网页预览（渲染进程受 CORS 限制；
-// net.fetch 走 Chromium 网络栈，自动跟随应用内已设置的代理）
+// Telegram channel: main process fetches public t.me/s/<name> web preview (renderer process is restricted by CORS;
+// net.fetch uses Chromium's network stack and automatically follows proxies configured in the app)
 ipcMain.handle('telegram-fetch-channel', async (_event, channel, before) => {
   if (typeof channel !== 'string' || !/^[A-Za-z0-9_]{3,64}$/.test(channel)) {
     return { success: false, error: 'invalid channel' };
@@ -535,7 +535,7 @@ ipcMain.handle('telegram-fetch-channel', async (_event, channel, before) => {
       'Accept-Language': 'en-US,en;q=0.9',
     };
     const { response } = await fetchAcrossStacks([
-      // 首选 Chromium 栈：跟随 session 代理（含应用内代理与“系统代理”模式）
+      // Preferred Chromium stack: follows session proxy (including in-app proxy and "system proxy" mode)
       {
         name: 'chromium',
         run: ({ remainingMs }) => net.fetch(telegramUrl, {
@@ -543,7 +543,7 @@ ipcMain.handle('telegram-fetch-channel', async (_event, channel, before) => {
           signal: timeoutSignalFromBudget(remainingMs, 20_000),
         }),
       },
-      // 回退 undici：跟随应用内代理/环境变量代理（Chromium 栈整体不可用时兜底）
+      // Fallback undici: follows in-app proxy / environment variable proxy (fallback when Chromium stack is unavailable)
       {
         name: 'undici',
         run: async ({ remainingMs }) => {
@@ -566,14 +566,14 @@ ipcMain.handle('telegram-fetch-channel', async (_event, channel, before) => {
   }
 });
 
-// WebDAV：主进程代发 DAV 请求。
-// 渲染进程开启了 webSecurity，且桌面版以 file:// 为源、又不携带后端，
-// 浏览器直连会被 WebDAV 服务器的 CORS 策略拦下（PROPFIND/MKCOL/PUT 等）。
-// 首选 Node fetch（undici，跟随应用内代理/环境变量代理）；网络层失败时回退
-// Chromium 栈（net.fetch），它跟随 session 代理（含“系统代理”）并使用系统
-// 证书库——undici 直连失败（系统代理/VPN 仅对 Chromium 生效、企业根证书装在
-// 系统钥匙串、自签名证书已被系统信任等）的大量场景可由此成功。
-// 主机不设白名单：WebDAV 普遍部署在用户自有的云盘或局域网 NAS 上。
+// WebDAV: main process proxies DAV requests.
+// Renderer has webSecurity enabled, and desktop runs from file:// origin without a backend,
+// so direct browser connections get blocked by WebDAV server CORS policies (PROPFIND/MKCOL/PUT, etc.).
+// Preferred: Node-based fetch via undici, follows in-app proxy / environment proxy; on network-level failure, fall back
+// to Chromium stack (net.fetch), which respects session proxy (including "system proxy") and uses the system
+// certificate store — enabling success in many scenarios where undici direct fails (system proxy/VPN only
+// applied to Chromium, enterprise root cert installed in OS keychain, self-signed cert trusted by OS, etc.).
+// Host has no allowlist: WebDAV is commonly hosted on user-owned cloud drives or local LAN NAS.
 const WEBDAV_ALLOWED_METHODS = new Set([
   'GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'OPTIONS',
   'PROPFIND', 'PROPPATCH', 'MKCOL', 'COPY', 'MOVE', 'LOCK', 'UNLOCK',
@@ -589,7 +589,7 @@ ipcMain.handle('webdav-request', async (_event, params) => {
   } catch {
     return { success: false, error: 'invalid url' };
   }
-  // 仅允许 http(s)：避免 file:/data: 等本地协议被主进程读取
+  // Allow http(s) only: prevent local protocols like file:/data: from being read by main process
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return { success: false, error: 'unsupported protocol' };
   }
@@ -597,7 +597,7 @@ ipcMain.handle('webdav-request', async (_event, params) => {
   if (!WEBDAV_ALLOWED_METHODS.has(upperMethod)) {
     return { success: false, error: 'invalid method' };
   }
-  // 头值必须是非 CRLF 字符串，防止请求头注入
+  // Header values must be non-CRLF strings to prevent header injection
   const safeHeaders = {};
   if (headers && typeof headers === 'object') {
     for (const [key, value] of Object.entries(headers)) {
@@ -605,11 +605,11 @@ ipcMain.handle('webdav-request', async (_event, params) => {
       safeHeaders[key] = value;
     }
   }
-  // 与前端一致的超时上限（WebDAV 上传最长 300s）；多栈尝试共享这一预算
+  // Match frontend maximum timeout (WebDAV upload up to 300s); multiple stacks share this budget
   const timeout = Number.isFinite(timeoutMs)
     ? Math.min(Math.max(Math.trunc(timeoutMs), 1000), 300000)
     : 60000;
-  // GET/HEAD 带 body 会被 undici 拒绝（Chromium 栈同样不允许）
+  // GET/HEAD with body is rejected by undici (and disallowed by Chromium stack)
   const hasBody = !!body && upperMethod !== 'GET' && upperMethod !== 'HEAD';
   const stacks = [
     {
@@ -625,8 +625,8 @@ ipcMain.handle('webdav-request', async (_event, params) => {
         });
       },
     },
-    // net.fetch 的自动重定向在跨域跳转时仍会转发 Authorization（Electron 44 实测），
-    // 携带 Basic 凭据的 DAV 请求必须手动跟随跳转，跨源时剥离凭据头
+    // net.fetch automatic redirect still forwards Authorization on cross-origin redirects (verified on Electron 44);
+    // DAV requests with Basic credentials must follow redirects manually, stripping credentials on cross-origin.
     {
       name: 'chromium',
       run: ({ remainingMs }) => followRedirectsManually(net.fetch, parsed.toString(), {
@@ -637,7 +637,7 @@ ipcMain.handle('webdav-request', async (_event, params) => {
       }),
     },
   ];
-  // LOCK/POST 非幂等：网络层失败时跨栈重放可能产生重复锁/重复提交，只用单栈
+  // LOCK/POST are non-idempotent: replaying across stacks on network failure may cause duplicate locks/submissions, so use single stack
   const eligibleStacks = upperMethod === 'LOCK' || upperMethod === 'POST'
     ? stacks.slice(0, 1)
     : stacks;
@@ -652,22 +652,22 @@ ipcMain.handle('webdav-request', async (_event, params) => {
       contentType: response.headers.get('content-type') ?? undefined,
     };
   } catch (error) {
-    // 归一超时与结构化 cause，供渲染进程映射为可操作的修复建议
+    // Normalize timeout and structured cause for renderer to map to actionable recovery hints
     return toFailureResult(error);
   }
 });
 
-// X 推文频道鉴权路径：主进程代发 x.com GraphQL / 静态资源 GET 请求
-// （带用户的 auth_token/ct0 Cookie；使用 Node fetch 保持 TLS 指纹并规避 Chromium 对自定义 Header 的限制）
-// 只允许受控操作对应的 URL（调用方不可任意指定 x.com 路径）：
-// - 登录态首页（queryId 提取入口）
-// - abs.twimg.com 主脚本（queryId 提取源，绝不附带 X Cookie）
-// - GraphQL UserTweets / UserByScreenName（queryId 动态，操作名固定）
-// 免登录 guest 流程（auth 为 null）：auth 缺失或鉴权请求被边缘 403 时由渲染
-// 进程降级调用——x.com 主站的边缘 WAF 对 Node 网络栈按 TLS 指纹拦 403 HTML
-// 挑战页，guest GraphQL 必须走 Chromium 栈（net.fetch，实测 200）；guest
-// token 的激活端点在 api.x.com，不做指纹拦截，undici（跟随应用代理）优先。
-// guest 拿不到登录态首页，queryId 提取入口 x.com/home 改用公开落地页。
+// X tweet channel authenticated flow: main process proxies x.com GraphQL / static asset GET requests
+// (with user's auth_token/ct0 cookies; uses Node fetch to retain TLS fingerprint and bypass Chromium custom header restrictions)
+// Only URLs corresponding to controlled operations are allowed (caller cannot request arbitrary x.com paths):
+// - Authenticated home page (queryId extraction entrypoint)
+// - abs.twimg.com main bundle script (queryId extraction source, never includes X cookies)
+// - GraphQL UserTweets / UserByScreenName (dynamic queryId, fixed operation name)
+// Guest flow without login (auth is null): fallback used by renderer when auth is missing or authenticated requests
+// hit edge 403 — x.com main site edge WAF blocks Node network stack with 403 HTML challenge pages based on TLS
+// fingerprint, so guest GraphQL must use Chromium stack (net.fetch, empirically verified 200); guest token activation
+// endpoint is on api.x.com without fingerprint blocking, so undici (following app proxy) is preferred.
+// Guest cannot access authenticated home page, so queryId extraction entrypoint switches x.com/home to public landing page.
 const X_HOME_URL = 'https://x.com/home';
 const X_MAIN_JS_PATTERN = /^https:\/\/abs\.twimg\.com\/responsive-web\/client-web\/main\.[a-zA-Z0-9_-]+\.js$/;
 const X_GRAPHQL_API_PATTERN = /^https:\/\/x\.com\/i\/api\/graphql\/[A-Za-z0-9_-]+\/(UserTweets|UserByScreenName)(\?.*)?$/;
@@ -675,12 +675,12 @@ const isAllowedXProxyUrl = (url) =>
   url === X_HOME_URL || X_MAIN_JS_PATTERN.test(url) || X_GRAPHQL_API_PATTERN.test(url);
 const X_COOKIE_VALUE_PATTERN = /^[\w%+/=.~-]+$/;
 const X_BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
-// x.com 公共 Web 客户端 Bearer（public-by-design）：随 x.com 前端 JS 分发给
-// 所有访客、浏览器请求 x.com 一律携带的公开常量，非用户凭据、无特权访问，
-// GitGuardian 的通用高熵检测对它属误报。
+// x.com public web client Bearer (public-by-design): distributed to all visitors via x.com frontend JS,
+// public constant sent by browsers with every x.com request, not user credentials, no privileged access,
+// generic GitGuardian high-entropy detection here is a false positive.
 const X_BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const X_GUEST_ACTIVATE_URL = 'https://api.x.com/1.1/guest/activate.json';
-/** guest token 进程内缓存：激活端点有频控，跨请求复用；403/401 时强制刷新 */
+/** In-process cache for guest token: activation endpoint is rate-limited, reused across requests; force refreshed on 403/401 */
 let xGuestToken = null;
 
 async function fetchXGuestToken() {
@@ -734,14 +734,14 @@ ipcMain.handle('x-fetch-graphql', async (_event, url, auth) => {
   const authToken = typeof auth?.authToken === 'string' ? auth.authToken.trim().replace(/^["']|["']$/g, '').trim() : '';
   const ct0 = typeof auth?.ct0 === 'string' ? auth.ct0.trim().replace(/^["']|["']$/g, '').trim() : '';
   const hasCookieAuth = !!(authToken && ct0 && X_COOKIE_VALUE_PATTERN.test(authToken) && X_COOKIE_VALUE_PATTERN.test(ct0));
-  // 显式携带 Cookie 但格式非法：调用方指定了鉴权路径，直接拒绝而非静默降级 guest
+  // Cookies explicitly provided but format is invalid: caller specified authenticated flow, reject directly rather than silently falling back to guest
   if (auth && !hasCookieAuth) {
     return { success: false, error: 'invalid auth cookies' };
   }
   try {
     if (hasCookieAuth) {
-      // GraphQL API 请求带 Bearer/CSRF 等专有头；HTML 页面与静态资源带这些头
-      // 反而被 x.com 拒 401（实测），只发 UA + Cookie
+      // GraphQL API requests send proprietary headers such as Bearer/CSRF; sending these headers with HTML pages
+      // and static assets actually causes x.com to reject with 401 (empirically verified), so only send UA + Cookie
       const isApiCall = url.startsWith('https://x.com/i/api/');
       const headers = isApiCall
         ? {
@@ -758,11 +758,11 @@ ipcMain.handle('x-fetch-graphql', async (_event, url, auth) => {
             'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8',
             ...(url.startsWith('https://x.com/') ? { 'Cookie': `auth_token=${authToken}; ct0=${ct0}` } : {}),
           };
-      // redirect: 'error' — 拒绝跨域（及一切）重定向，避免 Cookie 被转到允许域名之外
+      // redirect: 'error' — reject cross-origin (and all) redirects to prevent cookies from leaking beyond allowed domains
       const dispatcher = getFetchDispatcher();
-      // 内置 fetch 的 TLS 指纹被 x.com 边缘放行（#356 起长期可用）；npm undici@8
-      // 的指纹会被 403。仅当需要应用代理 dispatcher 时才用同版本 undici fetch
-      //（此时若仍被边缘 403，渲染进程会自动降级 guest 流程）
+      // Built-in fetch TLS fingerprint is accepted by x.com edge (viable since #356); npm undici@8
+      // fingerprint receives a 403. Only use matching version of undici fetch when app proxy dispatcher
+      // is needed (if edge still returns 403, renderer will automatically fall back to guest flow)
       const fetchImpl = dispatcher ? undiciFetchTapped : builtinFetchTapped;
       const response = await fetchImpl(url, {
         headers,
@@ -780,8 +780,8 @@ ipcMain.handle('x-fetch-graphql', async (_event, url, auth) => {
       return { success: true, body };
     }
 
-    // 免登录 guest 流程：Chromium 栈（net.fetch；Cookie 属受禁请求头，
-    // 无法经 net.fetch 显式携带，但 guest 流程本就不需要）
+    // Unauthenticated guest flow: Chromium stack (net.fetch; Cookie is a forbidden request header
+    // and cannot be explicitly sent via net.fetch, but guest flow does not require it anyway)
     const targetUrl = url === X_HOME_URL ? 'https://x.com/' : url;
     const isApiCall = targetUrl.startsWith('https://x.com/i/api/');
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -806,7 +806,7 @@ ipcMain.handle('x-fetch-graphql', async (_event, url, auth) => {
         const body = await response.text();
         return { success: true, body };
       }
-      // guest token 可能过期/被吊销：API 请求 403/401 时强制刷新一次再试
+      // Guest token may have expired or been revoked: force refresh once and retry if API request returns 403/401
       if (isApiCall && (response.status === 403 || response.status === 401) && attempt === 0) {
         continue;
       }
@@ -814,7 +814,7 @@ ipcMain.handle('x-fetch-graphql', async (_event, url, auth) => {
     }
     return { success: false, error: 'x.com responded 403' };
   } catch (error) {
-    // undici 的网络层失败统一是 "fetch failed"，真实原因在 cause 链上
+    // Undici network errors are uniformly "fetch failed"; the actual reason is in the cause chain
     return { success: false, error: summarizeFetchError(error).message };
   }
 });
@@ -1009,8 +1009,8 @@ async function applyAutoLaunch(enabled) {
  * variant from the system theme, falling back to the legacy color icons.
  */
 function resolveTrayIcon() {
-  // macOS 菜单栏要求单色 template 图（纯黑+alpha），系统自动适配深浅外观；
-  // 其他平台没有 template 机制，按系统主题在黑/白两份之间切换。
+  // macOS menu bar requires monochrome template image (pure black + alpha), system adapts to light/dark appearance automatically;
+  // other platforms lack a template mechanism and switch between black and white variants according to system theme.
   const candidates = [];
   if (process.platform === 'darwin') {
     candidates.push(path.join(__dirname, 'assets', 'trayTemplate.png'));
@@ -1047,12 +1047,12 @@ function refreshTrayMenu() {
   if (!tray || tray.isDestroyed()) return;
   const template = [
     {
-      label: '显示主窗口',
+      label: 'Show Main Window',
       click: () => restoreMainWindow(),
     },
     { type: 'separator' },
     {
-      label: '开机自动启动',
+      label: 'Launch at Login',
       type: 'checkbox',
       checked: desktopPrefs.autoLaunch,
       click: async (item) => {
@@ -1061,7 +1061,7 @@ function refreshTrayMenu() {
       },
     },
     {
-      label: '关闭时最小化到托盘',
+      label: 'Minimize to Tray on Close',
       type: 'checkbox',
       checked: desktopPrefs.closeToTray,
       click: (item) => {
@@ -1071,7 +1071,7 @@ function refreshTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: '退出',
+      label: 'Quit',
       click: () => {
         isQuitting = true;
         app.quit();
@@ -1133,7 +1133,7 @@ function destroyTray() {
   tray = null;
 }
 
-// 非 macOS 托盘图标跟随系统深浅主题切换（macOS 用 template 图自动适配）。
+// Non-macOS tray icon follows system light/dark theme changes (macOS uses template image for automatic adaptation).
 nativeTheme.on('updated', () => {
   if (process.platform === 'darwin') return;
   if (!tray || tray.isDestroyed()) return;
@@ -1225,9 +1225,9 @@ ipcMain.handle('mcp:getStatus', async () => mcpServer.getStatus());
 let pluginManager = null;
 let pluginMarketplace = null;
 
-// 页面 Bridge 的系统输出操作（V1.4）：写入剪贴板与“宿主下载”。实现只在
-// 主进程可用，经 capabilityRouter 的权限检查后调用；保存位置始终由用户在
-// 原生对话框中确认，与 Release Asset 下载一致。
+// Page Bridge system export operations (V1.4): write to clipboard and "host download". Implementations are only
+// available in the main process and invoked after permission checks in capabilityRouter; save location is always
+// confirmed by the user in native dialogs, matching Release Asset downloads.
 const pluginHostOperations = {
   clipboardWrite({ text }) {
     clipboard.writeText(text);
@@ -1242,8 +1242,8 @@ const pluginHostOperations = {
     return null;
   },
   async saveFile({ fileName, buffer }) {
-    // 插件只提供建议名：去掉路径分隔与控制字符，扩展名缺失时补 .png。
-    // 最终落盘位置仍由用户在原生对话框中确认，与 Release Asset 下载一致。
+    // Plugin only provides suggested name: strip path separators and control characters, append .png if extension is missing.
+    // Final save location is still confirmed by user in native dialog, matching Release Asset downloads.
     const suggested = path.basename(typeof fileName === 'string' ? fileName : '')
       .replace(/[\x00-\x1f<>:"/\\|?*]/g, '_');
     const safeName = suggested && suggested !== '.' ? suggested : 'plugin-export';
@@ -1254,7 +1254,7 @@ const pluginHostOperations = {
     });
     if (result.canceled || !result.filePath) return { canceled: true };
     await fs.promises.writeFile(result.filePath, buffer);
-    // 不写剪贴板：本操作只校验 downloads:create，写剪贴板会绕过 clipboard:write。
+    // Do not write to clipboard: this operation only validates downloads:create; writing to clipboard would bypass clipboard:write.
     return { fileName: path.basename(result.filePath) };
   },
 };
@@ -1264,14 +1264,14 @@ function getPluginManager() {
     pluginManager = createPluginManager({
       pluginsRoot: path.join(app.getPath('userData'), 'plugins'),
       hostOperations: pluginHostOperations,
-      // 插件 capability log 镜像：写入插件自身日志文件的同时进诊断日志
+      // Plugin capability log mirror: written to diagnostics log while writing to plugin's own log file
       logMirror: (entry) => diagLog.record(entry),
     });
   }
   return pluginManager;
 }
 
-// 插件市场（自助插件源）：源列表与目录缓存在主进程维护，安装复用 pluginManager。
+// Plugin marketplace (self-hosted plugin sources): source list and directory cache maintained in main process, installation reuses pluginManager.
 function getPluginMarketplace() {
   if (!pluginMarketplace) {
     pluginMarketplace = createPluginMarketplace({
@@ -1339,13 +1339,13 @@ ipcMain.handle('plugins:downloadReleaseAsset', async (_event, request) => {
     ...resolved.value,
   });
 });
-// 社区插件注册表（开发守则 §17）：主进程取回并逐条校验，渲染进程只拿到校验过的结构。
-// 这里不下载任何插件包，也不做任何安装动作。
+// Community plugin registry (Development guidelines §17): main process fetches and validates entries; renderer only receives validated structure.
+// No plugin packages are downloaded here, and no installation actions are performed.
 ipcMain.handle('plugins:loadRegistry', async () => loadPluginRegistry({
   fetchImpl: (url, options) => net.fetch(url, options),
 }));
-// 插件市场（自助插件源）：源的增删改查与遍历、从源安装/更新插件。
-// 安装动作下载的是整个插件目录，复用 pluginManager 的校验与落位，不在渲染进程沾手文件。
+// Plugin marketplace (self-hosted plugin sources): CRUD and traversal of sources, installing/updating plugins from sources.
+// Installation downloads entire plugin directory, reusing pluginManager validation and placement, never handling files in renderer.
 ipcMain.handle('plugins:marketplace:getState', async () => getPluginMarketplace().getState());
 ipcMain.handle('plugins:marketplace:addSource', async (_event, input) =>
   getPluginMarketplace().addSource(input)
@@ -1635,9 +1635,9 @@ function shouldSkipDiagnosticsUrl(rawUrl) {
     const url = new URL(rawUrl);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return true;
     if (!isLoopbackHost(url.hostname)) return false;
-    // MCP 本地服务是入站只读接口，不属于对外请求
+    // Local MCP server is an inbound read-only interface, not an outbound request
     if (mcpConfig.enabled && url.port === String(mcpConfig.port)) return true;
-    // Dev 模式跳过 Vite 开发服务器自身流量
+    // Skip Vite dev server traffic in dev mode
     if (isDev && url.port === '5173') return true;
     return false;
   } catch {
@@ -1757,9 +1757,9 @@ if (!gotSingleInstanceLock) {
 }
 
 app.whenReady().then(() => {
-  // Chromium 栈观察者：覆盖全部 net.fetch（插件市场/注册表/资源下载/X/Telegram/
-  // WebDAV 回退栈）与渲染进程经 session 发出的请求；webSearch.js 的 node:https
-  // 既不经 undici 也不经 Chromium，由该文件内手动补记（setNetworkRecorder）。
+  // Chromium stack observer: covers all net.fetch (plugin marketplace/registry/asset downloads/X/Telegram/
+  // WebDAV fallback stack) and renderer requests made via session; node:https in webSearch.js
+  // goes through neither undici nor Chromium, and is manually recorded in that file (setNetworkRecorder).
   attachDiagnosticsWebRequestObserver(session.defaultSession);
   setNetworkRecorder((entry) => diagLog.record(entry));
   protocol.handle(PAGE_SCHEME, (request) => {

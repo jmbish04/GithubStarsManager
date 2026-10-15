@@ -75,9 +75,10 @@ test('terminates a plugin runtime when a call times out', async (t) => {
     entryPath,
     pluginId: 'com.example.timeout',
     permissions: [],
-    // timeoutMs 同时约束 Worker 启动与调用超时：真实 Worker 线程在负载高的
-    // CI 上启动可能超过极小值，导致 activate() 阶段就抛 PLUGIN_RUNTIME_TIMEOUT
-    //（flaky）。取 2000ms 与其他用例一致，调用超时语义不变。
+    // timeoutMs limits both Worker startup and invocation timeouts: on busy CI runners,
+    // real Worker threads may take longer than tiny durations to start, throwing
+    // PLUGIN_RUNTIME_TIMEOUT during activate() (flaky). 2000ms aligns with other test cases
+    // while preserving call timeout semantics.
     timeoutMs: 2000,
   });
   await runtime.activate();

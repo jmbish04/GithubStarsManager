@@ -14,9 +14,9 @@ interface TelegramMessageModalProps {
 }
 
 /**
- * Telegram 频道的"查看消息原文"弹窗：展示抓取到的频道消息正文
- * （t.me 公开预览输出的 HTML 片段，渲染走 rehype-sanitize），页脚附频道、
- * 时间与原消息链接。
+ * Modal to view the original Telegram channel message: displays the fetched channel message body
+ * (HTML snippet output by t.me public preview, sanitized via rehype-sanitize), with channel,
+ * timestamp, and original message link in the footer.
  */
 export const TelegramMessageModal: React.FC<TelegramMessageModalProps> = ({ isOpen, onClose, message }) => {
   const language = useAppStore(state => state.language);

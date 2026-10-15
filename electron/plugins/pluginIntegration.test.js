@@ -179,13 +179,13 @@ test('installs the V1.4 modal-action example and serves its opensPage without a 
     await manager.enable(pluginId, ['repositories:read', 'ai:invoke', 'clipboard:write', 'downloads:create']),
     { success: true }
   );
-  // opensPage 动作不启动 Worker，宿主通过 getPage 弹出页面。
+  // opensPage actions do not start a Worker; the host presents the page via getPage.
   const page = manager.getPage(pluginId, 'info-card');
   assert.equal(page.success, true);
   assert.match(manager.readPageResource(page.url).body.toString(), /Repository Info Card/);
   assert.match(manager.readPageResource(page.url.replace('index.html', 'index.js')).body.toString(), /ai\.generate/);
 
-  // 页面 Bridge 新增的输出方法按权限放行并解码载荷。
+  // Newly added page bridge output methods check permissions and decode payloads.
   const saved = await manager.requestPageCapability({
     pluginId, pageId: 'info-card', method: 'downloads.saveFile',
     args: { fileName: 'project-info-card-1x1.png', dataBase64: Buffer.from('png').toString('base64') },

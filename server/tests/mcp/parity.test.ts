@@ -44,8 +44,8 @@ function contract(tool: { name: string; inputSchema?: Record<string, unknown> })
 }
 
 describe('backend/Electron MCP parity', () => {
-  // registerMcpTools 在注册时读取 getVectorAvailability()，
-  // 必须在每个用例前复位，避免上一个用例的覆写泄漏到后续注册。
+  // registerMcpTools reads getVectorAvailability() at registration time;
+  // must be reset before each case to prevent overrides from leaking into subsequent registrations.
   beforeEach(() => {
     providerMocks.getVectorAvailability.mockReturnValue({ available: true });
   });
@@ -82,8 +82,8 @@ describe('backend/Electron MCP parity', () => {
   });
 
   it('keeps Repository Health facts identical in both runtimes', async () => {
-    // Health 事实是三份镜像实现（src/utils/repositoryHealth.ts、electron/repoHealth.js、
-    // server/src/mcp/repoHealth.ts）。这里锁定 Electron 与后端两份，防止数字口径漂移。
+    // Health facts has three mirrored implementations (src/utils/repositoryHealth.ts, electron/repoHealth.js,
+    // server/src/mcp/repoHealth.ts). Lock the Electron and backend versions here to prevent metric drift.
     const electronHealth = await import('../../../electron/repoHealth.js');
     const backendHealth = await import('../../src/mcp/repoHealth.js');
     const now = Date.parse('2026-09-17T00:00:00.000Z');
@@ -138,7 +138,7 @@ describe('backend/Electron MCP parity', () => {
       parityRepo({ id: 3, name: 'mid', full_name: 'acme/mid', stargazers_count: 100 }),
       parityRepo({ id: 4, name: 'solo', full_name: 'other/solo', stargazers_count: 5 }),
     ];
-    // 输入顺序与预期输出相反，证明 tie-break 真正生效而非继承输入顺序
+    // Input order is reversed relative to expected output, proving tie-break takes effect rather than inheriting input order
     const expected = [
       'acme/alpha',
       'acme/mid',

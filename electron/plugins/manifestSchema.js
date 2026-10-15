@@ -241,9 +241,9 @@ function validateManifest(input) {
     const error = validatePages(input.contributes.pages);
     if (error) return error;
   }
-  // V1.4 弹窗动作：opensPage 必须指向本插件声明的一个页面。这类动作不启动
-  // Node Worker，只让宿主在用户点击时把插件页面装进弹窗，因此不参与
-  // “运行时贡献必须提供 main”的判定。
+  // V1.4 popup action: opensPage must point to a page declared by this plugin. Such actions
+  // do not launch a Node Worker; instead, the host mounts the plugin page into a modal when
+  // the user clicks it. They do not trigger the "runtime contributions require main" rule.
   const declaredPageIds = new Set((input.contributes.pages || []).map((page) => page.id));
   const opensPageActions = (input.contributes.repositoryActions || [])
     .filter((action) => 'opensPage' in action);

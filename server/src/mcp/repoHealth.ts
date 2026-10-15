@@ -1,17 +1,20 @@
 /**
- * Repository Health facts（后端 MCP 运行时）。
+ * Repository Health facts (backend MCP runtime).
  *
- * 与 `electron/repoHealth.js`、`src/utils/repositoryHealth.ts` 是同一套算法的三份镜像：
- * Core 的客观事实必须跨运行时一致，否则 UI、MCP 与插件会给出互相矛盾的数字。
- * 之所以必须镜像而不是共享模块：server 的 tsconfig `rootDir: "src"` 不允许 import 应用源码树，
- * Electron 侧则是 CommonJS。改动本文件时请同步另外两份。
+ * This is one of three mirrors of the same algorithm (along with `electron/repoHealth.js` and
+ * `src/utils/repositoryHealth.ts`): Core objective facts must remain consistent across runtimes,
+ * otherwise the UI, MCP, and plugins will report contradictory numbers.
+ * The reason these are mirrored rather than a shared module: server's tsconfig `rootDir: "src"`
+ * does not permit importing the app source tree, while the Electron side uses CommonJS.
+ * When updating this file, please synchronize the other two copies.
  *
- * 边界一致：只输出客观事实与保守观测，不输出健康总分或「健康 / 不健康」结论。
+ * Consistent boundaries: only outputs objective facts and conservative observations;
+ * never outputs an aggregate health score or a "healthy / unhealthy" verdict.
  */
 
 const MS_PER_DAY = 86_400_000;
 const DAYS_PER_YEAR = 365.25;
-/** 与 TS 版一致：超过一年无 push 只作为中性观测「No pushes in 12 months」。 */
+/** Aligned with TS version: no pushes for over a year is treated only as the neutral observation "No pushes in 12 months". */
 export const NO_RECENT_ACTIVITY_DAYS = 365;
 const MIN_FREQUENCY_WINDOW_DAYS = 30;
 const PRERELEASE_TOKENS = new Set([
@@ -19,7 +22,7 @@ const PRERELEASE_TOKENS = new Set([
   'next', 'canary', 'snapshot', 'nightly', 'insider', 'unstable',
 ]);
 
-/** 供健康事实推导使用的最小仓库形状（后端不存储 GitHub 原生状态字段）。 */
+/** Minimal repository shape used for health fact derivation (backend does not store native GitHub status fields). */
 export interface HealthRepositoryInput {
   id: number;
   created_at?: string | null;
@@ -38,7 +41,7 @@ export interface HealthRepositoryInput {
   default_branch?: string;
 }
 
-/** 健康事实推导所需的最小 Release 形状。 */
+/** Minimal release shape required for health fact derivation. */
 export interface HealthReleaseInput {
   repo_id?: number;
   repository?: { id?: number } | null;
@@ -86,12 +89,12 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-/** 布尔事实的三态化：只有记录里确实存在布尔值时才给出 true/false，否则为 null（未知）。 */
+/** Tri-state conversion for boolean facts: returns true/false only when a boolean value is present, otherwise null (unknown). */
 function toTriState(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
 
-/** 预发布判定：先信任 GitHub 标记，再按 tag 词元兜底（避免 `presto` 里的 `pre` 误判）。 */
+/** Prerelease check: trust the GitHub flag first, then fall back to tag token matching (avoids false positives like "pre" in "presto"). */
 export function isPrereleaseRelease(release: Pick<HealthReleaseInput, 'prerelease' | 'tag_name'>): boolean {
   if (release?.prerelease === true) return true;
   const tag = String(release?.tag_name ?? '').toLowerCase();
@@ -102,7 +105,7 @@ export function isPrereleaseRelease(release: Pick<HealthReleaseInput, 'prereleas
     .some((token) => PRERELEASE_TOKENS.has(token.replace(/\d+$/, '')));
 }
 
-/** 取某仓库的 Release，按发布时间降序（不可解析的条目丢弃）。 */
+/** Fetch releases for a repository in descending order of publish date (discarding unparseable entries). */
 export function releasesForRepository(
   releases: readonly HealthReleaseInput[] | undefined,
   repositoryId: number,
@@ -115,11 +118,11 @@ export function releasesForRepository(
 }
 
 /**
- * 推导仓库健康事实。
+ * Derive repository health facts.
  *
- * @param repo 已存储的仓库记录。
- * @param releases 该仓库的 Release；不传表示调用方没有这项数据，Release 相关事实为 null。
- * @param now 计算「距今多久」的基准时间，便于测试注入。
+ * @param repo Stored repository record.
+ * @param releases Releases for this repository; omitting indicates the caller lacks this data, making release-related facts null.
+ * @param now Reference timestamp for calculating elapsed time, injected for testing.
  */
 export function deriveRepositoryHealthFacts(
   repo: HealthRepositoryInput,
@@ -138,8 +141,8 @@ export function deriveRepositoryHealthFacts(
     createdTimestamp === null ? null : Math.max(0, Math.floor((now - createdTimestamp) / MS_PER_DAY));
   const daysSinceLastPush =
     pushedTimestamp === null ? null : Math.max(0, Math.floor((now - pushedTimestamp) / MS_PER_DAY));
-  // 仓库年龄未知时无法换算「频率」：只有「确实没有任何 Release」才是 0，其余保持 null，
-  // 否则会把「Release 总数」当成「次/年」报出去（与 Electron / TS 版必须一致）。
+  // Cannot compute "frequency" when repo age is unknown: only "genuinely zero releases" produces 0,
+  // all other unknown cases stay null to avoid reporting "total releases" as "per year" (must match Electron / TS versions).
   const releasesPerYear =
     ageDays === null
       ? provided && own.length === 0
@@ -178,7 +181,7 @@ export function deriveRepositoryHealthFacts(
   return facts;
 }
 
-/** Core 允许提供的保守观测，顺序固定（archived → disabled → no-releases → no-recent-activity）。 */
+/** Conservative observations permitted by Core, in a fixed order (archived → disabled → no-releases → no-recent-activity). */
 export function deriveRepositoryHealthSignals(facts: RepositoryHealthFacts): string[] {
   const signals: string[] = [];
   if (facts.archived === true) signals.push('archived');
@@ -191,8 +194,8 @@ export function deriveRepositoryHealthSignals(facts: RepositoryHealthFacts): str
 }
 
 /**
- * 判断仓库是否已归档，三态返回（与 Electron / TS 版一致）。
- * 字段缺失时返回 undefined，调用方的严格相等比较因此不会把「未知」算成未归档。
+ * Determine if a repository is archived, returning a tri-state value (consistent with Electron / TS versions).
+ * Returns undefined when the field is missing, so callers' strict equality checks won't mistake "unknown" for unarchived.
  */
 export function isArchivedRepository(
   repo: Pick<HealthRepositoryInput, 'archived'>,
@@ -200,7 +203,7 @@ export function isArchivedRepository(
   return typeof repo?.archived === 'boolean' ? repo.archived : undefined;
 }
 
-/** 与 TS 版一致：时间不可解析时返回 false（筛选语义下「未知」不算「近期活跃」）。 */
+/** Aligned with TS version: returns false if the timestamp cannot be parsed ("unknown" is not "recently active" in filter semantics). */
 export function hasRecentActivity(
   repo: Pick<HealthRepositoryInput, 'pushed_at' | 'updated_at'>,
   now: number = Date.now(),

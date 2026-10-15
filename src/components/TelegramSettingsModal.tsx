@@ -20,9 +20,9 @@ interface TelegramSettingsModalProps {
 }
 
 /**
- * Telegram 频道的配置弹窗：关注频道列表（可增删）与真实"测试连接"。
- * 数据由应用内置抓取器直连 t.me 公开预览获取（桌面版走主进程、网页端走
- * 服务端），无需用户配置任何第三方实例。
+ * Configuration modal for Telegram channels: followed channels list (add/remove) and live "Test Connection".
+ * Data is fetched directly from t.me public previews by the built-in scraper (via main process on desktop,
+ * server-side on web), requiring no third-party instance configuration from the user.
  */
 export const TelegramSettingsModal: React.FC<TelegramSettingsModalProps> = ({ isOpen, onClose }) => {
   const telegramFollows = useAppStore(state => state.telegramFollows);
