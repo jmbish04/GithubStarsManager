@@ -9,7 +9,7 @@
  */
 import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
-import type { Db } from "../db/client";
+import { type Db, withVectorScan } from "../db/client";
 import { maestroExports, maestroProjectScans, repositories, researchAgents, researchFindings, researchRuns } from "../db/schema";
 import { sha256Hex } from "../lib/auth";
 import { type GitHubRepo, getReadme, getRepo, getTopLevelTree, octokit, searchRepos } from "../lib/github";
@@ -230,12 +230,14 @@ export async function runLibraryAgent(env: Env, db: Db, ctx: RunContext): Promis
     .returning({ id: researchAgents.id });
   const [vector] = await embed(env, [`${ctx.criterion}\n${ctx.targetInfrastructure ?? ""}`.trim()], "embed research criterion (library agent)");
   const literal = `[${vector.join(",")}]`;
-  const rows = await db
-    .select({ id: repositories.id })
-    .from(repositories)
-    .where(and(isNotNull(repositories.embedding), sql`${repositories.stargazersCount} >= ${ctx.minStars}`))
-    .orderBy(sql`${repositories.embedding} <=> ${literal}::vector`)
-    .limit(LIBRARY_LIMIT);
+  const rows = await withVectorScan(db, (tx) =>
+    tx
+      .select({ id: repositories.id })
+      .from(repositories)
+      .where(and(isNotNull(repositories.embedding), sql`${repositories.stargazersCount} >= ${ctx.minStars}`))
+      .orderBy(sql`${repositories.embedding} <=> ${literal}::vector`)
+      .limit(LIBRARY_LIMIT),
+  );
   await db.update(researchAgents).set({ status: "succeeded", candidatesFound: rows.length, finishedAt: new Date() }).where(eq(researchAgents.id, agent.id));
   return { agentId: agent.id, repoIds: rows.map((r) => r.id) };
 }

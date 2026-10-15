@@ -3,7 +3,7 @@
  */
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
-import type { Db } from "../db/client";
+import { type Db, withVectorScan } from "../db/client";
 import { repositories } from "../db/schema";
 import { sha256Hex } from "../lib/auth";
 import type { GitHubRepo } from "../lib/github";
@@ -234,12 +234,14 @@ export async function searchRepositories(
     const vector = opts.queryVector ?? (await embed(env, [opts.query], "embed search query"))[0];
     const literal = `[${vector.join(",")}]`;
     const distance = sql<number>`${repositories.embedding} <=> ${literal}::vector`;
-    const rows = await db
-      .select({ ...hitColumns, distance })
-      .from(repositories)
-      .where(and(where, sql`${repositories.embedding} is not null`))
-      .orderBy(distance)
-      .limit(pool);
+    const rows = await withVectorScan(db, (tx) =>
+      tx
+        .select({ ...hitColumns, distance })
+        .from(repositories)
+        .where(and(where, sql`${repositories.embedding} is not null`))
+        .orderBy(distance)
+        .limit(pool),
+    );
     semantic = rows.map(({ distance: d, ...row }) => ({ ...row, similarity: 1 - Number(d), score: 1 - Number(d) }));
   }
 
