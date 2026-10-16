@@ -58,20 +58,20 @@ export const getAllCategories = (
 // Helper function to translate category names
 export const translateCategoryName = (zhName: string): string => {
   const translations: Record<string, string> = {
-    '全部分类': 'All Categories',
-    'Web应用': 'Web Apps',
-    '移动应用': 'Mobile Apps',
-    '桌面应用': 'Desktop Apps',
-    '数据库': 'Database',
-    'AI/机器学习': 'AI/Machine Learning',
-    '开发工具': 'Development Tools',
-    '安全工具': 'Security Tools',
-    '游戏': 'Games',
-    '设计工具': 'Design Tools',
-    '效率工具': 'Productivity Tools',
-    '教育学习': 'Education',
-    '社交网络': 'Social Network',
-    '数据分析': 'Data Analytics'
+    '\u5168\u90e8\u5206\u7c7b': 'All Categories', // Chinese for "All Categories"
+    'Web\u5e94\u7528': 'Web Apps', // Chinese for "Web Apps"
+    '\u79fb\u52a8\u5e94\u7528': 'Mobile Apps', // Chinese for "Mobile Apps"
+    '\u684c\u9762\u5e94\u7528': 'Desktop Apps', // Chinese for "Desktop Apps"
+    '\u6570\u636e\u5e93': 'Database', // Chinese for "Database"
+    'AI/\u673a\u5668\u5b66\u4e60': 'AI/Machine Learning', // Chinese for "AI/Machine Learning"
+    '\u5f00\u53d1\u5de5\u5177': 'Development Tools', // Chinese for "Development Tools"
+    '\u5b89\u5168\u5de5\u5177': 'Security Tools', // Chinese for "Security Tools"
+    '\u6e38\u620f': 'Games', // Chinese for "Games"
+    '\u8bbe\u8ba1\u5de5\u5177': 'Design Tools', // Chinese for "Design Tools"
+    '\u6548\u7387\u5de5\u5177': 'Productivity Tools', // Chinese for "Productivity Tools"
+    '\u6559\u80b2\u5b66\u4e60': 'Education', // Chinese for "Education"
+    '\u793e\u4ea4\u7f51\u7edc': 'Social Network', // Chinese for "Social Network"
+    '\u6570\u636e\u5206\u6790': 'Data Analytics' // Chinese for "Data Analytics"
   };
 
   return translations[zhName] || zhName;

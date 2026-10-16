@@ -99,7 +99,7 @@ const createStoreState = () => ({
     model: 'ai-model',
   }],
   activeAIConfig: 'ai-config',
-  language: 'zh' as const,
+  language: 'en' as const,
   setSearchFilters: vi.fn(),
   setSearchResults: vi.fn(),
   githubToken: 'github-token' as string | null,
@@ -439,10 +439,10 @@ describe('useSearchActions.keywordSearch', () => {
     mocks.searchRepositoriesWithSelection.mockResolvedValue([]);
 
     const { result } = renderHook(() => useSearchActions());
-    await act(async () => { await result.current.aiSearch('完全不相关的东西', identity); });
+    await act(async () => { await result.current.aiSearch('completely irrelevant query', identity); });
 
     expect(storeState.setSearchResults).toHaveBeenCalledWith([]);
-    expect(storeState.setSearchFilters).toHaveBeenCalledWith({ query: '完全不相关的东西' });
+    expect(storeState.setSearchFilters).toHaveBeenCalledWith({ query: 'completely irrelevant query' });
     // Empty state is an explicit decision by the model and must also block backfilling by SearchBar's filter effect
     expect(result.current.skipNextTextSearchRef.current).toBe(true);
   });
@@ -511,7 +511,7 @@ describe('useSearchActions.keywordSearch', () => {
     const { result } = renderHook(() => useSearchActions());
     await act(async () => { await result.current.aiSearch('foo', identity); });
 
-    expect(mocks.toast).toHaveBeenCalledWith('AI 请求失败，已回退本地词法搜索', 'warning');
+    expect(mocks.toast).toHaveBeenCalledWith('AI request failed, fell back to local lexical search', 'warning');
     expect(storeState.setSearchResults).toHaveBeenCalledWith([storeState.repositories[0]]);
     // Fallback results (weighted lexical + CJK bigram recall) are superior to filter effect's AND exact string matching;
     // must set skipNextTextSearchRef to prevent being reset by it (CJK queries would be reset to empty)
@@ -628,10 +628,10 @@ describe('useSearchActions.syncStars', () => {
     expect(syncOrder).toBeLessThan(lastSyncOrder);
 
     expect(mocks.toast).toHaveBeenCalledWith(
-      '已同步 1 个 list，并应用到 1 个未锁定仓库：MyList(1)',
+      'Synced 1 lists, applied to 1 unlocked repositories: MyList(1)',
       'info',
     );
-    expect(mocks.toast).toHaveBeenCalledWith('同步完成！所有仓库都是最新的。', 'info');
+    expect(mocks.toast).toHaveBeenCalledWith('Sync completed! All repositories are up to date.', 'info');
     expect(storeState.setSyncingStars).toHaveBeenCalledWith(true);
     expect(storeState.setSyncingStars).toHaveBeenLastCalledWith(false);
   });
@@ -650,7 +650,7 @@ describe('useSearchActions.syncStars', () => {
     expect(created.id).toMatch(/^custom-sync-\d+-0$/);
     expect(created.isCustom).toBe(true);
     expect(mocks.toast).toHaveBeenCalledWith(
-      '已同步 1 个 list，并应用到 1 个未锁定仓库：BrandNewList(1)（新建 1 个分类）',
+      'Synced 1 lists, applied to 1 unlocked repositories: BrandNewList(1) (1 new category created)',
       'info',
     );
   });
@@ -664,14 +664,14 @@ describe('useSearchActions.syncStars', () => {
     await act(async () => { await result.current.syncStars('stars-and-lists'); });
 
     expect(mocks.toast).toHaveBeenCalledWith(
-      'List 同步失败，星标仓库已同步。请稍后重试，或检查 GitHub Token 权限（需 user scope）。',
+      'List sync failed, starred repositories were synced. Retry later, or check the GitHub Token has the user scope.',
       'error',
     );
     expect(storeState.setRepositories).toHaveBeenCalledWith([
       expect.objectContaining({ id: 1, full_name: 'owner/repo-one' }),
     ]);
     expect(mocks.forceSyncToBackend).toHaveBeenCalledTimes(1);
-    expect(mocks.toast).toHaveBeenCalledWith('同步完成！所有仓库都是最新的。', 'info');
+    expect(mocks.toast).toHaveBeenCalledWith('Sync completed! All repositories are up to date.', 'info');
   });
 
   it('syncs lists when auto mode follows the stars-and-lists config', async () => {
@@ -698,7 +698,7 @@ describe('useSearchActions.syncStars', () => {
 
     expect(mocks.getUserLists).not.toHaveBeenCalled();
     expect(mocks.toast).toHaveBeenCalledWith(
-      'List 同步失败，星标仓库已同步。请稍后重试，或检查 GitHub Token 权限（需 user scope）。',
+      'List sync failed, starred repositories were synced. Retry later, or check the GitHub Token has the user scope.',
       'error',
     );
     expect(storeState.setRepositories).toHaveBeenCalledWith([
@@ -716,7 +716,7 @@ describe('useSearchActions.syncStars', () => {
     await act(async () => { await result.current.syncStars('stars-and-lists'); });
 
     expect(storeState.addCustomCategory).toHaveBeenCalledTimes(1);
-    expect(mocks.toast).toHaveBeenCalledWith('已同步 1 个 list（新建 1 个分类）。', 'info');
+    expect(mocks.toast).toHaveBeenCalledWith('Synced 1 lists (1 new categories created).', 'info');
   });
 
   it('toasts the new-repositories count when the sync finds unseen repos', async () => {
@@ -729,7 +729,7 @@ describe('useSearchActions.syncStars', () => {
     const { result } = renderHook(() => useSearchActions());
     await act(async () => { await result.current.syncStars('stars-only'); });
 
-    expect(mocks.toast).toHaveBeenCalledWith('同步完成！发现 1 个新仓库。', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('Sync completed! Found 1 new repositories.', 'success');
   });
 
   it('shows the token-expired message when the sync error mentions token', async () => {
@@ -737,7 +737,7 @@ describe('useSearchActions.syncStars', () => {
     const { result } = renderHook(() => useSearchActions());
     await act(async () => { await result.current.syncStars(); });
 
-    expect(mocks.toast).toHaveBeenCalledWith('GitHub token 已过期或无效，请重新登录。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('GitHub token has expired or is invalid. Please login again.', 'error');
     expect(storeState.setRepositories).not.toHaveBeenCalled();
   });
 
@@ -745,7 +745,7 @@ describe('useSearchActions.syncStars', () => {
     storeState.githubToken = null;
     const { result } = renderHook(() => useSearchActions());
     await act(async () => { await result.current.syncStars(); });
-    expect(mocks.toast).toHaveBeenCalledWith('GitHub token 未找到，请重新登录。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('GitHub token not found. Please login again.', 'error');
     expect(mocks.getAllStarredRepositories).not.toHaveBeenCalled();
     expect(storeState.setSyncingStars).not.toHaveBeenCalled();
   });
@@ -787,16 +787,16 @@ describe('useSearchActions pure helpers', () => {
       baseRepo({
         id: 1_700_000_000_123,
         full_name: 'owner/batch-starred',
-        ai_summary: 'AI 摘要',
+        ai_summary: 'AI summary',
         ai_tags: ['ai-tag'],
         ai_platforms: ['cli'],
         analyzed_at: '2026-02-01T00:00:00.000Z',
-        custom_category: '工具',
+        custom_category: 'Tools',
         category_locked: true,
       }),
     ];
     const newRepos = [
-      baseRepo({ id: 987_654_321, full_name: 'owner/batch-starred', description: '来自 GitHub 的新描述' }),
+      baseRepo({ id: 987_654_321, full_name: 'owner/batch-starred', description: 'New description from GitHub' }),
     ];
 
     const merged = mergeStarredRepositories(newRepos, storeRepos);
@@ -804,28 +804,28 @@ describe('useSearchActions pure helpers', () => {
     expect(merged).toHaveLength(1);
     expect(merged[0]).toMatchObject({
       // Local AI analysis and category tags must be retained
-      ai_summary: 'AI 摘要',
+      ai_summary: 'AI summary',
       ai_tags: ['ai-tag'],
       ai_platforms: ['cli'],
       analyzed_at: '2026-02-01T00:00:00.000Z',
-      custom_category: '工具',
+      custom_category: 'Tools',
       category_locked: true,
       // GitHub source metadata is still refreshed
-      description: '来自 GitHub 的新描述',
+      description: 'New description from GitHub',
     });
   });
 
   it('matches the full_name fallback case-insensitively', () => {
     // Synthetic ids (>=1e11) represent legacy batch-starred records and are eligible for name fallback
     const storeRepos = [
-      baseRepo({ id: 1_700_000_000_555, full_name: 'Owner/Mixed-Case', ai_summary: 'AI 摘要' }),
+      baseRepo({ id: 1_700_000_000_555, full_name: 'Owner/Mixed-Case', ai_summary: 'AI summary' }),
     ];
     const merged = mergeStarredRepositories(
       [baseRepo({ id: 42, full_name: 'owner/mixed-case' })],
       storeRepos,
     );
 
-    expect(merged[0]).toMatchObject({ ai_summary: 'AI 摘要' });
+    expect(merged[0]).toMatchObject({ ai_summary: 'AI summary' });
   });
 
   it('does not let a different repo inherit analysis by reusing a real-id repo name', () => {
@@ -836,8 +836,8 @@ describe('useSearchActions pure helpers', () => {
       baseRepo({
         id: 555,
         full_name: 'owner/old',
-        ai_summary: '机密分析',
-        custom_category: '内部工具',
+        ai_summary: 'Confidential analysis',
+        custom_category: 'Internal Tools',
         category_locked: true,
         subscribed_to_releases: true,
       }),
@@ -863,8 +863,8 @@ describe('useSearchActions pure helpers', () => {
       baseRepo({
         id: 1_700_000_000_999,
         full_name: 'owner/legacy',
-        ai_summary: 'AI 摘要',
-        custom_category: '工具',
+        ai_summary: 'AI summary',
+        custom_category: 'Tools',
       }),
     ];
     const newRepos = [baseRepo({ id: 321, full_name: 'owner/legacy' })];
@@ -872,8 +872,8 @@ describe('useSearchActions pure helpers', () => {
     const merged = mergeStarredRepositories(newRepos, storeRepos);
 
     expect(merged[0]).toMatchObject({
-      ai_summary: 'AI 摘要',
-      custom_category: '工具',
+      ai_summary: 'AI summary',
+      custom_category: 'Tools',
     });
     expect(countNewStarredRepositories(newRepos, storeRepos)).toBe(0);
   });
@@ -882,7 +882,7 @@ describe('useSearchActions pure helpers', () => {
     // When two incoming items can only match the same local record via name fallback, matching must be 1-to-1:
     // the second item is treated as new and must not duplicate the local record's AI data.
     const storeRepos = [
-      baseRepo({ id: 1_700_000_000_100, full_name: 'owner/legacy', ai_summary: 'AI 摘要' }),
+      baseRepo({ id: 1_700_000_000_100, full_name: 'owner/legacy', ai_summary: 'AI summary' }),
     ];
     const newRepos = [
       baseRepo({ id: 201, full_name: 'owner/legacy' }),
@@ -892,7 +892,7 @@ describe('useSearchActions pure helpers', () => {
     const merged = mergeStarredRepositories(newRepos, storeRepos);
 
     expect(merged).toHaveLength(2);
-    const matched = merged.filter(repo => repo.ai_summary === 'AI 摘要');
+    const matched = merged.filter(repo => repo.ai_summary === 'AI summary');
     expect(matched).toHaveLength(1);
     expect(countNewStarredRepositories(newRepos, storeRepos)).toBe(1);
   });
@@ -901,7 +901,7 @@ describe('useSearchActions pure helpers', () => {
     // Regression: if count only matched by id, existing repositories rescued by full_name fallback would be falsely reported
     // as "Found N new repositories". Lock the count criteria here to match merge.
     const storeRepos = [
-      baseRepo({ id: 1_700_000_000_123, full_name: 'owner/legacy', ai_summary: 'AI 摘要' }),
+      baseRepo({ id: 1_700_000_000_123, full_name: 'owner/legacy', ai_summary: 'AI summary' }),
       baseRepo({ id: 2, full_name: 'owner/unchanged' }),
     ];
     const newRepos = [
@@ -924,8 +924,8 @@ describe('useSearchActions pure helpers', () => {
       baseRepo({
         id: 1,
         full_name: 'owner/old',
-        ai_summary: '旧仓库的 AI 摘要',
-        custom_category: '工具',
+        ai_summary: 'AI summary of old repo',
+        custom_category: 'Tools',
       }),
     ];
     const newRepos = [
@@ -940,8 +940,8 @@ describe('useSearchActions pure helpers', () => {
     // Renamed repository retains local AI data (id match)
     expect(merged[0]).toMatchObject({
       full_name: 'owner/new',
-      ai_summary: '旧仓库的 AI 摘要',
-      custom_category: '工具',
+      ai_summary: 'AI summary of old repo',
+      custom_category: 'Tools',
     });
     // New repository reusing old name is genuinely new; must not inherit old repository's AI data and category
     expect(merged[1]).toMatchObject({ id: 2, full_name: 'owner/old' });
@@ -953,7 +953,7 @@ describe('useSearchActions pure helpers', () => {
 
   it('does not depend on input order when resolving name fallbacks', () => {
     const storeRepos = [
-      baseRepo({ id: 1, full_name: 'owner/old', ai_summary: '旧仓库的 AI 摘要' }),
+      baseRepo({ id: 1, full_name: 'owner/old', ai_summary: 'AI summary of old repo' }),
     ];
     const renamed = baseRepo({ id: 1, full_name: 'owner/new' });
     const reuse = baseRepo({ id: 2, full_name: 'owner/old' });
@@ -967,9 +967,9 @@ describe('useSearchActions pure helpers', () => {
     const r = byId(reversed);
 
     expect(f.get(1)?.full_name).toBe('owner/new');
-    expect(f.get(1)?.ai_summary).toBe('旧仓库的 AI 摘要');
+    expect(f.get(1)?.ai_summary).toBe('AI summary of old repo');
     expect(r.get(1)?.full_name).toBe('owner/new');
-    expect(r.get(1)?.ai_summary).toBe('旧仓库的 AI 摘要');
+    expect(r.get(1)?.ai_summary).toBe('AI summary of old repo');
     // Under both paths, the repository reusing the old name must not receive the old repository's AI data
     expect(f.get(2)?.ai_summary).toBeUndefined();
     expect(r.get(2)?.ai_summary).toBeUndefined();

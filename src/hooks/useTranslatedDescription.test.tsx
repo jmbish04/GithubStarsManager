@@ -71,7 +71,8 @@ describe('useTranslatedDescription', () => {
 
   it('translates a description that differs from the interface language', async () => {
     setStore({ autoTranslateRepoDescription: true });
-    mocks.translateText.mockResolvedValue({ translatedText: '一个快速的构建工具', detectedLanguage: 'en' });
+    // '\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177' is Chinese for "A fast build tool"
+    mocks.translateText.mockResolvedValue({ translatedText: '\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177', detectedLanguage: 'en' });
 
     const { result } = renderHook(() => useTranslatedDescription('A fast build tool'));
     // Show original text before translation completes (undefined = fallback to original).
@@ -83,7 +84,7 @@ describe('useTranslatedDescription', () => {
       to: 'zh',
       textType: 'plain',
     });
-    expect(result.current).toBe('一个快速的构建工具');
+    expect(result.current).toBe('\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177');
   });
 
   it('keeps the original text when translation fails', async () => {
@@ -98,7 +99,8 @@ describe('useTranslatedDescription', () => {
 
   it('never calls the engine for descriptions already in the interface language', async () => {
     setStore({ autoTranslateRepoDescription: true });
-    const { result } = renderHook(() => useTranslatedDescription('一个基于 React 的状态管理库'));
+    // '\u4e00\u4e2a\u57fa\u4e8e React \u7684\u72b6\u6001\u7ba1\u7406\u5e93' is Chinese for "A React-based state management library"
+    const { result } = renderHook(() => useTranslatedDescription('\u4e00\u4e2a\u57fa\u4e8e React \u7684\u72b6\u6001\u7ba1\u7406\u5e93'));
     await flushTranslation();
     expect(mocks.translateText).not.toHaveBeenCalled();
     expect(result.current).toBeUndefined();
@@ -106,26 +108,26 @@ describe('useTranslatedDescription', () => {
 
   it('reuses the cached translation for repeated texts without new requests', async () => {
     setStore({ autoTranslateRepoDescription: true });
-    mocks.translateText.mockResolvedValue({ translatedText: '一个快速的构建工具', detectedLanguage: 'en' });
+    mocks.translateText.mockResolvedValue({ translatedText: '\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177', detectedLanguage: 'en' });
 
     const first = renderHook(() => useTranslatedDescription('A cached build tool'));
     await flushTranslation();
-    expect(first.result.current).toBe('一个快速的构建工具');
+    expect(first.result.current).toBe('\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177');
 
     const second = renderHook(() => useTranslatedDescription('A cached build tool'));
-    expect(second.result.current).toBe('一个快速的构建工具');
+    expect(second.result.current).toBe('\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177');
     expect(mocks.translateText).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to the original text immediately after the toggle is switched off', async () => {
     setStore({ autoTranslateRepoDescription: true });
-    mocks.translateText.mockResolvedValue({ translatedText: '一个快速的构建工具', detectedLanguage: 'en' });
+    mocks.translateText.mockResolvedValue({ translatedText: '\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177', detectedLanguage: 'en' });
 
     const { result, rerender } = renderHook(({ text }) => useTranslatedDescription(text), {
       initialProps: { text: 'A toggled build tool' },
     });
     await flushTranslation();
-    expect(result.current).toBe('一个快速的构建工具');
+    expect(result.current).toBe('\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177');
 
     setStore({ autoTranslateRepoDescription: false });
     rerender({ text: 'A toggled build tool' });
@@ -135,7 +137,8 @@ describe('useTranslatedDescription', () => {
   it('re-translates when the interface language changes', async () => {
     setStore({ autoTranslateRepoDescription: true, language: 'zh' });
     mocks.translateText.mockImplementation(async ({ to }: { to: string }) => ({
-      translatedText: to === 'zh' ? '一个快速的构建工具' : '高速ビルドツール',
+      // '\u9ad8\u901f\u30d3\u30eb\u30c9\u30c4\u30fc\u30eb' is Japanese for "Fast build tool"
+      translatedText: to === 'zh' ? '\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177' : '\u9ad8\u901f\u30d3\u30eb\u30c9\u30c4\u30fc\u30eb',
       detectedLanguage: 'en',
     }));
 
@@ -143,19 +146,20 @@ describe('useTranslatedDescription', () => {
       initialProps: { text: 'A localized build tool' },
     });
     await flushTranslation();
-    expect(result.current).toBe('一个快速的构建工具');
+    expect(result.current).toBe('\u4e00\u4e2a\u5feb\u901f\u7684\u6784\u5efa\u5de5\u5177');
 
     setStore({ autoTranslateRepoDescription: true, language: 'ja' });
     rerender({ text: 'A localized build tool' });
     await flushTranslation();
-    expect(result.current).toBe('高速ビルドツール');
+    expect(result.current).toBe('\u9ad8\u901f\u30d3\u30eb\u30c9\u30c4\u30fc\u30eb');
     expect(mocks.translateText).toHaveBeenCalledTimes(2);
   });
 
   it('does not flash the previous text\'s translation during the re-render commit', async () => {
     setStore({ autoTranslateRepoDescription: true });
+    // '\u8bd1\u6587' is Chinese for "Translation"
     mocks.translateText.mockImplementation(async ({ text }: { text: string }) => ({
-      translatedText: `译文:${text}`,
+      translatedText: `\u8bd1\u6587:${text}`,
       detectedLanguage: 'en',
     }));
 
@@ -168,14 +172,14 @@ describe('useTranslatedDescription', () => {
       return value;
     }, { initialProps: { text: 'First repository description' } });
     await flushTranslation();
-    expect(result.current).toBe('译文:First repository description');
+    expect(result.current).toBe('\u8bd1\u6587:First repository description');
 
     seen.length = 0;
     rerender({ text: 'Second repository description' });
     // Stale translations must not appear in any render frame after changing text
-    expect(seen).not.toContain('译文:First repository description');
+    expect(seen).not.toContain('\u8bd1\u6587:First repository description');
     await flushTranslation();
-    expect(result.current).toBe('译文:Second repository description');
+    expect(result.current).toBe('\u8bd1\u6587:Second repository description');
   });
 
   it('deduplicates concurrent mounts of the same text into a single request', async () => {
@@ -192,10 +196,11 @@ describe('useTranslatedDescription', () => {
 
     expect(mocks.translateText).toHaveBeenCalledTimes(1);
 
-    resolveTranslation({ translatedText: '去重后的译文', detectedLanguage: 'en' });
+    // '\u53bb\u91cd\u540e\u7684\u8bd1\u6587' is Chinese for "Deduplicated translation"
+    resolveTranslation({ translatedText: '\u53bb\u91cd\u540e\u7684\u8bd1\u6587', detectedLanguage: 'en' });
     await drain();
-    expect(first.result.current).toBe('去重后的译文');
-    expect(second.result.current).toBe('去重后的译文');
+    expect(first.result.current).toBe('\u53bb\u91cd\u540e\u7684\u8bd1\u6587');
+    expect(second.result.current).toBe('\u53bb\u91cd\u540e\u7684\u8bd1\u6587');
   });
 
   it('keeps translating new texts after a full queue wave (no concurrency-slot leak)', async () => {
@@ -203,7 +208,7 @@ describe('useTranslatedDescription', () => {
     const resolvers: Array<() => void> = [];
     mocks.translateText.mockImplementation((options: { text: string }) =>
       new Promise<{ translatedText: string; detectedLanguage: string }>((resolve) => {
-        resolvers.push(() => resolve({ translatedText: `译文:${options.text}`, detectedLanguage: 'en' }));
+        resolvers.push(() => resolve({ translatedText: `\u8bd1\u6587:${options.text}`, detectedLanguage: 'en' }));
       }));
 
     const total = MAX_CONCURRENT_TRANSLATIONS * 2;
@@ -221,7 +226,7 @@ describe('useTranslatedDescription', () => {
 
     expect(mocks.translateText).toHaveBeenCalledTimes(total);
     hooks.forEach((hook, i) => {
-      expect(hook.result.current).toBe(`译文:Batch description number ${i}`);
+      expect(hook.result.current).toBe(`\u8bd1\u6587:Batch description number ${i}`);
     });
 
     // Brand new source texts can still be translated after the entire wave completes (slot leak would cause permanent lockup here)
@@ -231,7 +236,7 @@ describe('useTranslatedDescription', () => {
     resolvers.splice(0).forEach((resolve) => resolve());
     await drain();
     await waitFor(() => {
-      expect(next.result.current).toBe('译文:Brand new description after the wave');
+      expect(next.result.current).toBe('\u8bd1\u6587:Brand new description after the wave');
     });
   });
 });

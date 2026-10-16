@@ -8,19 +8,23 @@ describe('isLikelySameLanguage', () => {
   });
 
   it('skips translation for Chinese text against Chinese targets', () => {
-    expect(isLikelySameLanguage('一个基于 React 的状态管理库', 'zh')).toBe(true);
-    expect(isLikelySameLanguage('輕量級的網頁框架，支援元件化開發', 'zh-TW')).toBe(true);
+    // Chinese (Simplified): "A state management library based on React"
+    expect(isLikelySameLanguage('\u4e00\u4e2a\u57fa\u4e8e React \u7684\u72b6\u6001\u7ba1\u7406\u5e93', 'zh')).toBe(true);
+    // Chinese (Traditional): "Lightweight web framework supporting component-based development"
+    expect(isLikelySameLanguage('\u8f15\u91cf\u7d1a\u7684\u7db2\u9801\u6846\u67b6\uff0c\u652f\u63f4\u5143\u4ef6\u5316\u958b\u767c', 'zh-TW')).toBe(true);
   });
 
   it('translates Chinese text against non-Chinese targets', () => {
-    expect(isLikelySameLanguage('一个基于 React 的状态管理库', 'en')).toBe(false);
-    expect(isLikelySameLanguage('一个基于 React 的状态管理库', 'ja')).toBe(false);
-    expect(isLikelySameLanguage('一个基于 React 的状态管理库', 'ko')).toBe(false);
+    // Chinese (Simplified): "A state management library based on React"
+    expect(isLikelySameLanguage('\u4e00\u4e2a\u57fa\u4e8e React \u7684\u72b6\u6001\u7ba1\u7406\u5e93', 'en')).toBe(false);
+    expect(isLikelySameLanguage('\u4e00\u4e2a\u57fa\u4e8e React \u7684\u72b6\u6001\u7ba1\u7406\u5e93', 'ja')).toBe(false);
+    expect(isLikelySameLanguage('\u4e00\u4e2a\u57fa\u4e8e React \u7684\u72b6\u6001\u7ba1\u7406\u5e93', 'ko')).toBe(false);
   });
 
   it('distinguishes Japanese (kana) from Chinese targets', () => {
-    expect(isLikelySameLanguage('高速なバンドルツールです', 'ja')).toBe(true);
-    expect(isLikelySameLanguage('高速なバンドルツールです', 'zh')).toBe(false);
+    // Japanese containing kanji (\u9ad8\u901f = "high-speed") and kana
+    expect(isLikelySameLanguage('\u9ad8\u901fなバンドルツールです', 'ja')).toBe(true);
+    expect(isLikelySameLanguage('\u9ad8\u901fなバンドルツールです', 'zh')).toBe(false);
   });
 
   it('detects Korean and Russian by their scripts', () => {
@@ -53,7 +57,8 @@ describe('isLikelySameLanguage', () => {
   });
 
   it('translates non-latin text against latin targets', () => {
-    expect(isLikelySameLanguage('一个基于 React 的状态管理库', 'fr')).toBe(false);
+    // Chinese (Simplified): "A state management library based on React"
+    expect(isLikelySameLanguage('\u4e00\u4e2a\u57fa\u4e8e React \u7684\u72b6\u6001\u7ba1\u7406\u5e93', 'fr')).toBe(false);
     expect(isLikelySameLanguage('🚀⚡️🎉', 'en')).toBe(false);
   });
 

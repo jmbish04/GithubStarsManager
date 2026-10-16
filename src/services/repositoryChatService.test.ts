@@ -349,7 +349,11 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
   });
 
   it('finds a Chinese term beyond the first 240 lines of a long headingless file', async () => {
-    const workflow = `${Array.from({ length: 260 }, () => 'name: unrelated').join('\n')}\n超时时间: 30 秒`;
+    // Chinese for "timeout"
+    const timeoutTerm = '\u8d85\u65f6\u65f6\u95f4';
+    // Chinese for "timeout: 30 seconds"
+    const timeoutLine = `${timeoutTerm}: 30 \u79d2`;
+    const workflow = `${Array.from({ length: 260 }, () => 'name: unrelated').join('\n')}\n${timeoutLine}`;
     configureTreeAndFiles({
       'README.md': README,
       '.github/workflows/build-release.yml': workflow,
@@ -357,22 +361,24 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
     mocks.generateChatText
       .mockResolvedValueOnce(understanding({
         information_scope: 'documentation',
-        explicit_requirements: ['超时时间'],
+        explicit_requirements: [timeoutTerm],
         initial_targets: ['.github/workflows/build-release.yml'],
-        target: '超时时间',
+        target: timeoutTerm,
       }))
-      .mockResolvedValueOnce(plan(target('.github/workflows/build-release.yml', [], '超时时间')))
+      .mockResolvedValueOnce(plan(target('.github/workflows/build-release.yml', [], timeoutTerm)))
       .mockImplementationOnce(async ({ user }: { user: string }) => {
-        expect(user).toContain('超时时间: 30 秒');
+        expect(user).toContain(timeoutLine);
         return gate({
           sufficient: true,
-          requirements: [requirement('超时时间', 'verified', ['/.github/workflows/build-release.yml - 1-261'])],
+          requirements: [requirement(timeoutTerm, 'verified', ['/.github/workflows/build-release.yml - 1-261'])],
           nextAction: 'answer',
         });
       })
-      .mockResolvedValueOnce(answer('配置中的超时时间是 30 秒。', '/.github/workflows/build-release.yml - 1-261', '超时时间'));
+      // Chinese for "The timeout in configuration is 30 seconds."
+      .mockResolvedValueOnce(answer(`\u914d\u7f6e\u4e2d\u7684${timeoutTerm}\u662f 30 \u79d2\u3002`, '/.github/workflows/build-release.yml - 1-261', timeoutTerm));
 
-    const result = await runRepositoryChatTurn(turnInput('构建配置里的超时时间是多少？'));
+    // Chinese for "What is the timeout in the build configuration?"
+    const result = await runRepositoryChatTurn(turnInput('\u6784\u5efa\u914d\u7f6e\u91cc\u7684\u8d85\u65f6\u65f6\u95f4\u662f\u591a\u5c11\uff1f'));
 
     expect(result.content).toContain('/.github/workflows/build-release.yml - 1-261');
   });
@@ -1106,7 +1112,8 @@ describe('runRepositoryChatTurn meta sources (releases / issues)', () => {
       }))
       .mockResolvedValueOnce(answer('The latest release v1.0.0 adds a dashboard and an API gateway with macOS and Windows builds.', releaseRef, 'Recent updates'));
 
-    const result = await runRepositoryChatTurn({ ...turnInput('这个仓库最近更新了什么？'), onToolEvent: (event) => events.push(event as RepositoryChatToolEvent) });
+    // Chinese for "What has recently updated in this repository?"
+    const result = await runRepositoryChatTurn({ ...turnInput('\u8fd9\u4e2a\u4ed3\u5e93\u6700\u8fd1\u66f4\u65b0\u4e86\u4ec0\u4e48\uff1f'), onToolEvent: (event) => events.push(event as RepositoryChatToolEvent) });
 
     // Round 1 reads documentation only; documentation stall + meta intent triggers the safety net, reading Releases in round 2.
     expect(readPaths()[0]).toBe('README.md');
@@ -1200,7 +1207,8 @@ describe('runRepositoryChatTurn meta sources (releases / issues)', () => {
       }))
       .mockResolvedValueOnce(answer('The repository has no published releases yet, so no release notes exist.', '/releases-empty.md - 1-2', 'Releases'));
 
-    const result = await runRepositoryChatTurn(turnInput('这个仓库最近更新了什么？'));
+    // Chinese for "What has recently updated in this repository?"
+    const result = await runRepositoryChatTurn(turnInput('\u8fd9\u4e2a\u4ed3\u5e93\u6700\u8fd1\u66f4\u65b0\u4e86\u4ec0\u4e48\uff1f'));
 
     expect(result.content).toContain('/releases-empty.md - 1-2');
   });
@@ -1216,7 +1224,8 @@ describe('runRepositoryChatTurn meta sources (releases / issues)', () => {
       .mockResolvedValueOnce(gate({ sufficient: true, requirements: [requirement('recent release notes', 'verified', [overviewRef])], nextAction: 'answer' }))
       .mockResolvedValueOnce(answer('The README overview documents the project scope.', overviewRef, 'Overview'));
 
-    const result = await runRepositoryChatTurn({ ...turnInput('这个仓库最近更新了什么？'), onToolEvent: (event) => events.push(event as RepositoryChatToolEvent) });
+    // Chinese for "What has recently updated in this repository?"
+    const result = await runRepositoryChatTurn({ ...turnInput('\u8fd9\u4e2a\u4ed3\u5e93\u6700\u8fd1\u66f4\u65b0\u4e86\u4ec0\u4e48\uff1f'), onToolEvent: (event) => events.push(event as RepositoryChatToolEvent) });
 
     // README priority is a strict rule: round 1 meta target is rejected, falling back to reading documentation.
     expect(mocks.getRepositoryReleases).not.toHaveBeenCalled();

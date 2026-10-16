@@ -303,7 +303,8 @@ const RepositoryChatSheet: React.FC<RepositoryChatSheetProps> = ({
     message.role === 'assistant'
     && message.content.length > 0
     && message.status !== 'streaming'
-    && !/未能生成可与精确来源核验的总结性结果|无法完成可验证的判断|did not produce a source-verifiable summary|a verifiable determination cannot be made/i.test(message.content)
+    // Chinese phrases for "did not produce a source-verifiable summary" and "a verifiable determination cannot be made"
+    && !/\u672a\u80fd\u751f\u6210\u53ef\u4e0e\u7cbe\u786e\u6765\u6e90\u6838\u9a8c\u7684\u603b\u7ed3\u6027\u7ed3\u679c|\u65e0\u6cd5\u5b8c\u6210\u53ef\u9a8c\u8bc1\u7684\u5224\u65ad|did not produce a source-verifiable summary|a verifiable determination cannot be made/i.test(message.content)
   );
   const depth = depthMeta(repositoryChatSettings.taskDepth, language);
 
@@ -571,7 +572,7 @@ const RepositoryChatSheet: React.FC<RepositoryChatSheetProps> = ({
               <DropdownMenuTrigger asChild>
                 <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" disabled={!activeSession || isSending} title={depth.description}>
                   <Gauge className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-                  {t('repositoryChatSheet.task-depth')}：{depth.label}
+                  {t('repositoryChatSheet.task-depth')}: {depth.label}
                   <ChevronDown className="ml-1 h-3 w-3" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>

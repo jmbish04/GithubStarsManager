@@ -218,14 +218,14 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
       if (e) {
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const actionLabels: Record<string, { zh: string; en: string }> = {
-          unstar: { zh: '取消 Star', en: 'Unstar' },
-          categorize: { zh: '批量分类', en: 'Categorize' },
-          'ai-summary': { zh: 'AI 总结', en: 'AI Summary' },
-          subscribe: { zh: '订阅版本发布', en: 'Subscribe Releases' },
-          unsubscribe: { zh: '取消订阅发布', en: 'Unsubscribe Releases' },
-          'lock-category': { zh: '批量锁定分类', en: 'Lock Categories' },
-          'unlock-category': { zh: '批量解锁分类', en: 'Unlock Categories' },
-          'restore': { zh: '批量还原', en: 'Bulk Restore' },
+          unstar: { zh: 'Unstar', en: 'Unstar' },
+          categorize: { zh: 'Categorize', en: 'Categorize' },
+          'ai-summary': { zh: 'AI Summary', en: 'AI Summary' },
+          subscribe: { zh: 'Subscribe Releases', en: 'Subscribe Releases' },
+          unsubscribe: { zh: 'Unsubscribe Releases', en: 'Unsubscribe Releases' },
+          'lock-category': { zh: 'Lock Categories', en: 'Lock Categories' },
+          'unlock-category': { zh: 'Unlock Categories', en: 'Unlock Categories' },
+          'restore': { zh: 'Bulk Restore', en: 'Bulk Restore' },
         };
         const label = actionLabels[action];
         const label_text = language === 'zh' ? label?.zh : label?.en;

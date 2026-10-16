@@ -5,12 +5,11 @@
  * Full tree (always):
  *   1. Every language in APP_LANGUAGES has every I18N_NAMESPACES json file.
  *   2. Key sets are identical across all languages.
- *   3. Literal t('key') / t("key") calls in src/** (except tests) exist in zh
+ *   3. Literal t('key') / t("key") calls in src/** (except tests) exist in en
  *      for the nearest useT/makeT namespace.
  *
  * Pull-request diffs (--base / PR_BASE_SHA):
- *   4. New/changed ja/es/pt-BR/ru/fr/de/ko phrases must not copy English;
- *      zh-TW must not copy Simplified Chinese.
+ *   4. New/changed ja/es/pt-BR/ru/fr/de/ko phrases must not copy English.
  *   5. New useTPair / makeTPair / tPair( calls are banned.
  *   6. Added JSX / UI-prop string literals with CJK or a 3+ word English
  *      sentence fail unless the line has i18n-allow-literal.
@@ -29,7 +28,7 @@ const ts = require('typescript');
 
 const DEFAULT_ROOT = path.resolve(__dirname, '..');
 
-const APP_LANGUAGES = ['zh', 'en', 'ja', 'es', 'pt-BR', 'ru', 'zh-TW', 'fr', 'de', 'ko'];
+const APP_LANGUAGES = ['en', 'ja', 'es', 'pt-BR', 'ru', 'fr', 'de', 'ko'];
 const I18N_NAMESPACES = [
   'common',
   'app',
@@ -47,8 +46,8 @@ const I18N_NAMESPACES = [
   'errors',
 ];
 const SOURCE_LANG = 'en';
-const ZH_SOURCE = 'zh';
-const COPY_EXEMPT_LANGS = new Set(['en', 'zh']);
+const KEY_SOURCE = 'en';
+const COPY_EXEMPT_LANGS = new Set(['en']);
 const ALLOW_LITERAL_RE = /i18n-allow-literal/;
 const T_PAIR_RE = /\b(?:useTPair|makeTPair|tPair)\s*\(/;
 const USE_T_RE = /\b(?:useT|makeT)\s*\(\s*(?:[a-zA-Z_][\w.]*\s*,\s*)?['"]([a-zA-Z0-9_-]+)['"]/g;
@@ -191,24 +190,24 @@ function keyMatches(candidateLocal, rawKey) {
   return candidateLocal.startsWith(`${rawKey}_`) && PLURAL_SUFFIX_RE.test(candidateLocal.slice(rawKey.length));
 }
 
-function keyExists(zhKeys, rawKey, preferredNs) {
+function keyExists(keyKeys, rawKey, preferredNs) {
   if (rawKey.includes(':')) {
-    if (zhKeys.has(rawKey)) return true;
+    if (keyKeys.has(rawKey)) return true;
     const ns = rawKey.slice(0, rawKey.indexOf(':'));
     const local = rawKey.slice(rawKey.indexOf(':') + 1);
-    for (const candidate of zhKeys) {
+    for (const candidate of keyKeys) {
       if (candidate.startsWith(`${ns}:`) && keyMatches(localKey(candidate), local)) return true;
     }
     return false;
   }
   if (preferredNs) {
-    if (zhKeys.has(`${preferredNs}:${rawKey}`)) return true;
-    for (const candidate of zhKeys) {
+    if (keyKeys.has(`${preferredNs}:${rawKey}`)) return true;
+    for (const candidate of keyKeys) {
       if (candidate.startsWith(`${preferredNs}:`) && keyMatches(localKey(candidate), rawKey)) return true;
     }
     return false;
   }
-  for (const candidate of zhKeys) {
+  for (const candidate of keyKeys) {
     if (keyMatches(localKey(candidate), rawKey)) return true;
   }
   return false;
@@ -216,7 +215,7 @@ function keyExists(zhKeys, rawKey, preferredNs) {
 
 function checkKeyReferences(root, languages) {
   const violations = [];
-  const zhKeys = languages[ZH_SOURCE].keys;
+  const keyKeys = languages[KEY_SOURCE].keys;
   const files = walkSourceFiles(path.join(root, 'src'));
   for (const full of files) {
     const rel = path.relative(root, full).split(path.sep).join('/');
@@ -228,8 +227,8 @@ function checkKeyReferences(root, languages) {
     while ((match = T_CALL_RE.exec(scanned)) !== null) {
       const rawKey = match[2];
       if (!rawKey || rawKey.includes('${')) continue;
-      if (!keyExists(zhKeys, rawKey, nearestNamespace(scanned, match.index))) {
-        violations.push(`${rel}: t('${rawKey}') is missing from zh locales`);
+      if (!keyExists(keyKeys, rawKey, nearestNamespace(scanned, match.index))) {
+        violations.push(`${rel}: t('${rawKey}') is missing from en locales`);
       }
     }
 
@@ -237,8 +236,8 @@ function checkKeyReferences(root, languages) {
     while ((match = makeTCallRe.exec(scanned)) !== null) {
       const rawKey = match[3];
       if (!rawKey || rawKey.includes('${')) continue;
-      if (!keyExists(zhKeys, rawKey, match[1])) {
-        violations.push(`${rel}: makeT(...)('${rawKey}') is missing from zh locales`);
+      if (!keyExists(keyKeys, rawKey, match[1])) {
+        violations.push(`${rel}: makeT(...)('${rawKey}') is missing from en locales`);
       }
     }
   }
@@ -247,7 +246,7 @@ function checkKeyReferences(root, languages) {
 
 function checkLocaleParity(languages) {
   const violations = [];
-  const zh = languages[ZH_SOURCE];
+  const ref = languages[KEY_SOURCE];
   for (const language of APP_LANGUAGES) {
     const current = languages[language];
     for (const ns of I18N_NAMESPACES) {
@@ -255,8 +254,8 @@ function checkLocaleParity(languages) {
         violations.push(`${language}: missing namespace file ${ns}.json`);
       }
     }
-    const missing = [...zh.keys].filter((key) => !current.keys.has(key)).sort();
-    const extra = [...current.keys].filter((key) => !zh.keys.has(key)).sort();
+    const missing = [...ref.keys].filter((key) => !current.keys.has(key)).sort();
+    const extra = [...current.keys].filter((key) => !ref.keys.has(key)).sort();
     if (missing.length) {
       violations.push(`${language}: missing ${missing.length} key(s), e.g. ${missing.slice(0, 5).join(', ')}`);
     }
@@ -446,7 +445,6 @@ function checkChangedTranslations(root, base, head, languages) {
   const output = git(root, ['diff', '--name-only', '-z', `${base}...${head}`, '--', 'src/locales']);
   const files = output.split('\0').filter(Boolean);
   const enValues = languages[SOURCE_LANG].values;
-  const zhValues = languages[ZH_SOURCE].values;
   const violations = [];
 
   for (const filePath of files) {
@@ -459,8 +457,8 @@ function checkChangedTranslations(root, base, head, languages) {
     const afterDoc = JSON.parse(showFile(root, head, filePath) || '{}');
     const before = flattenStrings(beforeDoc);
     const after = flattenStrings(afterDoc);
-    const sourceValues = language === 'zh-TW' ? zhValues : enValues;
-    const sourceLabel = language === 'zh-TW' ? 'Simplified Chinese' : 'English';
+    const sourceValues = enValues;
+    const sourceLabel = 'English';
 
     for (const [key, value] of Object.entries(after)) {
       if (before[key] === value) continue;

@@ -111,7 +111,7 @@ const storeState = {
   githubToken: null,
   activeAIConfig: null,
   setAnalyzingRepository: vi.fn(),
-  language: 'zh' as const,
+  language: 'en' as const,
   // Card visible fields (Dev Guide §14): all enabled by default, modify as needed per test case
   repositoryCardFields: { description: true, tags: true, language: true, stars: true, license: true, lastUpdated: true },
   repositoryCardActions: DEFAULT_REPOSITORY_CARD_ACTIONS.map((item) => ({ ...item })),
@@ -196,10 +196,10 @@ describe('RepositoryCard view modes', () => {
     renderRepositoryCard('grid', { onAskRepository: vi.fn() });
 
     const actionRow = screen.getByTestId('grid-action-row');
-    expect(actionRow.firstElementChild).toHaveAttribute('title', '在GitHub上查看');
-    expect(screen.queryByRole('button', { name: '问答此仓库' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '更多仓库操作' }));
-    expect(screen.getByRole('menuitem', { name: '问答此仓库' })).toBeInTheDocument();
+    expect(actionRow.firstElementChild).toHaveAttribute('title', 'View on GitHub');
+    expect(screen.queryByRole('button', { name: 'Ask this repository' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'More repository actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Ask this repository' })).toBeInTheDocument();
   });
 
   it('folds quick actions in preference order when the card is narrow', async () => {
@@ -222,11 +222,11 @@ describe('RepositoryCard view modes', () => {
     });
 
     expect(Array.from(actionRow.children).slice(0, 4).map((element) => element.getAttribute('title'))).toEqual([
-      '编辑仓库信息', '在GitHub上查看', 'AI分析此仓库', '问答此仓库',
+      'Edit repository info', 'View on GitHub', 'Analyze with AI', 'Ask this repository',
     ]);
-    await user.click(screen.getByRole('button', { name: '更多仓库操作' }));
+    await user.click(screen.getByRole('button', { name: 'More repository actions' }));
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent?.trim())).toEqual([
-      '查看 Release', '取消订阅 Release', '在 Zread 中查看', '取消 Star',
+      'View releases', 'Unsubscribe from releases', 'View on DeepWiki', 'Unstar',
     ]);
   });
 
@@ -234,21 +234,21 @@ describe('RepositoryCard view modes', () => {
     const user = userEvent.setup();
     renderRepositoryCard('list', { onAskRepository: vi.fn() });
 
-    const lastPushed = screen.getByText(/最近提交/);
+    const lastPushed = screen.getByText(/Last pushed/);
     expect(lastPushed).toBeInTheDocument();
     expect(lastPushed).not.toHaveClass('group-hover:opacity-0');
     expect(screen.getByTestId('list-action-row')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '编辑仓库信息' })).toBeInTheDocument();
-    expect(screen.getByTitle('AI分析此仓库')).toBeInTheDocument();
-    expect(screen.getByTitle('取消订阅发布')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit repository info' })).toBeInTheDocument();
+    expect(screen.getByTitle('Analyze with AI')).toBeInTheDocument();
+    expect(screen.getByTitle('Unsubscribe from releases')).toBeInTheDocument();
     expect(screen.getByText('test')).toBeInTheDocument();
     expect(screen.getByText('TypeScript')).toBeInTheDocument();
 
-    const moreActions = screen.getByRole('button', { name: '更多仓库操作' });
+    const moreActions = screen.getByRole('button', { name: 'More repository actions' });
     await user.click(moreActions);
-    expect(screen.getByRole('menuitem', { name: '查找同类仓库' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Find similar repositories' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('menuitem', { name: '查找同类仓库' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'Find similar repositories' })).not.toBeInTheDocument());
   });
 
   it('only exposes similar-repository search in the menu when vector search is available', async () => {
@@ -257,9 +257,9 @@ describe('RepositoryCard view modes', () => {
       actionMocks.actions.vectorSearchAvailable = false;
       renderRepositoryCard('list');
 
-      expect(screen.getByRole('button', { name: '更多仓库操作' })).toBeInTheDocument();
-      expect(screen.queryByRole('menuitem', { name: '查找同类仓库' })).not.toBeInTheDocument();
-      expect(screen.queryByText('查找同类')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'More repository actions' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Find similar repositories' })).not.toBeInTheDocument();
+      expect(screen.queryByText('Find similar')).not.toBeInTheDocument();
     } finally {
       actionMocks.actions.vectorSearchAvailable = originalVectorSearchAvailable;
     }
@@ -269,8 +269,8 @@ describe('RepositoryCard view modes', () => {
     const user = userEvent.setup();
     renderRepositoryCard('list');
 
-    await user.click(screen.getByRole('button', { name: '更多仓库操作' }));
-    await user.click(screen.getByRole('menuitem', { name: '查找同类仓库' }));
+    await user.click(screen.getByRole('button', { name: 'More repository actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Find similar repositories' }));
 
     expect(actionMocks.actions.findSimilar).toHaveBeenCalledOnce();
   });
@@ -278,29 +278,29 @@ describe('RepositoryCard view modes', () => {
   it('closes the list action menu from card whitespace, page whitespace, or Escape', async () => {
     const user = userEvent.setup();
     const { container } = renderRepositoryCard('list');
-    const moreActions = screen.getByRole('button', { name: '更多仓库操作' });
+    const moreActions = screen.getByRole('button', { name: 'More repository actions' });
     const card = container.firstElementChild as HTMLElement;
 
     await user.click(moreActions);
-    expect(screen.getByRole('menuitem', { name: '查找同类仓库' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Find similar repositories' })).toBeInTheDocument();
     await act(async () => {
       fireEvent.pointerDown(card);
       fireEvent.click(card);
     });
-    await waitFor(() => expect(screen.queryByRole('menuitem', { name: '查找同类仓库' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'Find similar repositories' })).not.toBeInTheDocument());
     expect(screen.queryByTestId('readme-modal')).not.toBeInTheDocument();
 
     await user.click(moreActions);
     await act(async () => {
       fireEvent.pointerDown(document.body);
     });
-    await waitFor(() => expect(screen.queryByRole('menuitem', { name: '查找同类仓库' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'Find similar repositories' })).not.toBeInTheDocument());
 
     await user.click(moreActions);
     await act(async () => {
       fireEvent.keyDown(document, { key: 'Escape' });
     });
-    await waitFor(() => expect(screen.queryByRole('menuitem', { name: '查找同类仓库' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'Find similar repositories' })).not.toBeInTheDocument());
   });
 
 
@@ -308,20 +308,20 @@ describe('RepositoryCard view modes', () => {
     const user = userEvent.setup();
     renderRepositoryCard('list');
 
-    const moreActions = screen.getByRole('button', { name: '更多仓库操作' });
+    const moreActions = screen.getByRole('button', { name: 'More repository actions' });
     moreActions.focus();
     await user.keyboard('{Enter}');
     expect(screen.queryByTestId('readme-modal')).not.toBeInTheDocument();
-    expect(await screen.findByRole('menuitem', { name: '查找同类仓库' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Find similar repositories' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
 
-    const unsubscribe = screen.getByRole('button', { name: '取消订阅发布' });
+    const unsubscribe = screen.getByRole('button', { name: 'Unsubscribe from releases' });
     unsubscribe.focus();
     await user.keyboard('{Enter}');
     expect(actionMocks.actions.toggleReleaseSubscription).toHaveBeenCalledOnce();
     expect(screen.queryByTestId('readme-modal')).not.toBeInTheDocument();
 
-    const editAction = screen.getByRole('button', { name: '编辑仓库信息' });
+    const editAction = screen.getByRole('button', { name: 'Edit repository info' });
     editAction.focus();
     await user.keyboard('{Enter}');
     expect(screen.getByTestId('repository-edit-modal')).toBeInTheDocument();
@@ -331,11 +331,11 @@ describe('RepositoryCard view modes', () => {
     const user = userEvent.setup();
     renderRepositoryCard('grid');
 
-    await user.click(screen.getByTitle('AI分析此仓库'));
-    expect(screen.queryByTitle('取消 Star')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '更多仓库操作' }));
-    expect(screen.getAllByRole('menuitem').at(-1)).toHaveTextContent('取消 Star');
-    await user.click(screen.getByRole('menuitem', { name: '取消 Star' }));
+    await user.click(screen.getByTitle('Analyze with AI'));
+    expect(screen.queryByTitle('Unstar')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'More repository actions' }));
+    expect(screen.getAllByRole('menuitem').at(-1)).toHaveTextContent('Unstar');
+    await user.click(screen.getByRole('menuitem', { name: 'Unstar' }));
 
     expect(actionMocks.actions.analyze).toHaveBeenCalledOnce();
     expect(actionMocks.actions.unstar).toHaveBeenCalledOnce();
@@ -345,7 +345,7 @@ describe('RepositoryCard view modes', () => {
     const user = userEvent.setup();
     renderRepositoryCard('grid');
 
-    await user.click(screen.getByRole('button', { name: '更多仓库操作' }));
+    await user.click(screen.getByRole('button', { name: 'More repository actions' }));
     expect(screen.getAllByRole('menuitem')).toHaveLength(1);
     expect(screen.queryByRole('separator')).not.toBeInTheDocument();
   });
@@ -355,14 +355,14 @@ describe('RepositoryCard view modes', () => {
     const { container } = renderRepositoryCard('grid');
     const card = container.firstElementChild as HTMLElement;
 
-    await user.click(screen.getByRole('button', { name: '更多仓库操作' }));
-    expect(screen.getByRole('menuitem', { name: '取消 Star' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'More repository actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Unstar' })).toBeInTheDocument();
     await act(async () => {
       fireEvent.pointerDown(card);
       fireEvent.click(card);
     });
 
-    await waitFor(() => expect(screen.queryByRole('menuitem', { name: '取消 Star' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'Unstar' })).not.toBeInTheDocument());
     expect(screen.queryByTestId('readme-modal')).not.toBeInTheDocument();
   });
 
@@ -375,7 +375,7 @@ describe('RepositoryCard view modes', () => {
       </DialogProvider>,
     );
 
-    expect(screen.getByTitle('已自定义，编辑仓库信息')).toBeInTheDocument();
+    expect(screen.getByTitle('Customized, edit repository info')).toBeInTheDocument();
   });
 
   it('emits a repository-chat intent from both grid and list controls without invoking a service', async () => {
@@ -383,12 +383,12 @@ describe('RepositoryCard view modes', () => {
     const onAskRepository = vi.fn();
     const { unmount } = renderRepositoryCard('grid', { onAskRepository });
 
-    await user.click(screen.getByRole('button', { name: '问答此仓库' }));
+    await user.click(screen.getByRole('button', { name: 'Ask this repository' }));
     expect(onAskRepository).toHaveBeenCalledWith(repository);
     unmount();
 
     renderRepositoryCard('list', { onAskRepository });
-    await user.click(screen.getByRole('button', { name: '问答此仓库' }));
+    await user.click(screen.getByRole('button', { name: 'Ask this repository' }));
     expect(onAskRepository).toHaveBeenCalledTimes(2);
   });
 
@@ -396,8 +396,8 @@ describe('RepositoryCard view modes', () => {
     const user = userEvent.setup();
     renderRepositoryCard('grid');
 
-    const releaseButton = screen.getByRole('button', { name: '查看 Release' });
-    const zreadLink = screen.getByTitle('在Zread中查看');
+    const releaseButton = screen.getByRole('button', { name: 'View releases' });
+    const zreadLink = screen.getByTitle('View on DeepWiki');
     expect(releaseButton.compareDocumentPosition(zreadLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     await user.click(releaseButton);
@@ -408,7 +408,7 @@ describe('RepositoryCard view modes', () => {
     const user = userEvent.setup();
     renderRepositoryCard('list');
 
-    await user.click(screen.getByRole('button', { name: '查看 Release' }));
+    await user.click(screen.getByRole('button', { name: 'View releases' }));
 
     expect(screen.getByTestId('repository-release-sheet')).toBeInTheDocument();
     expect(screen.queryByTestId('readme-modal')).not.toBeInTheDocument();
@@ -420,7 +420,7 @@ describe('RepositoryCard view modes', () => {
     const { container } = renderRepositoryCard('grid');
     const card = container.firstElementChild as HTMLElement;
 
-    await user.click(screen.getByRole('button', { name: '查看 Release' }));
+    await user.click(screen.getByRole('button', { name: 'View releases' }));
     expect(await screen.findByText('Loading releases…')).toBeInTheDocument();
 
     await act(async () => {
@@ -436,7 +436,7 @@ describe('RepositoryCard view modes', () => {
     const { container } = renderRepositoryCard('grid');
     const card = container.firstElementChild as HTMLElement;
 
-    await user.click(screen.getByTitle('编辑仓库信息'));
+    await user.click(screen.getByTitle('Edit repository info'));
     const editModal = screen.getByTestId('repository-edit-modal');
 
     await act(async () => {
@@ -450,16 +450,16 @@ describe('RepositoryCard view modes', () => {
   it('retains the other quick actions in grid mode', () => {
     renderRepositoryCard('grid', { onAskRepository: vi.fn() });
 
-    expect(screen.getByRole('button', { name: '更多仓库操作' })).toBeInTheDocument();
-    expect(screen.getByTitle('AI分析此仓库')).toBeInTheDocument();
-    expect(screen.getByTitle('问答此仓库')).toBeInTheDocument();
-    expect(screen.getByTitle('取消订阅发布')).toBeInTheDocument();
-    expect(screen.getByTitle('编辑仓库信息')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More repository actions' })).toBeInTheDocument();
+    expect(screen.getByTitle('Analyze with AI')).toBeInTheDocument();
+    expect(screen.getByTitle('Ask this repository')).toBeInTheDocument();
+    expect(screen.getByTitle('Unsubscribe from releases')).toBeInTheDocument();
+    expect(screen.getByTitle('Edit repository info')).toBeInTheDocument();
 
     const actionRow = screen.getByTestId('grid-action-row');
     expect(actionRow).toHaveClass('w-full', 'justify-start', 'overflow-hidden');
 
-    const footer = screen.getByText(/最近提交/).closest('.border-t');
+    const footer = screen.getByText(/Last pushed/).closest('.border-t');
     expect(footer?.parentElement).toHaveClass('mt-4');
   });
 
@@ -473,19 +473,19 @@ describe('RepositoryCard view modes', () => {
       window.dispatchEvent(new Event('resize'));
     });
 
-    expect(screen.queryByTitle('在Zread中查看')).not.toBeInTheDocument();
-    const moreActions = screen.getByRole('button', { name: '更多仓库操作' });
+    expect(screen.queryByTitle('View on DeepWiki')).not.toBeInTheDocument();
+    const moreActions = screen.getByRole('button', { name: 'More repository actions' });
     await user.click(moreActions);
 
-    expect(screen.getByRole('menuitem', { name: '在 Zread 中查看' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: '在 GitHub 中查看' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: '取消 Star' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'View on DeepWiki' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'View on GitHub' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Unstar' })).toBeInTheDocument();
 
     Object.defineProperty(actionRow, 'clientWidth', { configurable: true, value: 76 });
     await act(async () => {
       window.dispatchEvent(new Event('resize'));
     });
-    expect(screen.getByRole('menuitem', { name: '问答此仓库' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Ask this repository' })).toBeInTheDocument();
   });
 
   it('collapses trailing list actions into a more-actions menu when the row is narrow', async () => {
@@ -498,14 +498,14 @@ describe('RepositoryCard view modes', () => {
       window.dispatchEvent(new Event('resize'));
     });
 
-    expect(screen.queryByTitle('在Zread中查看')).not.toBeInTheDocument();
-    const moreActions = screen.getByRole('button', { name: '更多仓库操作' });
+    expect(screen.queryByTitle('View on DeepWiki')).not.toBeInTheDocument();
+    const moreActions = screen.getByRole('button', { name: 'More repository actions' });
     await user.click(moreActions);
 
-    expect(screen.getByRole('menuitem', { name: '在 Zread 中查看' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: '在 GitHub 中查看' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: '取消 Star' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: '查找同类仓库' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'View on DeepWiki' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'View on GitHub' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Unstar' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Find similar repositories' })).toBeInTheDocument();
   });
 
   it('keeps the persistent list more-actions menu visible when eight primary slots would otherwise fill the row', async () => {
@@ -517,8 +517,8 @@ describe('RepositoryCard view modes', () => {
       window.dispatchEvent(new Event('resize'));
     });
 
-    expect(screen.getByRole('button', { name: '更多仓库操作' })).toBeInTheDocument();
-    expect(screen.queryByTitle('取消 Star')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More repository actions' })).toBeInTheDocument();
+    expect(screen.queryByTitle('Unstar')).not.toBeInTheDocument();
   });
 
   it('keeps the plugin page dialog after the card menu closes', async () => {
@@ -529,14 +529,14 @@ describe('RepositoryCard view modes', () => {
         manifest: {
           manifestVersion: 1,
           id: 'com.githubstarsmanager.repo-info-card',
-          name: '仓库信息卡',
+          name: 'Repository Info Card',
           version: '0.1.0',
           apiVersion: '1',
           permissions: ['repositories:read'],
           contributes: {
             repositoryActions: [{
               id: 'generate-info-card',
-              title: '生成仓库信息卡',
+              title: 'Generate Repository Info Card',
               placement: 'repository-card',
               opensPage: 'info-card',
             }],
@@ -557,17 +557,17 @@ describe('RepositoryCard view modes', () => {
         </TooltipProvider>
       </DialogProvider>,
     );
-    await user.click(screen.getByRole('button', { name: '更多仓库操作' }));
-    await user.click(await screen.findByRole('menuitem', { name: '生成仓库信息卡' }));
+    await user.click(screen.getByRole('button', { name: 'More repository actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Generate Repository Info Card' }));
     await user.keyboard('{Escape}');
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
-    expect(await screen.findByRole('dialog', { name: '生成仓库信息卡' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Generate Repository Info Card' })).toBeInTheDocument();
 
     // The modal is mounted on the app root: it remains present after card unmounts.
     unmount();
     render(<PluginPageHost />);
-    expect(screen.getByRole('dialog', { name: '生成仓库信息卡' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Generate Repository Info Card' })).toBeInTheDocument();
   });
 });
 
@@ -580,7 +580,7 @@ describe('RepositoryCard interactive-element click exemption (issue #353)', () =
     });
 
     // fireEvent.click returning false indicates the event was cancelled by preventDefault
-    expect(fireEvent.click(screen.getByTitle('在GitHub上查看'))).toBe(true);
+    expect(fireEvent.click(screen.getByTitle('View on GitHub'))).toBe(true);
     expect(screen.queryByTestId('readme-modal')).not.toBeInTheDocument();
 
     act(() => {
@@ -607,14 +607,14 @@ describe('RepositoryCard interactive-element click exemption (issue #353)', () =
     const user = userEvent.setup();
     renderRepositoryCard('grid');
 
-    await user.click(screen.getByTitle('编辑仓库信息'));
+    await user.click(screen.getByTitle('Edit repository info'));
     const editModal = screen.getByTestId('repository-edit-modal');
 
     // After onOutsideDismiss records dismiss timestamp, link clicks within the 250ms window are not swallowed
     // (real modal is closed by Radix; mock lacks close mechanism, which does not affect window semantics)
     await act(async () => {
       fireEvent.pointerDown(editModal);
-      expect(fireEvent.click(screen.getByTitle('在GitHub上查看'))).toBe(true);
+      expect(fireEvent.click(screen.getByTitle('View on GitHub'))).toBe(true);
     });
   });
 });
@@ -648,7 +648,7 @@ describe('RepositoryCard touch-drag click suppression (CodeRabbit #355)', () => 
     fireEvent.touchEnd(handle, { touches: [] });
     fireEvent.mouseMove(document.body);
 
-    expect(fireEvent.click(screen.getByTitle('在GitHub上查看'))).toBe(true);
+    expect(fireEvent.click(screen.getByTitle('View on GitHub'))).toBe(true);
   });
 });
 
@@ -709,7 +709,7 @@ describe('RepositoryCard rapid touch drags (CodeRabbit round 2)', () => {
     try {
       renderRepositoryCard('grid');
       expect(screen.queryByText('Repository description')).not.toBeInTheDocument();
-      expect(screen.getByText('AI已分析')).toBeInTheDocument();
+      expect(screen.getByText('AI Analyzed')).toBeInTheDocument();
     } finally {
       delete repository.analyzed_at;
     }
@@ -720,7 +720,7 @@ describe('RepositoryCard rapid touch drags (CodeRabbit round 2)', () => {
 
     try {
       renderRepositoryCard('list');
-      expect(screen.getByText('已自定义')).toBeInTheDocument();
+      expect(screen.getByText('Customized')).toBeInTheDocument();
     } finally {
       delete repository.custom_description;
     }

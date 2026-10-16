@@ -51,7 +51,8 @@ const makeWeeklyRepo = (): DiscoveryRepo => ({
   platform: 'All',
   weeklyIssue: {
     number: 42,
-    title: '【开源自荐】bar',
+    // Chinese for "[Open Source Self-Recommendation] bar"
+    title: '\u3010\u5f00\u6e90\u81ea\u8350\u3011bar',
     html_url: 'https://github.com/ruanyf/weekly/issues/42',
     labels: ['weekly', 'issue-300'],
     createdAt: '2026-02-03T00:00:00Z',
@@ -63,7 +64,8 @@ describe('SubscriptionRepoCard weekly channel', () => {
     mockedUseAppStore.mockImplementation((selector: (s: unknown) => unknown) =>
       selector({ language: 'en', githubToken: 'token' }));
     mockedUseWeeklyIssueBody.mockReturnValue(() => ({
-      issueData: { body: '项目地址：**https://github.com/foo/bar**' },
+      // Chinese for "Project URL: "
+      issueData: { body: '\u9879\u76ee\u5730\u5740\uff1a**https://github.com/foo/bar**' },
       loading: false,
       error: null,
     }));
@@ -87,7 +89,7 @@ describe('SubscriptionRepoCard weekly channel', () => {
   it('opens the original-post modal with the cached issue body', () => {
     render(<TooltipProvider><SubscriptionRepoCard repo={makeWeeklyRepo()} /></TooltipProvider>);
     fireEvent.click(screen.getByTitle('View original post'));
-    expect(screen.getByText('【开源自荐】bar')).toBeInTheDocument();
+    expect(screen.getByText('\u3010\u5f00\u6e90\u81ea\u8350\u3011bar')).toBeInTheDocument();
     expect(screen.getByText('Open on GitHub')).toBeInTheDocument();
   });
 });

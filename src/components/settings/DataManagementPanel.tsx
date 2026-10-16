@@ -1125,9 +1125,9 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
     if (oldReleases.length > 0) {
       suggestions.push({
         key: 'oldReleases',
-        label: '过期的Release记录',
+        label: 'Outdated Release Records',
         labelEn: 'Outdated Release Records',
-        description: '超过90天未更新的Release记录',
+        description: 'Release records not updated in over 90 days',
         descriptionEn: 'Release records not updated in over 90 days',
         count: oldReleases.length,
         icon: <Tag className="w-4 h-4" />,
@@ -1140,9 +1140,9 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
     if (totalDiscoveryRepos > 100) {
       suggestions.push({
         key: 'discoveryCache',
-        label: '发现页缓存数据',
+        label: 'Discovery Page Cache',
         labelEn: 'Discovery Page Cache',
-        description: '发现页缓存的仓库数据，可安全清理',
+        description: 'Cached repository data from discovery page, safe to clean',
         descriptionEn: 'Cached repository data from discovery page, safe to clean',
         count: totalDiscoveryRepos,
         icon: <Sparkles className="w-4 h-4" />,
@@ -1155,9 +1155,9 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
     if (unanalyzedRepos > 10) {
       suggestions.push({
         key: 'unanalyzedRepos',
-        label: '未分析的仓库',
+        label: 'Unanalyzed Repositories',
         labelEn: 'Unanalyzed Repositories',
-        description: '尚未进行AI分析的仓库数量',
+        description: 'Repositories that have not been analyzed by AI',
         descriptionEn: 'Repositories that have not been analyzed by AI',
         count: unanalyzedRepos,
         icon: <Bot className="w-4 h-4" />,
@@ -1176,9 +1176,9 @@ export const DataManagementPanel: React.FC<DataManagementPanelProps> = ({ t }) =
     if (staleReadReleases > 0) {
       suggestions.push({
         key: 'readReleases',
-        label: '已读Release标记',
+        label: 'Read Release Marks',
         labelEn: 'Read Release Marks',
-        description: '已不存在的Release的已读标记，可安全清理',
+        description: 'Read markers for releases that no longer exist, safe to clean',
         descriptionEn: 'Read markers for releases that no longer exist, safe to clean',
         count: staleReadReleases,
         icon: <Eye className="w-4 h-4" />,

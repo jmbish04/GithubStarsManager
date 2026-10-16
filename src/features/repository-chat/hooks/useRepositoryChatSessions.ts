@@ -15,12 +15,13 @@ const createId = (): string => {
 
 /** Set of default session titles: historical sessions might be created in any language, so comparison uses a Set to determine default title status */
 export const DEFAULT_CHAT_TITLES = new Set([
-  '新对话', 'New conversation', '新しい会話', 'Nueva conversación', 'Nova conversa',
-  'Новый диалог', '新對話', 'Nouvelle conversation', 'Neue Unterhaltung', '새 대화',
+  // Chinese for "New conversation" (Simplified and Traditional), Japanese for "New conversation"
+  '\u65b0\u5bf9\u8bdd', 'New conversation', '\u65b0\u3057\u3044\u4f1a\u8a71', 'Nueva conversación', 'Nova conversa',
+  'Новый диалог', '\u65b0\u5c0d\u8a71', 'Nouvelle conversation', 'Neue Unterhaltung', '새 대화',
 ]);
 const DEFAULT_TITLE_BY_LANGUAGE: Record<AppLanguage, string> = {
-  zh: '新对话', en: 'New conversation', ja: '新しい会話', es: 'Nueva conversación', 'pt-BR': 'Nova conversa',
-  ru: 'Новый диалог', 'zh-TW': '新對話', fr: 'Nouvelle conversation', de: 'Neue Unterhaltung', ko: '새 대화',
+  zh: 'New conversation', en: 'New conversation', ja: '\u65b0\u3057\u3044\u4f1a\u8a71', es: 'Nueva conversación', 'pt-BR': 'Nova conversa',
+  ru: 'Новый диалог', 'zh-TW': 'New conversation', fr: 'Nouvelle conversation', de: 'Neue Unterhaltung', ko: '새 대화',
 };
 const defaultTitle = (language: AppLanguage) => DEFAULT_TITLE_BY_LANGUAGE[language] ?? 'New conversation';
 

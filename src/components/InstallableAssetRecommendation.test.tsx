@@ -82,7 +82,10 @@ describe('InstallableAssetRecommendation', () => {
     expect(onDownload).not.toHaveBeenCalled();
     expect(screen.getByText('App-1.2.0-x64-setup.exe')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /下载此版本/ }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Download this build' })).toBeEnabled(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Download this build' }));
 
     expect(onDownload).toHaveBeenCalledTimes(1);
     expect(onDownload).toHaveBeenCalledWith(
@@ -101,11 +104,11 @@ describe('InstallableAssetRecommendation', () => {
 
     expect(
       screen.getByText(
-        '按文件名与 Release 元数据识别，未验证安装包安全性，也不会自动运行。你始终可以在下方资产列表中手动选择其他资产。',
+        'Detected from filenames and release metadata. No safety check is performed and nothing runs automatically. You can always pick another asset in the list below.',
       ),
     ).toBeInTheDocument();
     // Must never contain conclusions like "passed security verification"
-    expect(screen.queryByText(/已通过安全|安全可靠|已验证安全/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/passed security verification|safe and reliable|verified safe/i)).not.toBeInTheDocument();
   });
 
   it('does not render the block when there are no matching assets', () => {
@@ -153,14 +156,17 @@ describe('InstallableAssetRecommendation', () => {
       />,
     );
 
-    expect(screen.getByText('其他可选资产（1）')).toBeInTheDocument();
+    expect(screen.getByText('Other candidates (1)')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '下载' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Download' }));
     expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ assetId: 2 }));
 
     // Exclusion explanation explicitly names non-installable asset types so users know they did not disappear
-    expect(screen.getByText(/调试符号/)).toBeInTheDocument();
-    expect(screen.getByText(/其他平台\/架构/)).toBeInTheDocument();
+    expect(screen.getByText(/debug symbols/)).toBeInTheDocument();
+    expect(screen.getByText(/other platforms or architectures/)).toBeInTheDocument();
   });
 
   it('lists candidates side by side without claiming "matches current device" when platform is unknown', () => {
@@ -172,11 +178,11 @@ describe('InstallableAssetRecommendation', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: '可安装候选' })).toBeInTheDocument();
-    expect(screen.getByText('未识别出平台')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Installable candidates' })).toBeInTheDocument();
+    expect(screen.getByText('Platform not detected')).toBeInTheDocument();
     // When platform is unknown, candidates come from all platforms, so cannot claim to match current device
-    expect(screen.queryByText('适配当前设备')).not.toBeInTheDocument();
-    expect(screen.getByText('其他可选资产（1）')).toBeInTheDocument();
+    expect(screen.queryByText('Matches this device')).not.toBeInTheDocument();
+    expect(screen.getByText('Other candidates (1)')).toBeInTheDocument();
   });
 
   it('does not enable download before architecture detection completes', async () => {
@@ -196,10 +202,10 @@ describe('InstallableAssetRecommendation', () => {
     );
 
     // Download cannot be enabled yet; otherwise an arm64 device might download an x64 package before detection finishes
-    const primary = screen.getByRole('button', { name: /下载此版本/ });
+    const primary = screen.getByRole('button', { name: 'Download this build' });
     expect(primary).toBeDisabled();
-    expect(screen.getByRole('button', { name: '下载' })).toBeDisabled();
-    expect(screen.getByText('正在识别架构…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled();
+    expect(screen.getByText('Detecting architecture…')).toBeInTheDocument();
 
     await user.click(primary);
     expect(onDownload).not.toHaveBeenCalled();
@@ -219,9 +225,9 @@ describe('InstallableAssetRecommendation', () => {
 
     // Detection is asynchronous: button becomes available only after settlement
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /下载此版本/ })).toBeEnabled(),
+      expect(screen.getByRole('button', { name: 'Download this build' })).toBeEnabled(),
     );
-    await user.click(screen.getByRole('button', { name: /下载此版本/ }));
+    await user.click(screen.getByRole('button', { name: 'Download this build' }));
     expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ assetId: 7 }));
   });
 
@@ -246,8 +252,8 @@ describe('InstallableAssetRecommendation', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /下载此版本/ })).toBeDisabled(),
+      expect(screen.getByRole('button', { name: 'Download this build' })).toBeDisabled(),
     );
-    expect(screen.getByRole('button', { name: '下载' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled();
   });
 });

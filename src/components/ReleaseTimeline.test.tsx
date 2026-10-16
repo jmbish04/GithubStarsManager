@@ -92,7 +92,7 @@ const baseStoreState = () => ({
   releaseSourceSettings: defaultReleaseSourceSettings,
   readReleases: new Set<number>(),
   githubToken: 'token',
-  language: 'zh' as const,
+  language: 'en' as const,
   assetFilters: [] as AssetFilter[],
   addReleases: vi.fn(),
   upsertReleases: vi.fn(),
@@ -175,11 +175,11 @@ describe('ReleaseTimeline unread snapshot', () => {
     markAllReleasesOnBackend.mockRejectedValueOnce(new Error('backend offline'));
 
     render(<ReleaseTimeline />);
-    await user.click(screen.getByRole('button', { name: '全部已读' }));
+    await user.click(screen.getByRole('button', { name: 'Mark All Read' }));
 
     await waitFor(() => {
       expect(storeState.readReleases).toEqual(new Set([999]));
-      expect(toastMock).toHaveBeenCalledWith('标记全部已读失败', 'error');
+      expect(toastMock).toHaveBeenCalledWith('Failed to mark all as read', 'error');
     });
   });
 
@@ -190,7 +190,7 @@ describe('ReleaseTimeline unread snapshot', () => {
     const itemTexts = await screen.findAllByText('owner/repo');
     expect(itemTexts.length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('button', { name: '显示下载资产' }));
+    await user.click(screen.getByRole('button', { name: 'Show Assets' }));
 
     await waitFor(() => {
       expect(storeState.markReleaseAsRead).toHaveBeenCalledWith(101);
@@ -275,7 +275,7 @@ describe('ReleaseTimeline asset filter matching', () => {
     activateFilter();
 
     render(<ReleaseTimeline />);
-    expect(await screen.findByText('当前过滤器没有匹配到任何资产，请尝试其他过滤条件')).toBeInTheDocument();
+    expect(await screen.findByText('No assets match the current filters. Try different filter criteria.')).toBeInTheDocument();
     expect(screen.queryByText('owner/gamma')).not.toBeInTheDocument();
   });
 
@@ -300,17 +300,17 @@ describe('ReleaseTimeline asset filter matching', () => {
     activateFilter();
 
     render(<ReleaseTimeline />);
-    const assetToggles = await screen.findAllByRole('button', { name: '显示下载资产' });
+    const assetToggles = await screen.findAllByRole('button', { name: 'Show Assets' });
     await user.click(assetToggles[0]);
 
     expect(await screen.findByText('app-portable.zip')).toBeInTheDocument();
     expect(screen.queryByText('app-setup.exe')).not.toBeInTheDocument();
 
     // Card provides an entry to expand all assets and allows collapsing afterwards
-    await user.click(screen.getByRole('button', { name: '显示全部 2 个' }));
+    await user.click(screen.getByRole('button', { name: 'Show all 2' }));
     expect(await screen.findByText('app-setup.exe')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '仅显示命中的 1 个' }));
+    await user.click(screen.getByRole('button', { name: 'Show only the matching 1' }));
     expect(screen.queryByText('app-setup.exe')).not.toBeInTheDocument();
   });
 
@@ -331,7 +331,7 @@ describe('ReleaseTimeline asset filter matching', () => {
     activateFilter({ id: 'f1', name: 'macOS', keywords: ['macos', 'arm64'] });
 
     render(<ReleaseTimeline />);
-    const assetToggles = await screen.findAllByRole('button', { name: '显示下载资产' });
+    const assetToggles = await screen.findAllByRole('button', { name: 'Show Assets' });
     await user.click(assetToggles[0]);
 
     // Only keep the item whose name contains macos or arm64
@@ -342,7 +342,7 @@ describe('ReleaseTimeline asset filter matching', () => {
     expect(screen.queryByText('Source code (v601.tar.gz)')).not.toBeInTheDocument();
     // 3 real assets + 2 source archives collapsed, count tracks visible items
     expect(screen.getByText('(1)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '显示全部 5 个' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show all 5' })).toBeInTheDocument();
   });
 
   it('shows every asset of an always-included repository even when keywords miss them', async () => {
@@ -355,12 +355,12 @@ describe('ReleaseTimeline asset filter matching', () => {
     activateFilter({ id: 'f1', name: 'Portable', keywords: ['portable'], includeRepos: ['owner/beta'] });
 
     render(<ReleaseTimeline />);
-    const assetToggles = await screen.findAllByRole('button', { name: '显示下载资产' });
+    const assetToggles = await screen.findAllByRole('button', { name: 'Show Assets' });
     await user.click(assetToggles[0]);
 
     expect(await screen.findByText('beta-1.0.zip')).toBeInTheDocument();
     expect(screen.getByText('beta-1.0.exe')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /显示全部/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument();
   });
 
   it('ignores the auto-generated source archives when matching include keywords', async () => {
@@ -417,7 +417,7 @@ describe('ReleaseTimeline per-filter repository exclusions', () => {
     );
 
     render(<ReleaseTimeline />);
-    await expectVisible('当前过滤器没有匹配到任何资产，请尝试其他过滤条件');
+    await expectVisible('No assets match the current filters. Try different filter criteria.');
     expect(screen.queryByText('owner/alpha')).not.toBeInTheDocument();
   });
 
@@ -525,7 +525,7 @@ describe('ReleaseTimeline per-filter repository exclusions', () => {
     );
 
     render(<ReleaseTimeline />);
-    await expectVisible('当前过滤器没有匹配到任何资产，请尝试其他过滤条件');
+    await expectVisible('No assets match the current filters. Try different filter criteria.');
     expect(screen.queryByText('owner/alpha')).not.toBeInTheDocument();
   });
 

@@ -139,7 +139,7 @@ export const useReleaseTimelineActions = () => {
     if (sourcesToRemove.length === 0) {
       confirmMessage = t('useReleaseTimelineActions.v1-is-not-in-any-release-source-confirming-will', { v1: releaseRepo.full_name });
     } else if (sourcesToRemove.length > 1) {
-      confirmMessage = t('useReleaseTimelineActions.v1-comes-from-multiple-release-sources-v2-confir', { v1: releaseRepo.full_name, v2: sourceLabels.join('、') });
+      confirmMessage = t('useReleaseTimelineActions.v1-comes-from-multiple-release-sources-v2-confir', { v1: releaseRepo.full_name, v2: sourceLabels.join(', ') });
     } else if (sourcesToRemove[0] === WATCH_CUSTOM_RELEASE_SOURCE_ID) {
       confirmMessage = t('useReleaseTimelineActions.unsubscribe-from-v1-this-will-also-remove-it-fro', { v1: releaseRepo.full_name });
     } else if (sourcesToRemove[0] === CUSTOM_RELEASE_SOURCE_ID) {

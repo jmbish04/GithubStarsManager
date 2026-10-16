@@ -28,7 +28,8 @@ test('AI page requests require bounded prompts and cannot carry credentials', ()
   });
   // Content generation pages embed full README text into the prompt: a prompt of exactly 160k characters
   // must pass (20-char prefix + 31_996 * 5) while remaining within the 1 MiB general byte budget.
-  const readmeSizedPrompt = 'README (full text):\n' + '仓库说明 '.repeat(31_996);
+  // Chinese for "repository description "
+  const readmeSizedPrompt = 'README (full text):\n' + '\u4ed3\u5e93\u8bf4\u660e '.repeat(31_996);
   assert.equal(readmeSizedPrompt.length, 160_000);
   assert.doesNotThrow(() => validatePageCapabilityRequest({
     pluginId: 'com.example.page', pageId: 'dashboard', method: 'ai.generate',

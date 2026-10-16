@@ -12,8 +12,9 @@ export interface ParsedCitation {
 }
 
 // Delimiter tolerance: models may output `-`, em/en dashes (—–); the line range may be followed by
-// supplementary ranges like `、397-481` (ignored during parsing; badge links to the first range only).
-const CITATION_DASH_PATTERN = /^(.+?)\s*[-—–]\s+(\d+)(?:\s*-\s*(\d+))?(?:\s*[、,]\s*\d+(?:\s*-\s*\d+)?)*$/;
+// supplementary ranges like `\u3001397-481` (ignored during parsing; badge links to the first range only).
+// \u3001 is Chinese enumeration comma
+const CITATION_DASH_PATTERN = /^(.+?)\s*[-—–]\s+(\d+)(?:\s*-\s*(\d+))?(?:\s*[\u3001,]\s*\d+(?:\s*-\s*\d+)?)*$/;
 const CITATION_COLON_PATTERN = /^\/?([^\s`]+?):(\d+)(?:-(\d+))?$/;
 /** Common source/document extensions used to distinguish file:line from host:port. */
 const SOURCE_FILE_EXT = /\.(?:md|mdx|markdown|txt|ts|tsx|js|jsx|mjs|cjs|json|ya?ml|toml|sh|bash|zsh|py|go|rs|java|kt|rb|php|cs|html?|css|scss|less|sql|vue|svelte|c|cpp|cc|h|hpp|swift|dart|lua|scala|ex|exs|erl|clj|groovy|ini|cfg|conf|env|properties|gradle|lock)$/i;

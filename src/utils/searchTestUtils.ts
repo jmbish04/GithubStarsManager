@@ -48,8 +48,10 @@ export const mockRepositories: Repository[] = [
       avatar_url: 'https://avatars.githubusercontent.com/u/69631?v=4'
     },
     topics: ['javascript', 'react', 'frontend', 'ui'],
-    ai_summary: '一个用于构建用户界面的声明式、高效且灵活的JavaScript库',
-    ai_tags: ['前端框架', 'UI库', 'JavaScript工具'],
+    // Chinese description for React
+    ai_summary: '\u4e00\u4e2a\u7528\u4e8e\u6784\u5efa\u7528\u6237\u754c\u9762\u7684\u58f0\u660e\u5f0f\u3001\u9ad8\u6548\u4e14\u7075\u6d3b\u7684JavaScript\u5e93',
+    // Chinese for "frontend framework", "UI library", "JavaScript tools"
+    ai_tags: ['\u524d\u7aef\u6846\u67b6', 'UI\u5e93', 'JavaScript\u5de5\u5177'],
     ai_platforms: ['web', 'cli']
   },
   {
@@ -70,8 +72,10 @@ export const mockRepositories: Repository[] = [
       avatar_url: 'https://avatars.githubusercontent.com/u/6128107?v=4'
     },
     topics: ['javascript', 'vue', 'frontend', 'framework'],
-    ai_summary: '渐进式、可逐步采用的JavaScript框架，用于构建Web UI',
-    ai_tags: ['前端框架', 'Web应用', 'JavaScript工具'],
+    // Chinese description for Vue
+    ai_summary: '\u6e10\u8fdb\u5f0f\u3001\u53ef\u9010\u6b65\u91c7\u7528\u7684JavaScript\u6846\u67b6\uff0c\u7528\u4e8e\u6784\u5efaWeb UI',
+    // Chinese for "frontend framework", "Web application", "JavaScript tools"
+    ai_tags: ['\u524d\u7aef\u6846\u67b6', 'Web\u5e94\u7528', 'JavaScript\u5de5\u5177'],
     ai_platforms: ['web']
   },
   {
@@ -92,8 +96,10 @@ export const mockRepositories: Repository[] = [
       avatar_url: 'https://avatars.githubusercontent.com/u/6154722?v=4'
     },
     topics: ['editor', 'typescript', 'electron'],
-    ai_summary: '功能强大的代码编辑器，支持多种编程语言和扩展',
-    ai_tags: ['代码编辑器', '开发工具', 'IDE'],
+    // Chinese description for VSCode
+    ai_summary: '\u529f\u80fd\u5f3a\u5927\u7684\u4ee3\u7801\u7f16\u8f91\u5668\uff0c\u652f\u6301\u591a\u79cd\u7f16\u7a0b\u8bed\u8a00\u548c\u6269\u5c55',
+    // Chinese for "code editor", "development tools", "IDE"
+    ai_tags: ['\u4ee3\u7801\u7f16\u8f91\u5668', '\u5f00\u53d1\u5de5\u5177', 'IDE'],
     ai_platforms: ['windows', 'mac', 'linux']
   },
   {
@@ -114,8 +120,10 @@ export const mockRepositories: Repository[] = [
       avatar_url: 'https://avatars.githubusercontent.com/u/65011256?v=4'
     },
     topics: ['obsidian', 'plugin', 'notes', 'markdown'],
-    ai_summary: 'Obsidian笔记应用的示例插件，展示如何开发笔记工具扩展',
-    ai_tags: ['笔记工具', '插件开发', '效率工具'],
+    // Chinese description for Obsidian plugin
+    ai_summary: 'Obsidian\u7b14\u8bb0\u5e94\u7528\u7684\u793a\u4f8b\u63d2\u4ef6\uff0c\u5c55\u793a\u5982\u4f55\u5f00\u53d1\u7b14\u8bb0\u5de5\u5177\u6269\u5c55',
+    // Chinese for "note tools", "plugin development", "productivity tools"
+    ai_tags: ['\u7b14\u8bb0\u5de5\u5177', '\u63d2\u4ef6\u5f00\u53d1', '\u6548\u7387\u5de5\u5177'],
     ai_platforms: ['windows', 'mac', 'linux']
   },
   {
@@ -136,8 +144,10 @@ export const mockRepositories: Repository[] = [
       avatar_url: 'https://avatars.githubusercontent.com/u/15658638?v=4'
     },
     topics: ['machine-learning', 'deep-learning', 'neural-networks', 'ai'],
-    ai_summary: '开源机器学习框架，支持深度学习和神经网络开发',
-    ai_tags: ['机器学习', 'AI框架', '深度学习'],
+    // Chinese description for TensorFlow
+    ai_summary: '\u5f00\u6e90\u673a\u5668\u5b66\u4e60\u6846\u67b6\uff0c\u652f\u6301\u6df1\u5ea6\u5b66\u4e60\u548c\u795e\u7ecf\u7f51\u7edc\u5f00\u53d1',
+    // Chinese for "machine learning", "AI framework", "deep learning"
+    ai_tags: ['\u673a\u5668\u5b66\u4e60', 'AI\u6846\u67b6', '\u6df1\u5ea6\u5b66\u4e60'],
     ai_platforms: ['linux', 'mac', 'windows', 'docker']
   }
 ];
@@ -200,9 +210,11 @@ export const searchTestCases: SearchTestCase[] = [
     type: 'basic',
     queries: [
       { query: 'javascript', expectedCount: 2, description: 'Should find JavaScript-related repositories' },
-      { query: '前端框架', expectedCount: 2, description: 'Should find frontend framework-related repositories' },
+      // Chinese for "frontend framework"
+      { query: '\u524d\u7aef\u6846\u67b6', expectedCount: 2, description: 'Should find frontend framework-related repositories' },
       { query: 'machine learning', expectedCount: 1, description: 'Should find machine learning-related repository' },
-      { query: '笔记', expectedCount: 1, description: 'Should find note-related repository' },
+      // Chinese for "notes"
+      { query: '\u7b14\u8bb0', expectedCount: 1, description: 'Should find note-related repository' },
       { query: 'editor', expectedCount: 1, description: 'Should find editor-related repository' }
     ]
   },
@@ -210,10 +222,13 @@ export const searchTestCases: SearchTestCase[] = [
     name: 'AI search test scenarios',
     type: 'ai',
     queries: [
-      { query: '查找所有前端框架', description: 'Should match React and Vue' },
+      // Chinese for "Find all frontend frameworks"
+      { query: '\u67e5\u627e\u6240\u6709\u524d\u7aef\u6846\u67b6', description: 'Should match React and Vue' },
       { query: 'find note-taking apps', description: 'Should match Obsidian plugin' },
-      { query: '代码编辑器', description: 'Should match VSCode' },
-      { query: 'AI工具', description: 'Should match TensorFlow' },
+      // Chinese for "code editor"
+      { query: '\u4ee3\u7801\u7f16\u8f91\u5668', description: 'Should match VSCode' },
+      // Chinese for "AI tools"
+      { query: 'AI\u5de5\u5177', description: 'Should match TensorFlow' },
       { query: 'web development tools', description: 'Should match frontend-related tools' }
     ]
   }
@@ -264,7 +279,8 @@ export function runSearchTests(): void {
 export function performanceTest(repositories: Repository[], iterations: number = 1000): void {
   console.log(`⚡ Starting performance test (${iterations} iterations)...\n`);
   
-  const testQueries = ['react', 'javascript', '前端', 'machine learning'];
+  // Includes Chinese for "frontend"
+  const testQueries = ['react', 'javascript', '\u524d\u7aef', 'machine learning'];
   
   testQueries.forEach(query => {
     // Real-time search performance test
@@ -297,9 +313,12 @@ export const imeTestCases = [
   {
     description: 'Chinese Pinyin input test',
     scenarios: [
-      { input: 'qian', expected: '前', description: 'Search should not trigger during Pinyin composition' },
-      { input: 'qianduan', expected: '前端', description: 'Complete Pinyin input' },
-      { input: 'biji', expected: '笔记', description: 'Note application search' }
+      // Chinese for "front"
+      { input: 'qian', expected: '\u524d', description: 'Search should not trigger during Pinyin composition' },
+      // Chinese for "frontend"
+      { input: 'qianduan', expected: '\u524d\u7aef', description: 'Complete Pinyin input' },
+      // Chinese for "notes"
+      { input: 'biji', expected: '\u7b14\u8bb0', description: 'Note application search' }
     ]
   }
 ];

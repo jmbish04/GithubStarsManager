@@ -80,14 +80,14 @@ const repositoryChatSettings = {
 };
 
 describe('repositoryChatErrorMessage', () => {
-  it('turns transient upstream failures into a safe, actionable Chinese retry message', () => {
+  it('turns transient upstream failures into a safe, actionable retry message', () => {
     const message = repositoryChatErrorMessage(
       new Error('AI API error: 500 - {"error":{"message":"upstream error: do_request_failed"}}'),
-      'zh'
+      'en'
     );
 
-    expect(message).toContain('AI 服务暂时不可用');
-    expect(message).toContain('请稍后重试');
+    expect(message).toContain('The AI service is temporarily unavailable');
+    expect(message).toContain('please retry shortly');
     expect(message).not.toContain('do_request_failed');
     expect(message).not.toContain('500');
   });

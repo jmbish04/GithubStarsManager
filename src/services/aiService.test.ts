@@ -124,11 +124,11 @@ describe('AIService.searchRepositoriesWithSelection — lexical fallback', () =>
       name: 'skill-pack',
       full_name: 'acme/skill-pack',
       description: 'A collection of prompts',
-      ai_tags: ['效率工具'],
-      custom_tags: ['技能'],
+      ai_tags: ['\u6548\u7387\u5de5\u5177'], // Chinese for "productivity tools"
+      custom_tags: ['\u6280\u80fd'], // Chinese for "skill"
     });
 
-    const results = await AIService.searchRepositories([repo], '技能');
+    const results = await AIService.searchRepositories([repo], '\u6280\u80fd');
     expect(results.map((r) => r.id)).toEqual([4]);
   });
 
@@ -138,12 +138,12 @@ describe('AIService.searchRepositoriesWithSelection — lexical fallback', () =>
       name: 'skill-pack',
       full_name: 'acme/skill-pack',
       description: 'A collection of prompts',
-      ai_tags: ['效率工具'],
-      custom_tags: ['技能'],
+      ai_tags: ['\u6548\u7387\u5de5\u5177'], // Chinese for "productivity tools"
+      custom_tags: ['\u6280\u80fd'], // Chinese for "skill"
     });
 
     const service = new AIService(makeConfig() as never, 'zh');
-    const results = service['performEnhancedBasicSearch']([repo], '技能', ['技能']);
+    const results = service['performEnhancedBasicSearch']([repo], '\u6280\u80fd', ['\u6280\u80fd']);
     expect(results.map((r) => r.id)).toEqual([6]);
   });
 
@@ -164,12 +164,12 @@ describe('AIService.searchRepositoriesWithSelection — lexical fallback', () =>
       id: 30,
       name: 'stars-manager',
       full_name: 'acme/stars-manager',
-      description: '管理 GitHub 星标仓库的工具',
+      description: '\u7ba1\u7406 GitHub \u661f\u6807\u4ed3\u5e93\u7684\u5de5\u5177', // Chinese for "tool for managing GitHub starred repositories"
     });
 
     const service = new AIService(makeConfig() as never, 'zh');
-    // "星标仓库" has no space boundaries to tokenize and the full string is absent in the description; bigrams "星标"/"仓库" match the description
-    const scored = service['scoreRepositoriesByKeywords']([repo], '星标仓库', []);
+    // Query "\u661f\u6807\u4ed3\u5e93" (starred repositories) has no space boundaries to tokenize and the full string is absent in the description; bigrams match the description
+    const scored = service['scoreRepositoriesByKeywords']([repo], '\u661f\u6807\u4ed3\u5e93', []);
     expect(scored).toHaveLength(1);
     expect(scored[0].score).toBeGreaterThan(0);
   });
@@ -190,7 +190,7 @@ describe('AIService.searchRepositoriesWithSelection — LLM selection', () => {
     const requests: Array<Record<string, unknown>> = [];
     fetchMock.mockImplementationOnce(async (_url, init) => {
       requests.push(await captureBody(init));
-      return chatResponse('{"intent":"找 markdown 编辑器","keywords":["markdown","editor"],"synonyms":[]}');
+      return chatResponse('{"intent":"\\u627e markdown \\u7f16\\u8f91\\u5668","keywords":["markdown","editor"],"synonyms":[]}');
     });
     fetchMock.mockImplementationOnce(async (_url, init) => {
       requests.push(await captureBody(init));
@@ -201,14 +201,14 @@ describe('AIService.searchRepositoriesWithSelection — LLM selection', () => {
     const repoB = makeRepo({ id: 880000002, name: 'random-tool', full_name: 'acme/random-tool', description: 'unrelated', stargazers_count: 5000 });
 
     const service = new AIService(makeConfig() as never, 'zh');
-    const results = await service.searchRepositoriesWithSelection([repoA, repoB], 'markdown 编辑器');
+    const results = await service.searchRepositoriesWithSelection([repoA, repoB], 'markdown \u7f16\u8f91\u5668');
 
     expect(results.map((r) => r.id)).toEqual([880000002, 880000001]);
     // Expansion request asks model to restate intent; selection request includes intent description and candidate summaries
     expect(String((requests[0].messages as Array<{ content: string }>)[1].content)).toContain('"intent"');
     const selectionPrompt = String((requests[1].messages as Array<{ content: string }>)[1].content);
-    expect(selectionPrompt).toContain('用户意图说明：找 markdown 编辑器');
-    expect(selectionPrompt).toContain('共 2 个');
+    expect(selectionPrompt).toContain('Query intent: \u627e markdown \u7f16\u8f91\u5668');
+    expect(selectionPrompt).toContain('2 total');
     expect(selectionPrompt).toContain('acme/quick-md');
     // Selection request for standard models keeps a compact token budget
     expect(requests[1].max_tokens).toBe(800);
@@ -236,7 +236,7 @@ describe('AIService.searchRepositoriesWithSelection — LLM selection', () => {
     const repoA = makeRepo({ id: 740000001, name: 'foo-tool', full_name: 'acme/foo-tool' });
 
     const service = new AIService(makeConfig() as never, 'zh');
-    const results = await service.searchRepositoriesWithSelection([repoA], '不存在的东西');
+    const results = await service.searchRepositoriesWithSelection([repoA], '\u4e0d\u5b58\u5728\u7684\u4e1c\u897f' /* Chinese for "non-existent item" */);
 
     expect(results).toEqual([]);
   });
@@ -261,7 +261,7 @@ describe('AIService.searchRepositoriesWithSelection — LLM selection', () => {
     const results = await service.searchRepositoriesWithSelection([target, ...pads], 'thing');
 
     const selectionPrompt = String((requests[1].messages as Array<{ content: string }>)[1].content);
-    expect(selectionPrompt).toContain('共 100 个');
+    expect(selectionPrompt).toContain('100 total');
     expect(results.map((r) => r.id)).toEqual([900001]);
   });
 
@@ -328,7 +328,7 @@ describe('AIService.searchRepositoriesWithSelection — LLM selection', () => {
     const repo = makeRepo({ id: 780000001, name: 'foo-tool', full_name: 'acme/foo-tool' });
 
     const service = new AIService(makeConfig() as never, 'zh');
-    const results = await service.searchRepositoriesWithSelection([repo], '完全无关的查询', { onFallback });
+    const results = await service.searchRepositoriesWithSelection([repo], '\u5b8c\u5168\u65e0\u5173\u7684\u67e5\u8be2' /* Chinese for "completely irrelevant query" */, { onFallback });
 
     expect(onFallback).toHaveBeenCalledWith('ai_empty');
     expect(results).toEqual([]);
@@ -514,6 +514,6 @@ describe('AIService.analyzeRepository language following', () => {
     const joined = lastMessages().map((message) => message.content).join('\n');
     expect(joined).not.toContain('A concise English overview');
     expect(joined).not.toContain('"summary": "English overview"');
-    expect(joined).toContain('Write ALL user-facing output in Japanese (日本語)');
+    expect(joined).toContain('Write ALL user-facing output in Japanese (\u65e5\u672c\u8a9e)');
   });
 });

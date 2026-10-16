@@ -77,7 +77,7 @@ function componentKeyFor(relPath) {
 }
 
 function relativeI18nPath(relPath, module) {
-  const depth = relPath.split('/').length - 2; // src/a/b.ts → 1；src/a/b/c.ts → 2
+  const depth = relPath.split('/').length - 2; // src/a/b.ts -> 1; src/a/b/c.ts -> 2
   return `${'../'.repeat(depth)}i18n/${module}`;
 }
 

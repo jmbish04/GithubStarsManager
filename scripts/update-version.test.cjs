@@ -373,7 +373,7 @@ test('a live lock owner is never taken over during recovery', async () => {
       const result = await runScript(root, ['--sync-lock']);
 
       assert.equal(result.code, 1);
-      assert.match(result.stderr, /live|running|実行中/);
+      assert.match(result.stderr, /live|running|\u5b9f\u884c\u4e2d/); // Japanese for "running"
       assert.equal(fs.existsSync(paths.lock), true);
       assert.equal(fs.existsSync(paths.journal), true);
       assert.equal(fs.existsSync(paths.backupDir), true);

@@ -16,21 +16,21 @@ export type LogEventType =
   | 'other';
 
 export const EVENT_TYPE_LABELS: Record<LogEventType, { zh: string; en: string }> = {
-  sync:          { zh: '同步仓库', en: 'Sync Repos' },
-  aiAnalysis:    { zh: 'AI 分析', en: 'AI Analysis' },
-  aiSearch:      { zh: 'AI 搜索', en: 'AI Search' },
+  sync:          { zh: 'Sync Repos', en: 'Sync Repos' },
+  aiAnalysis:    { zh: 'AI Analysis', en: 'AI Analysis' },
+  aiSearch:      { zh: 'AI Search', en: 'AI Search' },
   githubApi:     { zh: 'GitHub API', en: 'GitHub API' },
-  trending:      { zh: '刷新趋势', en: 'Refresh Trending' },
-  release:       { zh: '更新 Release', en: 'Update Releases' },
-  fork:          { zh: '刷新复刻', en: 'Refresh Forks' },
-  workflow:      { zh: '执行 Workflow', en: 'Run Workflow' },
-  backendSync:   { zh: '后端同步', en: 'Backend Sync' },
-  webdav:        { zh: 'WebDAV 备份', en: 'WebDAV Backup' },
-  update:        { zh: '应用更新', en: 'App Update' },
-  store:         { zh: '数据存储', en: 'Data Store' },
-  app:           { zh: '应用', en: 'App' },
-  error:         { zh: '错误', en: 'Error' },
-  other:         { zh: '其他', en: 'Other' },
+  trending:      { zh: 'Refresh Trending', en: 'Refresh Trending' },
+  release:       { zh: 'Update Releases', en: 'Update Releases' },
+  fork:          { zh: 'Refresh Forks', en: 'Refresh Forks' },
+  workflow:      { zh: 'Run Workflow', en: 'Run Workflow' },
+  backendSync:   { zh: 'Backend Sync', en: 'Backend Sync' },
+  webdav:        { zh: 'WebDAV Backup', en: 'WebDAV Backup' },
+  update:        { zh: 'App Update', en: 'App Update' },
+  store:         { zh: 'Data Store', en: 'Data Store' },
+  app:           { zh: 'App', en: 'App' },
+  error:         { zh: 'Error', en: 'Error' },
+  other:         { zh: 'Other', en: 'Other' },
 };
 
 export function inferEventType(module: string, message: string, data?: unknown): LogEventType {

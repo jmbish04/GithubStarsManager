@@ -20,7 +20,7 @@ describe('useTurnStatusAnnouncement', () => {
 
     // First turn completed: announce once
     rerender({ status: 'complete' });
-    expect(result.current).toBe('回答已完成。');
+    expect(result.current).toBe('Answer complete.');
 
     // Second turn streaming begins: clear old announcement first so identical text can be re-announced
     rerender({ status: 'streaming' });
@@ -28,7 +28,7 @@ describe('useTurnStatusAnnouncement', () => {
 
     // Second turn completed: announce again (even with identical text)
     rerender({ status: 'complete' });
-    expect(result.current).toBe('回答已完成。');
+    expect(result.current).toBe('Answer complete.');
   });
 
   it('announces failure and stop, and does not announce for non-streaming transitions', () => {

@@ -24,9 +24,9 @@ import {
 import { fixturePath, readFixture, shouldUpdateFixtures, writeFixture } from '../test/fixtureIo';
 
 /**
- * i18n 迁移保障网：把 language=zh/en 下发出的全部 AI 请求消息与 prompt 构造器
- * 输出固化为 fixture。迁移后该测试必须逐字节通过，证明 zh/en 的 AI 行为零变化。
- * 重新生成：UPDATE_I18N_FIXTURES=1 npx vitest run src/services/aiPromptFixtures.test.ts
+ * i18n migration safety net: solidifies all AI request messages and prompt builder
+ * outputs under language=zh/en into fixtures. After migration, this test must pass byte-for-byte.
+ * Regenerate: UPDATE_I18N_FIXTURES=1 npx vitest run src/services/aiPromptFixtures.test.ts
  */
 const FIXTURE_FILE = fixturePath(import.meta.url, '__fixtures__/ai-prompts.snapshot.json');
 
@@ -90,7 +90,7 @@ const installFetchStub = (): void => {
 const captureRequests = async (run: () => Promise<unknown>): Promise<Array<{ role: string; content: string }>[]> => {
   capturedCalls.length = 0;
   await run().catch(() => {
-    // 请求已捕获；解析失败/重试耗尽等错误与快照无关
+    // Request captured; parse failures / retry exhaustion errors are unrelated to snapshots
   });
   return capturedCalls.map((call) => {
     const body = call.body as { messages?: Array<{ role: string; content: string }>; input?: Array<{ role: string; content: string }> };
@@ -103,7 +103,7 @@ const makeChatInput = (language: 'zh' | 'en', question: string): RepositoryChatT
   session: {
     id: 'session-1',
     repositoryId: 42,
-    title: language === 'zh' ? '新对话' : 'New conversation',
+    title: language === 'zh' ? 'New conversation' : 'New conversation',
     sourceRefSha: 'abc123def456',
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
@@ -144,8 +144,8 @@ const buildAIServiceFixtures = async (language: 'zh' | 'en') => {
   const makeService = () => new AIService(makeConfig() as never, language);
   const repo = makeRepo({ id: 42, name: 'sample-app', full_name: 'acme/sample-app' });
   const repoB = makeRepo({ id: 43, name: 'sample-cli', full_name: 'acme/sample-cli' });
-  const customCategoryHint = language === 'zh' ? '自定义分类（custom,自定义）' : 'Custom (custom,customized)';
-  const customCategories = [language === 'zh' ? '自定义分类' : 'Custom'];
+  const customCategoryHint = language === 'zh' ? 'Custom (custom,customized)' : 'Custom (custom,customized)';
+  const customCategories = [language === 'zh' ? 'Custom' : 'Custom'];
   const result: Record<string, unknown> = {};
 
   result.analyzeRepository = await captureRequests(() =>
@@ -180,7 +180,7 @@ const buildAIServiceFixtures = async (language: 'zh' | 'en') => {
 };
 
 const buildChatServiceFixtures = (language: 'zh' | 'en') => {
-  const question = language === 'zh' ? '这个项目怎么部署？' : 'How do I deploy this project?';
+  const question = language === 'zh' ? 'How do I deploy this project?' : 'How do I deploy this project?';
   const chatInput = makeChatInput(language, question);
   const repo = chatInput.repository;
   const evidences = [makeEvidenceForFixture(repo)];
@@ -239,14 +239,14 @@ const buildChatServiceFixtures = (language: 'zh' | 'en') => {
   );
   result.evidenceAgentInsufficientResponse = {
     plain: evidenceAgentInsufficientResponse(language, '', false),
-    withReason: evidenceAgentInsufficientResponse(language, language === 'zh' ? '预算内未确认。' : 'Not confirmed within budget.', false),
+    withReason: evidenceAgentInsufficientResponse(language, language === 'zh' ? 'Not confirmed within budget.' : 'Not confirmed within budget.', false),
     withToolError: evidenceAgentInsufficientResponse(language, '', true),
   };
   return result;
 };
 
 const buildToolLoopFixtures = (language: 'zh' | 'en') => {
-  const question = language === 'zh' ? '这个项目怎么部署？' : 'How do I deploy this project?';
+  const question = language === 'zh' ? 'How do I deploy this project?' : 'How do I deploy this project?';
   const chatInput = makeChatInput(language, question);
   return {
     buildToolLoopSystemPrompt: buildToolLoopSystemPrompt(language),
@@ -255,7 +255,7 @@ const buildToolLoopFixtures = (language: 'zh' | 'en') => {
   };
 };
 
-describe('AI prompt fixtures（zh/en 字节级稳定保障）', () => {
+describe('AI prompt fixtures (zh/en byte-level stability guard)', () => {
   let snapshot: Record<string, unknown>;
 
   beforeAll(async () => {

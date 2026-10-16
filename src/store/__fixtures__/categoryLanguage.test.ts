@@ -41,9 +41,9 @@ const categoryIn = (language: 'zh' | 'en', id: string): Category => {
 
 const customDeploymentCategory: Category = {
   id: 'custom-deploy',
-  name: '部署',
+  name: '\u90e8\u7f72', // Chinese for "deploy"
   icon: '🚀',
-  keywords: ['deploy', '部署'],
+  keywords: ['deploy', '\u90e8\u7f72'], // Chinese for "deploy"
   isCustom: true,
 };
 
@@ -64,37 +64,37 @@ const buildSnapshot = () => {
       outputs: zhNames.map((name) => translateCategoryName(name)),
     },
     categoryNameVariants: {
-      devtools: getCategoryNameVariants('开发工具'),
-      web: getCategoryNameVariants('Web应用'),
+      devtools: getCategoryNameVariants('\u5f00\u53d1\u5de5\u5177'), // Chinese for "Development Tools"
+      web: getCategoryNameVariants('Web\u5e94\u7528'), // Chinese for "Web Apps"
       untouchedCustomName: getCategoryNameVariants('My Tools'),
-      withOverride: getCategoryNameVariants('开发工具', 'My Tools'),
+      withOverride: getCategoryNameVariants('\u5f00\u53d1\u5de5\u5177', 'My Tools'), // Chinese for "Development Tools"
     },
     matchesCategory: {
-      lockedZhName_vs_zhWeb: matchesCategory(makeRepo({ custom_category: 'Web应用', category_locked: true }), categoryIn('zh', 'web'), 'effective'),
-      lockedZhName_vs_enWeb: matchesCategory(makeRepo({ custom_category: 'Web应用', category_locked: true }), categoryIn('en', 'web'), 'effective'),
+      lockedZhName_vs_zhWeb: matchesCategory(makeRepo({ custom_category: 'Web\u5e94\u7528', category_locked: true }), categoryIn('zh', 'web'), 'effective'), // Chinese for "Web Apps"
+      lockedZhName_vs_enWeb: matchesCategory(makeRepo({ custom_category: 'Web\u5e94\u7528', category_locked: true }), categoryIn('en', 'web'), 'effective'), // Chinese for "Web Apps"
       lockedEnName_vs_enWeb: matchesCategory(makeRepo({ custom_category: 'Web Apps', category_locked: true }), categoryIn('en', 'web'), 'effective'),
       lockedEnName_vs_zhWeb: matchesCategory(makeRepo({ custom_category: 'Web Apps', category_locked: true }), categoryIn('zh', 'web'), 'effective'),
       lockedCustomExactName: matchesCategory(makeRepo({ custom_category: 'My Tools', category_locked: true }), { id: 'c1', name: 'My Tools', icon: 'x', keywords: [], isCustom: true }, 'effective'),
       emptyCustomCategory_vs_zhWeb: matchesCategory(makeRepo({ custom_category: '', category_locked: true }), categoryIn('zh', 'web'), 'effective'),
-      zhAiTags_vs_zhDevtools: matchesCategory(makeRepo({ ai_tags: ['开发工具', 'cli'] }), categoryIn('zh', 'devtools')),
+      zhAiTags_vs_zhDevtools: matchesCategory(makeRepo({ ai_tags: ['\u5f00\u53d1\u5de5\u5177', 'cli'] }), categoryIn('zh', 'devtools')), // Chinese for "Development Tools"
       enAiTags_vs_enDevtools: matchesCategory(makeRepo({ ai_tags: ['development tools'] }), categoryIn('en', 'devtools')),
       enAiTags_vs_zhDevtools: matchesCategory(makeRepo({ ai_tags: ['development tools'] }), categoryIn('zh', 'devtools')),
       effectiveCustomTagsBeatAiTags: matchesCategory(makeRepo({ custom_tags: ['database'], ai_tags: ['game'] }), categoryIn('zh', 'database'), 'effective'),
       repoTextFallback_vs_enDesktop: matchesCategory(makeRepo({ ai_tags: [], description: 'A desktop app built with electron' }), categoryIn('en', 'desktop')),
     },
     resolveCategoryAssignment: {
-      zhDefaultHit_returnsUndefined: resolveCategoryAssignment(makeRepo({ ai_tags: ['开发工具', 'cli'] }), ['开发工具', 'cli'], zhCategories),
+      zhDefaultHit_returnsUndefined: resolveCategoryAssignment(makeRepo({ ai_tags: ['\u5f00\u53d1\u5de5\u5177', 'cli'] }), ['\u5f00\u53d1\u5de5\u5177', 'cli'], zhCategories), // Chinese for "Development Tools"
       enDefaultHit_returnsUndefined: resolveCategoryAssignment(makeRepo({ ai_tags: ['development tools'] }), ['development tools'], enCategories),
       customHit_returnsName: resolveCategoryAssignment(makeRepo({ ai_tags: ['deploy'] }), ['deploy'], catsWithCustom),
-      lockedKept_whenValid: resolveCategoryAssignment(makeRepo({ ai_tags: ['game'], custom_category: '部署', category_locked: true }), ['game'], catsWithCustom),
+      lockedKept_whenValid: resolveCategoryAssignment(makeRepo({ ai_tags: ['game'], custom_category: '\u90e8\u7f72', category_locked: true }), ['game'], catsWithCustom), // Chinese for "deploy"
       emptyCleared_kept: resolveCategoryAssignment(makeRepo({ ai_tags: ['game'], custom_category: '' }), ['game'], zhCategories),
       noMatch_returnsUndefined: resolveCategoryAssignment(makeRepo({ ai_tags: ['zzzunmatched'] }), ['zzzunmatched'], zhCategories),
     },
     computeCustomCategory: {
-      empty: computeCustomCategory('', 'Web应用', 'Web应用'),
-      equalsAiCategory: computeCustomCategory('Web应用', 'Web应用', undefined),
-      equalsDefaultCategory: computeCustomCategory('Web应用', undefined, 'Web应用'),
-      otherwise: computeCustomCategory('My Tools', 'Web应用', 'Web应用'),
+      empty: computeCustomCategory('', 'Web\u5e94\u7528', 'Web\u5e94\u7528'), // Chinese for "Web Apps"
+      equalsAiCategory: computeCustomCategory('Web\u5e94\u7528', 'Web\u5e94\u7528', undefined), // Chinese for "Web Apps"
+      equalsDefaultCategory: computeCustomCategory('Web\u5e94\u7528', undefined, 'Web\u5e94\u7528'), // Chinese for "Web Apps"
+      otherwise: computeCustomCategory('My Tools', 'Web\u5e94\u7528', 'Web\u5e94\u7528'), // Chinese for "Web Apps"
     },
   };
 };

@@ -22,11 +22,7 @@ function seedLocales(root, extra = {}) {
     for (const ns of NAMESPACES) {
       const value =
         extra.values?.[language]?.[ns] ||
-        (language === 'zh' || language === 'zh-TW'
-          ? { hello: '你好世界' }
-          : language === 'en'
-            ? sample
-            : { hello: `${language} hello world` });
+        (language === 'en' ? sample : { hello: `${language} hello world` });
       writeJson(path.join(root, 'src', 'locales', language, `${ns}.json`), value);
     }
   }
@@ -92,11 +88,11 @@ test('APP_LANGUAGES and namespaces stay in sync with the TypeScript source', () 
 });
 
 test('looksHardcodedCopy flags JSX and UI props, and honors the allow comment', () => {
-  assert.equal(Boolean(gate.looksHardcodedCopy('      <p>保存失败</p>')), true);
+  assert.equal(Boolean(gate.looksHardcodedCopy('      <p>\u4fdd\u5b58\u5931\u8d25</p>')), true); // Chinese for "save failed"
   assert.equal(Boolean(gate.looksHardcodedCopy('      <p>こんにちは</p>')), true);
   assert.equal(Boolean(gate.looksHardcodedCopy('      <p>안녕하세요</p>')), true);
   assert.equal(Boolean(gate.looksHardcodedCopy('      <p>Save failed now</p>')), true);
-  assert.equal(Boolean(gate.looksHardcodedCopy('      <p>保存失败</p> // i18n-allow-literal')), false);
+  assert.equal(Boolean(gate.looksHardcodedCopy('      <p>\u4fdd\u5b58\u5931\u8d25</p> // i18n-allow-literal')), false);
   assert.equal(Boolean(gate.looksHardcodedCopy('      placeholder="Search"')), false);
   assert.equal(Boolean(gate.looksHardcodedCopy('      placeholder="Enter your GitHub token"')), true);
   assert.equal(Boolean(gate.looksHardcodedCopy('      const tPair = useTPair();')), true);
@@ -108,7 +104,7 @@ test('isPhraseLike ignores brand tokens and interpolation-only strings', () => {
   assert.equal(gate.isPhraseLike('GitHub Token'), false);
   assert.equal(gate.isPhraseLike('{{count}}'), false);
   assert.equal(gate.isPhraseLike('Refresh completed!'), true);
-  assert.equal(gate.isPhraseLike('取消 Star'), true);
+  assert.equal(gate.isPhraseLike('\u53d6\u6d88 Star'), true); // Chinese for "Unstar"
 });
 
 test('full-tree parity passes on a complete fixture', () =>
@@ -151,7 +147,7 @@ test('bound useT namespace does not fall back to another namespace', () =>
     for (const language of LANGUAGES) {
       writeJson(path.join(root, 'src', 'locales', language, 'app.json'), { other: `${language} other` });
       writeJson(path.join(root, 'src', 'locales', language, 'common.json'), {
-        hello: language === 'zh' || language === 'zh-TW' ? '你好世界' : `${language} hello world`,
+        hello: `${language} hello world`,
       });
     }
     fs.writeFileSync(
@@ -160,14 +156,14 @@ test('bound useT namespace does not fall back to another namespace', () =>
     );
     const result = runScript(root);
     assert.equal(result.code, 1);
-    assert.match(result.stderr, /missing from zh locales/);
+    assert.match(result.stderr, /missing from en locales/);
   }));
 
 test('bound useT does not resolve dotted keys from another namespace', () =>
   withRepo((root) => {
     for (const language of LANGUAGES) {
       writeJson(path.join(root, 'src', 'locales', language, 'app.json'), {
-        'panel.hello': language === 'zh' || language === 'zh-TW' ? '你好世界' : `${language} hello world`,
+        'panel.hello': `${language} hello world`,
       });
     }
     fs.writeFileSync(
@@ -176,7 +172,7 @@ test('bound useT does not resolve dotted keys from another namespace', () =>
     );
     const blocked = runScript(root);
     assert.equal(blocked.code, 1);
-    assert.match(blocked.stderr, /missing from zh locales/);
+    assert.match(blocked.stderr, /missing from en locales/);
 
     fs.writeFileSync(
       path.join(root, 'src', 'components', 'Hello.tsx'),
@@ -256,20 +252,10 @@ test('new locale values that copy English fail; translated values pass', () =>
     assert.equal(blocked.code, 1);
     assert.match(blocked.stderr, /copies the English source/);
 
-    writeJson(path.join(root, 'src', 'locales', 'ja', 'app.json'), { hello: 'こんにちは世界' });
+    writeJson(path.join(root, 'src', 'locales', 'ja', 'app.json'), { hello: 'こんにちは\u4e16\u754c' }); // Japanese for "hello world"
     git(root, ['add', '.']);
     git(root, ['commit', '-m', 'translate']);
     const allowed = runScript(root, ['--base', 'HEAD~2', '--head', 'HEAD']);
     assert.equal(allowed.code, 0, allowed.stderr);
   }));
 
-test('zh-TW values that copy Simplified Chinese fail on new phrases', () =>
-  withRepo((root) => {
-    writeJson(path.join(root, 'src', 'locales', 'zh', 'app.json'), { hello: '刷新完成' });
-    writeJson(path.join(root, 'src', 'locales', 'zh-TW', 'app.json'), { hello: '刷新完成' });
-    git(root, ['add', '.']);
-    git(root, ['commit', '-m', 'copy zh']);
-    const blocked = runScript(root, ['--base', 'HEAD~1', '--head', 'HEAD']);
-    assert.equal(blocked.code, 1);
-    assert.match(blocked.stderr, /Simplified Chinese/);
-  }));

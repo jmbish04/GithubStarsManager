@@ -47,7 +47,7 @@ vi.mock('../store/useAppStore', () => ({
       categoryListIdMap: {},
       lastSync: null,
       accountWorkspaces: mocks.store.accountWorkspaces,
-      language: 'zh',
+      language: 'en',
       setLanguage: vi.fn(),
       theme: 'light',
       setTheme: vi.fn(),
@@ -62,9 +62,9 @@ const enterBackendMode = async () => {
       <LoginScreen />
     </TooltipProvider>
   );
-  fireEvent.click(screen.getByRole('button', { name: /已有后端数据/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Already have backend data/ }));
   return {
-    urlInput: await screen.findByLabelText('后端 URL'),
+    urlInput: await screen.findByLabelText('Backend URL'),
     apiKeyInput: screen.getByLabelText('API Key'),
   };
 };
@@ -72,9 +72,9 @@ const enterBackendMode = async () => {
 describe('LoginScreen token guidance', () => {
   it('explains Star permissions before sign-in', () => {
     render(<TooltipProvider><LoginScreen /></TooltipProvider>);
-    expect(screen.getByText('GitHub Token 权限')).toBeVisible();
+    expect(screen.getByText('GitHub token permissions')).toBeVisible();
     expect(screen.getByText('Starring')).toBeVisible();
-    fireEvent.click(screen.getByRole('tab', { name: '经典 Token' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Classic' }));
     expect(screen.getByText('public_repo')).toBeVisible();
   });
 });
@@ -104,9 +104,9 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'http://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect and restore data' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('后端地址无效');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid backend URL');
     expect(mocks.restoreBackendSession).not.toHaveBeenCalled();
   });
 
@@ -116,9 +116,9 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect and restore data' }));
 
-    expect(await screen.findByText('后端保存的 GitHub Token 无法使用，请重新配置')).toBeInTheDocument();
+    expect(await screen.findByText('The GitHub token stored on the backend is not working. Please set it up again')).toBeInTheDocument();
     expect(screen.getByLabelText('GitHub Personal Access Token')).toHaveAttribute('id', 'backend-github-token');
   });
 
@@ -132,7 +132,7 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect and restore data' }));
 
     await waitFor(() => expect(mocks.store.setUser).toHaveBeenCalledWith({ id: 1, login: 'octocat' }));
     expect(mocks.syncBackendData).toHaveBeenCalledOnce();
@@ -153,7 +153,7 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect and restore data' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('sync failed');
     expect(mocks.store.setUser).not.toHaveBeenCalled();
@@ -169,11 +169,11 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect and restore data' }));
 
     const tokenInput = await screen.findByLabelText('GitHub Personal Access Token');
     fireEvent.change(tokenInput, { target: { value: 'ghp_new' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存并继续' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('sync failed');
     expect(mocks.store.setUser).not.toHaveBeenCalled();
@@ -196,11 +196,11 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect and restore data' }));
 
-    expect(await screen.findByText('本地数据冲突')).toBeInTheDocument();
+    expect(await screen.findByText('Local Data Conflict')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '使用后端数据' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use backend data' }));
 
     await waitFor(() => expect(mocks.store.setUser).toHaveBeenCalledWith({ id: 1, login: 'octocat' }));
     expect(mocks.syncBackendData).toHaveBeenCalledOnce();

@@ -34,7 +34,7 @@ export const useWeeklyIssueBody = (issueNumber: number, enabled: boolean) => {
           setIssueData(result);
           if (!result?.body) {
             setError(language === 'zh'
-              ? (githubToken ? '暂无正文内容' : 'GitHub Token 未找到，请重新登录。')
+              ? (githubToken ? 'No content available' : 'GitHub token not found. Please login again.')
               : (githubToken ? 'No content available' : 'GitHub token not found. Please login again.'));
           }
         }

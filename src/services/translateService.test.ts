@@ -68,12 +68,13 @@ describe('translateService', () => {
 
   it('microsoft engine: requests the new auth-free endpoint and maps the response', async () => {
     const fetchMock = installFetch({
-      msBody: [{ translations: [{ text: '你好，世界' }] }],
+      // Chinese for "Hello, world"
+      msBody: [{ translations: [{ text: '\u4f60\u597d\uff0c\u4e16\u754c' }] }],
     });
 
     const result = await translateText({ text: 'Hello world', to: 'zh', from: 'en' });
 
-    expect(result.translatedText).toBe('你好，世界');
+    expect(result.translatedText).toBe('\u4f60\u597d\uff0c\u4e16\u754c');
     const [calledUrl, callInit] = fetchMock.mock.calls[0];
     const init = callInit as RequestInit;
     expect(String(calledUrl)).toContain('https://edge.microsoft.com/translate/translatetext');
@@ -87,7 +88,8 @@ describe('translateService', () => {
   });
 
   it('microsoft engine: leaves from empty for auto-detection', async () => {
-    const fetchMock = installFetch({ msBody: [{ translations: [{ text: '你好' }] }] });
+    // Chinese for "Hello"
+    const fetchMock = installFetch({ msBody: [{ translations: [{ text: '\u4f60\u597d' }] }] });
 
     await translateText({ text: 'Hello', to: 'zh' });
 
@@ -99,9 +101,10 @@ describe('translateService', () => {
   it('google engine: posts to dict-chrome-ex and normalizes both response shapes', async () => {
     mockStoreState.translationEngine = 'google';
 
-    const pairs = installFetch({ rawBody: [['你好世界', 'en']] });
+    // Chinese for "Hello world"
+    const pairs = installFetch({ rawBody: [['\u4f60\u597d\u4e16\u754c', 'en']] });
     const r1 = await translateText({ text: 'Hello world', to: 'zh' });
-    expect(r1.translatedText).toBe('你好世界');
+    expect(r1.translatedText).toBe('\u4f60\u597d\u4e16\u754c');
     expect(String(pairs.mock.calls[0][0])).toContain('client=dict-chrome-ex');
     expect(String(pairs.mock.calls[0][0])).toContain('sl=auto&tl=zh-CN');
     // Body is q=… form
@@ -109,9 +112,9 @@ describe('translateService', () => {
     expect(String(googleInit.body)).toBe('q=Hello+world');
 
     // When sl is explicitly specified, API returns a flat string array; must normalize as well
-    const flat = installFetch({ rawBody: ['你好世界'] });
+    const flat = installFetch({ rawBody: ['\u4f60\u597d\u4e16\u754c'] });
     const r2 = await translateText({ text: 'Hello world', to: 'zh', from: 'en' });
-    expect(r2.translatedText).toBe('你好世界');
+    expect(r2.translatedText).toBe('\u4f60\u597d\u4e16\u754c');
     expect(String(flat.mock.calls[0][0])).toContain('sl=en');
   });
 
@@ -136,7 +139,8 @@ describe('translateService', () => {
 
   it('html textType: protects inline <code> with placeholders and restores them', async () => {
     const fetchMock = installFetch({
-      msBody: [{ translations: [{ text: '运行 {0} 以安装依赖' }] }],
+      // Chinese for "Run {0} to install dependencies"
+      msBody: [{ translations: [{ text: '\u8fd0\u884c {0} \u4ee5\u5b89\u88c5\u4f9d\u8d56' }] }],
     });
 
     const result = await translateText({
@@ -150,11 +154,12 @@ describe('translateService', () => {
     const protectInit = fetchMock.mock.calls[0][1] as RequestInit;
     expect(JSON.parse(String(protectInit.body))).toEqual(['Run {0} to install dependencies']);
     // Placeholders restored back to <code> in translated text
-    expect(result.translatedText).toBe('运行 <code>npm install</code> 以安装依赖');
+    expect(result.translatedText).toBe('\u8fd0\u884c <code>npm install</code> \u4ee5\u5b89\u88c5\u4f9d\u8d56');
   });
 
   it('html textType: falls back to the original text when a placeholder is lost', async () => {
-    installFetch({ msBody: [{ translations: [{ text: '运行 以安装依赖' }] }] });
+    // Chinese for "Run to install dependencies"
+    installFetch({ msBody: [{ translations: [{ text: '\u8fd0\u884c \u4ee5\u5b89\u88c5\u4f9d\u8d56' }] }] });
 
     const original = 'Run <code>npm install</code> to install dependencies';
     const result = await translateText({ text: original, to: 'zh', from: 'en', textType: 'html' });
@@ -163,7 +168,8 @@ describe('translateService', () => {
   });
 
   it('html textType: inserts code containing $ sequences verbatim on restore', async () => {
-    installFetch({ msBody: [{ translations: [{ text: '运行 {0} 处理文本' }] }] });
+    // Chinese for "Run {0} to process text"
+    installFetch({ msBody: [{ translations: [{ text: '\u8fd0\u884c {0} \u5904\u7406\u6587\u672c' }] }] });
 
     const result = await translateText({
       text: "Run <code>sed 's/a/$&/' file</code> to process text",
@@ -173,7 +179,7 @@ describe('translateService', () => {
     });
 
     // $& must not be interpreted as "whole match", must restore verbatim
-    expect(result.translatedText).toBe("运行 <code>sed 's/a/$&/' file</code> 处理文本");
+    expect(result.translatedText).toBe("\u8fd0\u884c <code>sed 's/a/$&/' file</code> \u5904\u7406\u6587\u672c");
   });
 
   it('timeout during a delayed body read is classified as a transient error and retried, then surfaced as timeout', async () => {

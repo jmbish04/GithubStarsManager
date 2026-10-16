@@ -88,11 +88,11 @@ const bootstrap = async (): Promise<void> => {
   const strings = (() => {
     const lang = navigator.language?.startsWith('zh') ? 'zh' : 'en';
     return {
-      title: lang === 'zh' ? '应用加载失败' : 'Application Failed to Load',
+      title: lang === 'zh' ? 'Application Failed to Load' : 'Application Failed to Load',
       desc: lang === 'zh'
-        ? '您的浏览器可能不支持运行此应用。请尝试使用最新版本的 Chrome、Firefox、Safari 或 Edge。'
+        ? 'Your browser may not support running this app. Please try using the latest version of Chrome, Firefox, Safari, or Edge.'
         : 'Your browser may not support running this app. Please try using the latest version of Chrome, Firefox, Safari, or Edge.',
-      button: lang === 'zh' ? '重新加载' : 'Reload',
+      button: lang === 'zh' ? 'Reload' : 'Reload',
     };
   })();
   const fallback = document.getElementById('root') || (() => {

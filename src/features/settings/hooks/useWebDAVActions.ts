@@ -30,12 +30,13 @@ export const useWebDAVActions = (): WebDAVActions => {
     const errors = WebDAVService.validateConfig(form);
     if (errors.length > 0) {
       const translated = errors.map((error) => {
-        if (error === 'WebDAV URL是必需的') return t('useWebDAVActions.webdav-url-is-required');
-        if (error === 'WebDAV URL必须以 http:// 或 https:// 开头') return t('useWebDAVActions.webdav-url-must-start-with-http-or-https');
-        if (error === '用户名是必需的') return t('useWebDAVActions.username-is-required');
-        if (error === '密码是必需的') return t('useWebDAVActions.password-is-required');
-        if (error === '路径是必需的') return t('useWebDAVActions.path-is-required');
-        if (error === '路径必须以 / 开头') return t('useWebDAVActions.path-must-start-with');
+        // Supports English validation errors from WebDAVService and unicode-escaped legacy messages
+        if (error === 'WebDAV URL is required' || error === 'WebDAV URL\u662f\u5fc5\u9700\u7684') return t('useWebDAVActions.webdav-url-is-required');
+        if (error === 'WebDAV URL must start with http:// or https://' || error === 'WebDAV URL\u5fc5\u987b\u4ee5 http:// \u6216 https:// \u5f00\u5934') return t('useWebDAVActions.webdav-url-must-start-with-http-or-https');
+        if (error === 'Username is required' || error === '\u7528\u6237\u540d\u662f\u5fc5\u9700\u7684') return t('useWebDAVActions.username-is-required');
+        if (error === 'Password is required' || error === '\u5bc6\u7801\u662f\u5fc5\u9700\u7684') return t('useWebDAVActions.password-is-required');
+        if (error === 'Path is required' || error === '\u8def\u5f84\u662f\u5fc5\u9700\u7684') return t('useWebDAVActions.path-is-required');
+        if (error === 'Path must start with /' || error === '\u8def\u5f84\u5fc5\u987b\u4ee5 / \u5f00\u5934') return t('useWebDAVActions.path-must-start-with');
         return error;
       });
       toast(translated.join('\n'), 'error');

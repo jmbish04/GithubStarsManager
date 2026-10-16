@@ -33,7 +33,8 @@ describe('parseCitationToken', () => {
       .toEqual({ path: 'docs/adr/0001-frontend-layering.md', lineStart: 49, lineEnd: 76 });
     expect(parseCitationToken('//docs/adr/0001-frontend-layering.md - 49-76'))
       .toEqual({ path: 'docs/adr/0001-frontend-layering.md', lineStart: 49, lineEnd: 76 });
-    expect(parseCitationToken('/src/components/RepositoryList.tsx — 1-69、397-481'))
+    // Chinese enumeration comma (\u3001) tolerance
+    expect(parseCitationToken('/src/components/RepositoryList.tsx — 1-69\u3001397-481'))
       .toEqual({ path: 'src/components/RepositoryList.tsx', lineStart: 1, lineEnd: 69 });
     expect(parseCitationToken('/src/a.ts – 5')).toEqual({ path: 'src/a.ts', lineStart: 5, lineEnd: 5 });
   });

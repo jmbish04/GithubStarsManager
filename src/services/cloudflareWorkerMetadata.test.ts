@@ -34,22 +34,25 @@ describe('Cloudflare Worker Vectorize metadata compaction', () => {
   });
 
   it('truncates a long UTF-8 description while retaining small tags', () => {
+    // Chinese for "Chinese description" (multi-byte UTF-8 truncation test)
+    const chineseDesc = '\u4e2d\u6587\u63cf\u8ff0';
     const metadata = compact({
       ...baseMetadata,
-      description: '中文描述'.repeat(7_000),
+      description: chineseDesc.repeat(7_000),
       tags: ['semantic-search'],
     });
 
     expect(jsonBytes(metadata)).toBeLessThanOrEqual(VECTORIZE_METADATA_LIMIT_BYTES);
-    expect(metadata.description).not.toBe('中文描述'.repeat(7_000));
-    expect(metadata.description).toContain('中文描述');
+    expect(metadata.description).not.toBe(chineseDesc.repeat(7_000));
+    expect(metadata.description).toContain(chineseDesc);
     expect(metadata.tags).toEqual(['semantic-search']);
     expect(metadata.description).not.toContain('\uFFFD');
   });
 
   it('compresses both description and tags when both fields are oversized', () => {
     const description = 'd'.repeat(20_000);
-    const tag = '标签'.repeat(8_000);
+    // Chinese for "tag"
+    const tag = '\u6807\u7b7e'.repeat(8_000);
     const metadata = compact({
       ...baseMetadata,
       description,

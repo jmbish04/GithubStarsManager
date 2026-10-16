@@ -1,7 +1,7 @@
 /**
  * Ruan Yifeng Weekly channel data service (on-demand paginated fetching).
  *
- * Data pipeline: Fetch ruanyf/weekly issues page by page -> filter titles containing "开源" -> extract
+ * Data pipeline: Fetch ruanyf/weekly issues page by page -> filter titles containing open-source keywords -> extract
  * GitHub repository links from body -> deduplicate by full_name (link to latest submission) -> enrich
  * repository details (GraphQL batch first, REST fallback) -> persist in dedicated IndexedDB -> client-side
  * sort descending by submission time + "Weekly publication" filter + paginated slicing.
@@ -40,8 +40,9 @@ import {
 export const WEEKLY_REPO_OWNER = 'ruanyf';
 export const WEEKLY_REPO_NAME = 'weekly';
 const WEEKLY_CHANNEL: DiscoveryChannelId = 'weekly';
-/** Issue title keyword (submission titles like 【开源自荐】/【开源项目】contain this word) */
-export const WEEKLY_TITLE_KEYWORD = '开源';
+/** Issue title keyword (submission titles like "[open source self-recommendation]" contain this word) */
+// Chinese for "open source"
+export const WEEKLY_TITLE_KEYWORD = '\u5f00\u6e90';
 /** Weekly collection label (added to submissions included in the weekly newsletter) */
 export const WEEKLY_COLLECTED_LABEL = 'weekly';
 /** GitHub site-level paths (github.com/<these>/... are not repository links) */

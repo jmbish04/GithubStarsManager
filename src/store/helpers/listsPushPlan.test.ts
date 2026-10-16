@@ -11,7 +11,7 @@ import {
 
 const makeCategory = (overrides: Partial<Category> = {}): Category => ({
   id: 'web',
-  name: 'Web应用',
+  name: 'Web\u5e94\u7528', // Chinese for "Web Apps"
   icon: '🌐',
   keywords: [],
   ...overrides,
@@ -19,7 +19,7 @@ const makeCategory = (overrides: Partial<Category> = {}): Category => ({
 
 describe('listNameLength', () => {
   it('counts BMP characters such as Chinese as 1', () => {
-    expect(listNameLength('AI/机器学习')).toBe(7);
+    expect(listNameLength('AI/\u673a\u5668\u5b66\u4e60')).toBe(7); // Chinese for "AI/Machine Learning"
   });
 
   it('counts supplementary plane characters such as emoji as 2 UTF-16 code units (conservative approach, ensuring neither server definition is exceeded)', () => {
@@ -33,24 +33,24 @@ describe('buildListsPushPlan', () => {
   it('marks as persisted when persistedId matches a remote list', () => {
     const plan = buildListsPushPlan(
       [makeCategory()],
-      [{ id: 'L_web', name: 'Web应用' }],
+      [{ id: 'L_web', name: 'Web\u5e94\u7528' }], // Chinese for "Web Apps"
       { web: 'L_web' },
       overrides
     );
     expect(plan).toEqual([
-      { kind: 'persisted', categoryId: 'web', listId: 'L_web', remoteName: 'Web应用', targetName: 'Web应用' },
+      { kind: 'persisted', categoryId: 'web', listId: 'L_web', remoteName: 'Web\u5e94\u7528', targetName: 'Web\u5e94\u7528' }, // Chinese for "Web Apps"
     ]);
   });
 
   it('marks as matched when there is no mapping but name variants match across languages', () => {
     const plan = buildListsPushPlan(
       [makeCategory({ name: 'Web Apps' })],
-      [{ id: 'L_legacy', name: 'Web应用' }],
+      [{ id: 'L_legacy', name: 'Web\u5e94\u7528' }], // Chinese for "Web Apps"
       {},
       overrides
     );
     expect(plan).toEqual([
-      { kind: 'matched', categoryId: 'web', listId: 'L_legacy', remoteName: 'Web应用', targetName: 'Web Apps' },
+      { kind: 'matched', categoryId: 'web', listId: 'L_legacy', remoteName: 'Web\u5e94\u7528', targetName: 'Web Apps' }, // Chinese for "Web Apps"
     ]);
   });
 
@@ -69,7 +69,7 @@ describe('buildListsPushPlan', () => {
   it('falls back to name match or create when the remote list pointed by persistedId no longer exists', () => {
     const plan = buildListsPushPlan(
       [makeCategory()],
-      [{ id: 'L_other', name: '别的' }],
+      [{ id: 'L_other', name: '\u522b\u7684' }], // Chinese for "Other"
       { web: 'L_gone' },
       overrides
     );
@@ -80,7 +80,7 @@ describe('buildListsPushPlan', () => {
 describe('validateListsPushPlan', () => {
   it('returns null when limits are not triggered', () => {
     const plan: ListsPushPlanEntry[] = [
-      { kind: 'create', categoryId: 'web', name: 'Web应用' },
+      { kind: 'create', categoryId: 'web', name: 'Web\u5e94\u7528' }, // Chinese for "Web Apps"
     ];
     expect(validateListsPushPlan(plan, 10)).toBeNull();
   });
@@ -124,7 +124,7 @@ describe('validateListsPushPlan', () => {
   it('does not consume creation quota for reused and renamed items', () => {
     const plan: ListsPushPlanEntry[] = [
       { kind: 'persisted', categoryId: 'a', listId: 'L_a', remoteName: 'A', targetName: 'A' },
-      { kind: 'matched', categoryId: 'b', listId: 'L_b', remoteName: '旧名', targetName: 'B' },
+      { kind: 'matched', categoryId: 'b', listId: 'L_b', remoteName: '\u65e7\u540d', targetName: 'B' }, // Chinese for "old name"
     ];
     expect(validateListsPushPlan(plan, GITHUB_LISTS_MAX_COUNT)).toBeNull();
   });

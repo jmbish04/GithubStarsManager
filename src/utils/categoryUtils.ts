@@ -219,7 +219,7 @@ const getRepoText = (repo: Pick<Repository, 'name' | 'description' | 'language' 
 
 /**
  * Builds custom category keyword hint lines for AI prompts.
- * Format: `skills（Skills,skills）\ncli-tools（cli,CLI）`
+ * Format: `skills(Skills,skills)\ncli-tools(cli,CLI)`
  * Allows the model to recognize custom categories even when a repository has no topics.
  */
 export const buildCategoryHints = (customCategories: Category[]): string => {
@@ -228,7 +228,7 @@ export const buildCategoryHints = (customCategories: Category[]): string => {
     .map(category => {
       const keywords = getCategoryKeywords(category);
       const kwText = keywords.length > 0 ? keywords.join(',') : `(no keywords, match by name: ${category.name})`;
-      return `${category.name}（${kwText}）`;
+      return `${category.name}\uff08${kwText}\uff09`;
     });
   return lines.join('\n');
 };

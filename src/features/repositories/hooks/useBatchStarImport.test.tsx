@@ -45,8 +45,9 @@ describe('useBatchStarImport', () => {
   it('extracts seven unique repositories from a video summary without starring on preview', async () => {
     const names = ['hypit-ai/hypit', 'oraen/oraenView', 'Vincentwei1021/anything2explainer',
       'lanxiuyun/Catrace', 'CialloKing/ba-click-fx', 'CialloKing/ba-click-fx-desktop', 'jslxxgyy/EarthQuakeWarning'];
-    const text = `本期视频中提到的一些内容： [anything2explainer](https://search.bilibili.com/all?keyword=anything2explainer)\n${
-      names.map(name => `项目说明 [https://github.com/${name}](https://github.com/${name})`).join('\n')}`;
+    // Scraped Bilibili video description snippet
+    const text = `\u672c\u671f\u89c6\u9891\u4e2d\u63d0\u5230\u7684\u4e00\u4e9b\u5185\u5bb9\uff1a [anything2explainer](https://search.bilibili.com/all?keyword=anything2explainer)\n${
+      names.map(name => `\u9879\u76ee\u8bf4\u660e [https://github.com/${name}](https://github.com/${name})`).join('\n')}`;
     const { result } = renderHook(() => useBatchStarImport());
     await act(() => result.current.preview(text));
     expect(result.current.rows.map(row => row.detail?.full_name)).toEqual(names);
@@ -139,13 +140,14 @@ describe('useBatchStarImport', () => {
   });
 
   it('translates descriptions into the interface language and reverts by toggling', async () => {
-    mocks.translateBatch.mockResolvedValue([{ translatedText: '一个仓库', detectedLanguage: '' }]);
+    // Chinese for "A repository"
+    mocks.translateBatch.mockResolvedValue([{ translatedText: '\u4e00\u4e2a\u4ed3\u5e93', detectedLanguage: '' }]);
     const { result } = renderHook(() => useBatchStarImport());
     await act(() => result.current.preview('https://github.com/owner/repo'));
 
     await act(() => result.current.toggleTranslations());
     expect(mocks.translateBatch).toHaveBeenCalledWith(['A repository'], 'zh', undefined, undefined, 'plain');
-    expect(result.current.translations).toEqual({ 'owner/repo': '一个仓库' });
+    expect(result.current.translations).toEqual({ 'owner/repo': '\u4e00\u4e2a\u4ed3\u5e93' });
     expect(result.current.translationsVisible).toBe(true);
     expect(result.current.translationError).toBe('');
 
@@ -158,7 +160,8 @@ describe('useBatchStarImport', () => {
   });
 
   it('keeps same-language descriptions original without a translation request', async () => {
-    mocks.getRepositoryDetails.mockImplementation(async (owner, name) => ({ ...detail(owner, name), description: '中文描述' }));
+    // Chinese for "Chinese description" (language detection test)
+    mocks.getRepositoryDetails.mockImplementation(async (owner, name) => ({ ...detail(owner, name), description: '\u4e2d\u6587\u63cf\u8ff0' }));
     const { result } = renderHook(() => useBatchStarImport());
     await act(() => result.current.preview('https://github.com/owner/repo'));
 
@@ -180,7 +183,8 @@ describe('useBatchStarImport', () => {
   });
 
   it('resets translation state when the preview is re-run or cleared', async () => {
-    mocks.translateBatch.mockResolvedValue([{ translatedText: '一个仓库', detectedLanguage: '' }]);
+    // Chinese for "A repository"
+    mocks.translateBatch.mockResolvedValue([{ translatedText: '\u4e00\u4e2a\u4ed3\u5e93', detectedLanguage: '' }]);
     const { result } = renderHook(() => useBatchStarImport());
     await act(() => result.current.preview('https://github.com/owner/repo'));
     await act(() => result.current.toggleTranslations());

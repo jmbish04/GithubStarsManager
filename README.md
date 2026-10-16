@@ -276,7 +276,7 @@ Ask concise questions about a single repository directly from its card. Each con
 
 ## 🌍 Interface Languages
 
-The UI ships in **10 languages**: 简体中文 · English · 日本語 · Español · Português (Brasil) · Русский · 繁體中文 · Français · Deutsch · 한국어.
+The UI ships in **10 languages**: Simplified Chinese · English · Japanese · Español · Português (Brasil) · Русский · Traditional Chinese · Français · Deutsch · 한국어.
 
 - Switch anytime in **Settings → General → Language**, or via the language picker on the login screen; the choice is persisted per browser and the desktop client follows it too.
 - First launch picks up your browser/OS language automatically.

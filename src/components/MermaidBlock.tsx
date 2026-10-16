@@ -66,7 +66,7 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
         className="my-3 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
       >
         <p className="font-semibold">
-          {uiLanguage === 'zh' ? 'Mermaid 图表渲染失败' : 'Failed to render Mermaid diagram'}
+          {uiLanguage === 'zh' ? 'Failed to render Mermaid diagram' : 'Failed to render Mermaid diagram'}
         </p>
         <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs">{error}</pre>
       </div>

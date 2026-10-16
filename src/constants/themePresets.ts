@@ -99,7 +99,7 @@ const DEFAULT_DARK_COLORS: GeneratedThemePalette = {
 
 const DEFAULT_PRESET: ThemePreset = {
   id: DEFAULT_THEME_PRESET_ID,
-  labelZh: '默认',
+  labelZh: 'Default',
   labelEn: 'Default',
   lightColors: DEFAULT_LIGHT_COLORS,
   darkColors: DEFAULT_DARK_COLORS,
@@ -107,17 +107,17 @@ const DEFAULT_PRESET: ThemePreset = {
 
 /** Labels for generated presets, keyed by id. */
 const GENERATED_LABELS_ZH: Record<string, string> = {
-  'enterprise-mod-2': 'Enterprise 靛蓝',
-  'light-green': '清新绿',
-  claude: 'Claude 暖橘',
-  vercel: 'Vercel 极简',
+  'enterprise-mod-2': 'Enterprise Mod 2',
+  'light-green': 'Light Green',
+  claude: 'Claude',
+  vercel: 'Vercel',
   't3-chat': 'T3 Chat',
-  'deep-purple': '深邃紫',
-  openprofile: 'openprofile 杏黄',
-  autoblog: 'autoblog 暖橙',
-  'zen-inspired': 'Zen 素雅',
-  'logistic-one': 'LogisticOne 藏蓝',
-  whatsapp: 'WhatsApp 青绿',
+  'deep-purple': 'Deep Purple',
+  openprofile: 'openprofile',
+  autoblog: 'autoblog',
+  'zen-inspired': 'Zen Inspired Theme',
+  'logistic-one': 'LogisticOne',
+  whatsapp: 'Whatsapp',
 };
 
 /**

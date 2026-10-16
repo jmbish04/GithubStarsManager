@@ -4,14 +4,14 @@ import { getAICategory, getEffectiveTags, matchesCategory, resolveCategoryAssign
 
 const aiCategory: Category = {
   id: 'ai',
-  name: 'AI/机器学习',
+  name: 'AI/\u673a\u5668\u5b66\u4e60', // Chinese for "AI/Machine Learning"
   icon: 'bot',
-  keywords: ['AI', '机器学习'],
+  keywords: ['AI', '\u673a\u5668\u5b66\u4e60'], // Chinese for "Machine Learning"
 };
 
 const webCategory: Category = {
   id: 'web',
-  name: 'Web应用',
+  name: 'Web\u5e94\u7528', // Chinese for "Web Apps"
   icon: 'globe',
   keywords: ['Web'],
 };
@@ -34,28 +34,28 @@ const baseRepository: Repository = {
     avatar_url: 'https://example.com/avatar.png',
   },
   topics: [],
-  ai_tags: ['AI/机器学习'],
+  ai_tags: ['AI/\u673a\u5668\u5b66\u4e60'], // Chinese for "AI/Machine Learning"
 };
 
 describe('getEffectiveTags', () => {
   it('prioritizes non-empty custom tags', () => {
     const repository = {
       ...baseRepository,
-      custom_tags: ['我的项目'],
-      ai_tags: ['AI/机器学习'],
+      custom_tags: ['\u6211\u7684\u9879\u76ee'], // Chinese for "My Projects"
+      ai_tags: ['AI/\u673a\u5668\u5b66\u4e60'], // Chinese for "AI/Machine Learning"
       topics: ['web'],
     };
-    expect(getEffectiveTags(repository)).toEqual(['我的项目']);
+    expect(getEffectiveTags(repository)).toEqual(['\u6211\u7684\u9879\u76ee']); // Chinese for "My Projects"
   });
 
   it('falls back to AI tags when custom tags are empty', () => {
     const repository = {
       ...baseRepository,
       custom_tags: [],
-      ai_tags: ['AI/机器学习'],
+      ai_tags: ['AI/\u673a\u5668\u5b66\u4e60'], // Chinese for "AI/Machine Learning"
       topics: ['web'],
     };
-    expect(getEffectiveTags(repository)).toEqual(['AI/机器学习']);
+    expect(getEffectiveTags(repository)).toEqual(['AI/\u673a\u5668\u5b66\u4e60']); // Chinese for "AI/Machine Learning"
   });
 
   it('falls back to topics when custom and AI tags are empty', () => {
@@ -72,10 +72,10 @@ describe('getEffectiveTags', () => {
     const repository = {
       ...baseRepository,
       custom_tags: [' ', '  '],
-      ai_tags: ['AI/机器学习'],
+      ai_tags: ['AI/\u673a\u5668\u5b66\u4e60'], // Chinese for "AI/Machine Learning"
       topics: ['web'],
     };
-    expect(getEffectiveTags(repository)).toEqual(['AI/机器学习']);
+    expect(getEffectiveTags(repository)).toEqual(['AI/\u673a\u5668\u5b66\u4e60']); // Chinese for "AI/Machine Learning"
   });
 
   it('ignores whitespace-only AI tags and falls back to topics', () => {
@@ -125,7 +125,7 @@ describe('matchesCategory', () => {
   it('re-matches by tags when custom_category is set but not locked (AI-derived value)', () => {
     const repository = {
       ...baseRepository,
-      custom_category: 'Web应用',
+      custom_category: 'Web\u5e94\u7528', // Chinese for "Web Apps"
     };
 
     expect(matchesCategory(repository, aiCategory)).toBe(true);
@@ -164,8 +164,8 @@ describe('matchesCategory', () => {
   it('does not match in legacy mode when execute effective custom tags do not overlap', () => {
     const repository = {
       ...baseRepository,
-      custom_tags: ['我的项目'],
-      ai_tags: ['AI/机器学习'],
+      custom_tags: ['\u6211\u7684\u9879\u76ee'], // Chinese for "My Projects"
+      ai_tags: ['AI/\u673a\u5668\u5b66\u4e60'], // Chinese for "AI/Machine Learning"
     };
     expect(matchesCategory(repository, aiCategory, 'legacy')).toBe(true);
   });
@@ -173,14 +173,14 @@ describe('matchesCategory', () => {
   it('matches via custom tags in effective mode', () => {
     const repository = {
       ...baseRepository,
-      custom_tags: ['前端'],
-      ai_tags: ['AI/机器学习'],
+      custom_tags: ['\u524d\u7aef'], // Chinese for "Frontend"
+      ai_tags: ['AI/\u673a\u5668\u5b66\u4e60'], // Chinese for "AI/Machine Learning"
     };
     const frontendCategory: Category = {
       id: 'frontend',
-      name: '前端',
+      name: '\u524d\u7aef', // Chinese for "Frontend"
       icon: 'code',
-      keywords: ['前端'],
+      keywords: ['\u524d\u7aef'], // Chinese for "Frontend"
     };
     expect(matchesCategory(repository, frontendCategory, 'effective')).toBe(true);
     expect(matchesCategory(repository, aiCategory, 'effective')).toBe(false);
@@ -189,14 +189,14 @@ describe('matchesCategory', () => {
   it('uses custom tags even without AI tags in effective mode', () => {
     const repository = {
       ...baseRepository,
-      custom_tags: ['前端'],
+      custom_tags: ['\u524d\u7aef'], // Chinese for "Frontend"
       ai_tags: undefined,
     };
     const frontendCategory: Category = {
       id: 'frontend',
-      name: '前端',
+      name: '\u524d\u7aef', // Chinese for "Frontend"
       icon: 'code',
-      keywords: ['前端'],
+      keywords: ['\u524d\u7aef'], // Chinese for "Frontend"
     };
     expect(matchesCategory(repository, frontendCategory, 'effective')).toBe(true);
   });
@@ -204,12 +204,12 @@ describe('matchesCategory', () => {
   it('matches a custom category with empty keywords by name in effective mode', () => {
     const repository = {
       ...baseRepository,
-      custom_tags: ['我的项目'],
-      ai_tags: ['AI/机器学习'],
+      custom_tags: ['\u6211\u7684\u9879\u76ee'], // Chinese for "My Projects"
+      ai_tags: ['AI/\u673a\u5668\u5b66\u4e60'], // Chinese for "AI/Machine Learning"
     };
     const myProjects: Category = {
       id: 'custom-1',
-      name: '我的项目',
+      name: '\u6211\u7684\u9879\u76ee', // Chinese for "My Projects"
       icon: '📁',
       keywords: [],
       isCustom: true,
@@ -221,7 +221,7 @@ describe('matchesCategory', () => {
     const repository = {
       ...baseRepository,
       custom_tags: ['AI'],
-      ai_tags: ['AI/机器学习'],
+      ai_tags: ['AI/\u673a\u5668\u5b66\u4e60'], // Chinese for "AI/Machine Learning"
     };
     // Custom tags match default categories only by keyword; the default category name itself does not participate in matching
     expect(matchesCategory(repository, aiCategory, 'effective')).toBe(true);
@@ -232,7 +232,7 @@ describe('matchesCategory', () => {
 describe('resolveCategoryAssignment', () => {
   const customCategory: Category = {
     id: 'custom-1',
-    name: '我的项目',
+    name: '\u6211\u7684\u9879\u76ee', // Chinese for "My Projects"
     icon: '📁',
     keywords: [],
     isCustom: true,
@@ -243,21 +243,21 @@ describe('resolveCategoryAssignment', () => {
   it('recomputes an unlocked custom_category from tags (AI-derived value)', () => {
     const repository = {
       ...baseRepository,
-      custom_category: '我的项目',
-      custom_tags: ['我的项目'],
+      custom_category: '\u6211\u7684\u9879\u76ee', // Chinese for "My Projects"
+      custom_tags: ['\u6211\u7684\u9879\u76ee'], // Chinese for "My Projects"
     };
     // Unlocked custom_category is treated as a value written by AI analysis; recomputed rather than directly preserved
-    expect(resolveCategoryAssignment(repository, ['AI/机器学习'], categories)).toBe(undefined);
+    expect(resolveCategoryAssignment(repository, ['AI/\u673a\u5668\u5b66\u4e60'], categories)).toBe(undefined); // Chinese for "AI/Machine Learning"
   });
 
   it('preserves a locked valid custom_category', () => {
     const repository = {
       ...baseRepository,
-      custom_category: '我的项目',
-      custom_tags: ['我的项目'],
+      custom_category: '\u6211\u7684\u9879\u76ee', // Chinese for "My Projects"
+      custom_tags: ['\u6211\u7684\u9879\u76ee'], // Chinese for "My Projects"
       category_locked: true,
     };
-    expect(resolveCategoryAssignment(repository, ['AI/机器学习'], categories)).toBe('我的项目');
+    expect(resolveCategoryAssignment(repository, ['AI/\u673a\u5668\u5b66\u4e60'], categories)).toBe('\u6211\u7684\u9879\u76ee'); // Chinese for "AI/Machine Learning", "My Projects"
   });
 
   it('preserves an explicitly empty custom_category', () => {
@@ -265,16 +265,16 @@ describe('resolveCategoryAssignment', () => {
       ...baseRepository,
       custom_category: '',
     };
-    expect(resolveCategoryAssignment(repository, ['AI/机器学习'], categories)).toBe('');
+    expect(resolveCategoryAssignment(repository, ['AI/\u673a\u5668\u5b66\u4e60'], categories)).toBe(''); // Chinese for "AI/Machine Learning"
   });
 
   it('does not clear custom_category when locked even without tags', () => {
     const repository = {
       ...baseRepository,
-      custom_category: '我的项目',
+      custom_category: '\u6211\u7684\u9879\u76ee', // Chinese for "My Projects"
       category_locked: true,
     };
-    expect(resolveCategoryAssignment(repository, [], categories)).toBe('我的项目');
+    expect(resolveCategoryAssignment(repository, [], categories)).toBe('\u6211\u7684\u9879\u76ee'); // Chinese for "My Projects"
   });
 
   it('assigns a custom category when AI tag contains the category name', () => {
@@ -282,7 +282,7 @@ describe('resolveCategoryAssignment', () => {
       ...baseRepository,
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(repository, ['我的项目'], categories)).toBe('我的项目');
+    expect(resolveCategoryAssignment(repository, ['\u6211\u7684\u9879\u76ee'], categories)).toBe('\u6211\u7684\u9879\u76ee'); // Chinese for "My Projects"
   });
 
   it('assigns a custom category when the category name contains the AI tag', () => {
@@ -290,7 +290,7 @@ describe('resolveCategoryAssignment', () => {
       ...baseRepository,
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(repository, ['项目'], categories)).toBe('我的项目');
+    expect(resolveCategoryAssignment(repository, ['\u9879\u76ee'], categories)).toBe('\u6211\u7684\u9879\u76ee'); // Chinese for "Project", "My Projects"
   });
 
   it('returns undefined when AI tags match a default category and no custom assignment exists', () => {
@@ -298,7 +298,7 @@ describe('resolveCategoryAssignment', () => {
       ...baseRepository,
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(repository, ['Web应用'], categories)).toBe(undefined);
+    expect(resolveCategoryAssignment(repository, ['Web\u5e94\u7528'], categories)).toBe(undefined); // Chinese for "Web Apps"
   });
 
   it('does not match by name substring for default categories', () => {
@@ -306,8 +306,8 @@ describe('resolveCategoryAssignment', () => {
       ...baseRepository,
       custom_category: undefined,
     };
-    // "应用" is a substring of default category "Web应用", but default categories require exact name match
-    expect(resolveCategoryAssignment(repository, ['应用'], categories)).toBe(undefined);
+    // "app" (in Chinese) is a substring of default category "Web Apps", but default categories require exact name match
+    expect(resolveCategoryAssignment(repository, ['\u5e94\u7528'], categories)).toBe(undefined); // Chinese for "App"
   });
 });
 
@@ -316,7 +316,7 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
     id: 'custom-skills',
     name: 'skills',
     icon: '💡',
-    keywords: ['Skills', '技能', 'skill'],
+    keywords: ['Skills', '\u6280\u80fd', 'skill'], // Chinese for "skill"
     isCustom: true,
   };
 
@@ -331,7 +331,7 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
       custom_category: undefined,
     };
     // AI returns generic tags; matches custom category solely through skill/skills in topics
-    expect(resolveCategoryAssignment(repository, ['AI/机器学习', '开发工具', '效率工具'], [customSkills, aiCategory])).toBe('skills');
+    expect(resolveCategoryAssignment(repository, ['AI/\u673a\u5668\u5b66\u4e60', '\u5f00\u53d1\u5de5\u5177', '\u6548\u7387\u5de5\u5177'], [customSkills, aiCategory])).toBe('skills'); // Chinese for "AI/Machine Learning", "Development Tools", "Productivity Tools"
   });
 
   it('assigns skills category for pm-skills repo (topics match keywords)', () => {
@@ -344,7 +344,7 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
       topics: ['agent-skills', 'agentic-skills', 'claude-code-plugins', 'product-management'],
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(repository, ['开发工具'], [customSkills, aiCategory])).toBe('skills');
+    expect(resolveCategoryAssignment(repository, ['\u5f00\u53d1\u5de5\u5177'], [customSkills, aiCategory])).toBe('skills'); // Chinese for "Development Tools"
   });
 
   it('assigns custom category via description even without topics', () => {
@@ -352,7 +352,7 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
       ...baseRepository,
       full_name: 'acme/skill-pack',
       name: 'skill-pack',
-      description: '提供 30+ 技能插件库',
+      description: '\u63d0\u4f9b 30+ \u6280\u80fd\u63d2\u4ef6\u5e93', // Chinese for "Provides 30+ skill plugin library"
       language: 'TypeScript',
       topics: [],
       custom_category: undefined,
@@ -368,10 +368,10 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
       description: 'PM Skills Marketplace',
       language: '',
       topics: ['agent-skills'],
-      custom_category: 'Web应用',
+      custom_category: 'Web\u5e94\u7528', // Chinese for "Web Apps"
       category_locked: true,
     };
-    expect(resolveCategoryAssignment(repository, ['AI/机器学习'], [customSkills, aiCategory, webCategory])).toBe('Web应用');
+    expect(resolveCategoryAssignment(repository, ['AI/\u673a\u5668\u5b66\u4e60'], [customSkills, aiCategory, webCategory])).toBe('Web\u5e94\u7528'); // Chinese for "AI/Machine Learning", "Web Apps"
   });
 
   it('recomputes an unlocked custom_category via metadata fallback', () => {
@@ -382,11 +382,11 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
       description: 'PM Skills Marketplace',
       language: '',
       topics: ['agent-skills'],
-      custom_category: 'Web应用',
+      custom_category: 'Web\u5e94\u7528', // Chinese for "Web Apps"
       category_locked: false,
     };
     // Unlocked legacy value is treated as AI-written; recomputed using metadata fallback
-    expect(resolveCategoryAssignment(repository, ['AI/机器学习'], [customSkills, aiCategory, webCategory])).toBe('skills');
+    expect(resolveCategoryAssignment(repository, ['AI/\u673a\u5668\u5b66\u4e60'], [customSkills, aiCategory, webCategory])).toBe('skills'); // Chinese for "AI/Machine Learning"
   });
 
   it('preserves explicitly cleared custom_category despite metadata fallback', () => {
@@ -412,7 +412,7 @@ describe('resolveCategoryAssignment metadata fallback for custom categories', ()
       topics: ['web'],
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(repository, ['Web应用'], [customSkills, aiCategory, webCategory])).toBe(undefined);
+    expect(resolveCategoryAssignment(repository, ['Web\u5e94\u7528'], [customSkills, aiCategory, webCategory])).toBe(undefined); // Chinese for "Web Apps"
   });
 });
 
@@ -420,20 +420,20 @@ describe('resolveCategoryAssignment with real repositories and other custom cate
   // Real repository metadata (fetched from GitHub API, frozen offline to prevent flakiness)
   const customDataAnalysis: Category = {
     id: 'custom-data',
-    name: '数据分析',
+    name: '\u6570\u636e\u5206\u6790', // Chinese for "Data Analytics"
     icon: '📊',
-    keywords: ['data-analysis', '数据分析', 'pandas'],
+    keywords: ['data-analysis', '\u6570\u636e\u5206\u6790', 'pandas'], // Chinese for "Data Analytics"
     isCustom: true,
   };
   const customCli: Category = {
     id: 'custom-cli',
-    name: '命令行工具',
+    name: '\u547d\u4ee4\u884c\u5de5\u5177', // Chinese for "Command Line Tools"
     icon: '🖥',
-    keywords: ['cli', '命令行', 'terminal'],
+    keywords: ['cli', '\u547d\u4ee4\u884c', 'terminal'], // Chinese for "Command Line"
     isCustom: true,
   };
 
-  it('classifies pandas-dev/pandas to custom 数据分析 via topics', () => {
+  it('classifies pandas-dev/pandas to custom data analysis via topics', () => {
     const pandas = {
       ...baseRepository,
       id: 2,
@@ -444,10 +444,10 @@ describe('resolveCategoryAssignment with real repositories and other custom cate
       topics: ['alignment', 'data-analysis', 'data-science', 'flexible', 'pandas', 'python'],
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(pandas, ['AI/机器学习'], [customDataAnalysis, customCli, aiCategory])).toBe('数据分析');
+    expect(resolveCategoryAssignment(pandas, ['AI/\u673a\u5668\u5b66\u4e60'], [customDataAnalysis, customCli, aiCategory])).toBe('\u6570\u636e\u5206\u6790'); // Chinese for "AI/Machine Learning", "Data Analytics"
   });
 
-  it('classifies cli/cli to custom 命令行工具 via topics', () => {
+  it('classifies cli/cli to custom command-line tools via topics', () => {
     const repository = {
       ...baseRepository,
       id: 3,
@@ -458,19 +458,19 @@ describe('resolveCategoryAssignment with real repositories and other custom cate
       topics: ['cli', 'git', 'github-api-v4', 'golang'],
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(repository, ['开发工具'], [customCli, customDataAnalysis, aiCategory])).toBe('命令行工具');
+    expect(resolveCategoryAssignment(repository, ['\u5f00\u53d1\u5de5\u5177'], [customCli, customDataAnalysis, aiCategory])).toBe('\u547d\u4ee4\u884c\u5de5\u5177'); // Chinese for "Development Tools", "Command Line Tools"
   });
 });
 
 describe('buildCategoryHints', () => {
   it('builds hint text with keywords', () => {
     const categories: Category[] = [
-      { id: 'c1', name: 'skills', icon: '💡', keywords: ['Skill', '技能'], isCustom: true },
-      { id: 'c2', name: '数据分析', icon: '📊', keywords: ['pandas'], isCustom: true },
+      { id: 'c1', name: 'skills', icon: '💡', keywords: ['Skill', '\u6280\u80fd'], isCustom: true }, // Chinese for "skill"
+      { id: 'c2', name: '\u6570\u636e\u5206\u6790', icon: '📊', keywords: ['pandas'], isCustom: true }, // Chinese for "Data Analytics"
     ];
     expect(buildCategoryHints(categories)).toContain('skills');
-    expect(buildCategoryHints(categories)).toContain('技能');
-    expect(buildCategoryHints(categories)).toContain('数据分析');
+    expect(buildCategoryHints(categories)).toContain('\u6280\u80fd'); // Chinese for "skill"
+    expect(buildCategoryHints(categories)).toContain('\u6570\u636e\u5206\u6790'); // Chinese for "Data Analytics"
   });
 
   it('returns empty string when no custom categories', () => {
@@ -479,9 +479,9 @@ describe('buildCategoryHints', () => {
 
   it('handles categories without keywords', () => {
     const categories: Category[] = [
-      { id: 'c1', name: '我的项目', icon: '📁', keywords: [], isCustom: true },
+      { id: 'c1', name: '\u6211\u7684\u9879\u76ee', icon: '📁', keywords: [], isCustom: true }, // Chinese for "My Projects"
     ];
-    expect(buildCategoryHints(categories)).toContain('我的项目');
+    expect(buildCategoryHints(categories)).toContain('\u6211\u7684\u9879\u76ee'); // Chinese for "My Projects"
   });
 
   it('normalizes whitespace-only keywords out of hint text', () => {
@@ -489,14 +489,14 @@ describe('buildCategoryHints', () => {
       { id: 'c1', name: 'skills', icon: '💡', keywords: [' ', '  ', 'Skill'], isCustom: true },
     ];
     // Retain only valid keywords to generate precise hint text
-    expect(buildCategoryHints(categories)).toBe('skills（Skill）');
+    expect(buildCategoryHints(categories)).toBe('skills\uff08Skill\uff09');
   });
 });
 
 describe('resolveCategoryAssignment whitespace-keyword regression', () => {
   const whitespaceCategory: Category = {
     id: 'custom-whitespace',
-    name: '空关键词',
+    name: '\u7a7a\u5173\u952e\u8bcd', // Chinese for "Empty Keywords"
     icon: '⚠️',
     keywords: [' ', '  ', ''],
     isCustom: true,
@@ -513,7 +513,7 @@ describe('resolveCategoryAssignment whitespace-keyword regression', () => {
       custom_category: undefined,
     };
     // When keywords are all whitespace, fall back to category name matching; repo name does not contain category name -> no match
-    expect(resolveCategoryAssignment(repository, ['Web应用'], [whitespaceCategory, aiCategory, webCategory])).toBe(undefined);
+    expect(resolveCategoryAssignment(repository, ['Web\u5e94\u7528'], [whitespaceCategory, aiCategory, webCategory])).toBe(undefined); // Chinese for "Web Apps"
   });
 
   it('matches by name via fallback when keywords are whitespace-only and name is present in repo text', () => {
@@ -521,18 +521,18 @@ describe('resolveCategoryAssignment whitespace-keyword regression', () => {
       ...baseRepository,
       full_name: 'acme/empty-category',
       name: 'empty-category',
-      description: '空关键词 demo app',
+      description: '\u7a7a\u5173\u952e\u8bcd demo app', // Chinese for "Empty Keywords demo app"
       language: 'JavaScript',
       topics: [],
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(repository, ['Web应用'], [whitespaceCategory, aiCategory, webCategory])).toBe('空关键词');
+    expect(resolveCategoryAssignment(repository, ['Web\u5e94\u7528'], [whitespaceCategory, aiCategory, webCategory])).toBe('\u7a7a\u5173\u952e\u8bcd'); // Chinese for "Web Apps", "Empty Keywords"
   });
 
   it('matches via a genuine non-whitespace keyword among whitespace keywords', () => {
     const category: Category = {
       id: 'custom-mixed',
-      name: '数据分析',
+      name: '\u6570\u636e\u5206\u6790', // Chinese for "Data Analytics"
       icon: '📊',
       keywords: ['  ', ' pandas ', ''],
       isCustom: true,
@@ -546,7 +546,7 @@ describe('resolveCategoryAssignment whitespace-keyword regression', () => {
       topics: [],
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(repository, [], [category, aiCategory])).toBe('数据分析');
+    expect(resolveCategoryAssignment(repository, [], [category, aiCategory])).toBe('\u6570\u636e\u5206\u6790'); // Chinese for "Data Analytics"
   });
 });
 
@@ -555,7 +555,7 @@ describe('resolveCategoryAssignment summary-only metadata match', () => {
     id: 'custom-skills',
     name: 'skills',
     icon: '💡',
-    keywords: ['Skills', '技能'],
+    keywords: ['Skills', '\u6280\u80fd'], // Chinese for "skill"
     isCustom: true,
   };
 
@@ -571,7 +571,7 @@ describe('resolveCategoryAssignment summary-only metadata match', () => {
       custom_category: undefined,
     };
     // Neither name, description, nor topics contain skills; matched solely by ai_summary
-    expect(resolveCategoryAssignment(repository, ['开发工具'], [customSkills, aiCategory])).toBe('skills');
+    expect(resolveCategoryAssignment(repository, ['\u5f00\u53d1\u5de5\u5177'], [customSkills, aiCategory])).toBe('skills'); // Chinese for "Development Tools"
   });
 
   it('does not assign via ai_summary when the summary contains no matching keyword', () => {
@@ -585,14 +585,14 @@ describe('resolveCategoryAssignment summary-only metadata match', () => {
       ai_summary: 'A minimal HTTP server written in Go',
       custom_category: undefined,
     };
-    expect(resolveCategoryAssignment(repository, ['开发工具'], [customSkills, aiCategory])).toBe(undefined);
+    expect(resolveCategoryAssignment(repository, ['\u5f00\u53d1\u5de5\u5177'], [customSkills, aiCategory])).toBe(undefined); // Chinese for "Development Tools"
   });
 });
 
 describe('category keyword direction', () => {
   const gameCategory: Category = {
-    id: 'game', name: '游戏', icon: '🎮',
-    keywords: ['游戏', 'game', 'gaming', 'unity', 'unreal', 'godot'],
+    id: 'game', name: '\u6e38\u620f', icon: '🎮', // Chinese for "game"
+    keywords: ['\u6e38\u620f', 'game', 'gaming', 'unity', 'unreal', 'godot'], // Chinese for "game"
   };
 
   it.each(['legacy', 'effective'] as const)('does not classify Go tags as Godot in %s mode', (mode) => {
@@ -606,10 +606,11 @@ describe('category keyword direction', () => {
     expect(matchesCategory(repository, gameCategory, 'effective')).toBe(false);
   });
 
-  it.each(['godot', 'godot-engine', 'gaming', '游戏开发'])('keeps matching relevant tag %s', (tag) => {
+  const chineseGameDevTag = '\u6e38\u620f\u5f00\u53d1'; // Chinese for "game development"
+  it.each(['godot', 'godot-engine', 'gaming', chineseGameDevTag])('keeps matching relevant tag %s', (tag) => {
     const repository = { ...baseRepository, ai_tags: [tag] };
     expect(matchesCategory(repository, gameCategory, 'effective')).toBe(true);
-    expect(getAICategory(repository, [gameCategory])).toBe('游戏');
+    expect(getAICategory(repository, [gameCategory])).toBe('\u6e38\u620f'); // Chinese for "game"
   });
 
   it('does not assign a custom Godot category to Go tags', () => {
@@ -618,7 +619,7 @@ describe('category keyword direction', () => {
   });
 
   it('preserves a locked manual game category', () => {
-    const repository = { ...baseRepository, ai_tags: ['Go'], custom_category: '游戏', category_locked: true };
+    const repository = { ...baseRepository, ai_tags: ['Go'], custom_category: '\u6e38\u620f', category_locked: true }; // Chinese for "game"
     expect(matchesCategory(repository, gameCategory, 'effective')).toBe(true);
   });
 });

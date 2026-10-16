@@ -277,7 +277,7 @@ interface PlatformFilterProps {
 const PlatformFilter: React.FC<PlatformFilterProps> = ({ platform, onPlatformChange, language }) => {
     const t = useT('discovery');
   const platforms: { id: DiscoveryPlatform; name: string; nameEn: string; icon: React.ReactNode }[] = [
-    { id: 'All', name: '全部平台', nameEn: 'All Platforms', icon: <Globe className="w-4 h-4" /> },
+    { id: 'All', name: 'All Platforms', nameEn: 'All Platforms', icon: <Globe className="w-4 h-4" /> },
     { id: 'Android', name: 'Android', nameEn: 'Android', icon: <SiAndroid className="w-4 h-4" /> },
     { id: 'Macos', name: 'macOS', nameEn: 'macOS', icon: <SiApple className="w-4 h-4" /> },
     { id: 'Windows', name: 'Windows', nameEn: 'Windows', icon: <SiWindows className="w-4 h-4" /> },
@@ -292,7 +292,7 @@ const PlatformFilter: React.FC<PlatformFilterProps> = ({ platform, onPlatformCha
         <Button
           type="button"
           variant="ghost"
-          aria-label={t('discoveryView.platform-filter-v1', { v1: discoveryPlatformName(selectedPlatform ?? { id: 'All', name: '全部平台', nameEn: 'All Platforms' }, language) })}
+          aria-label={t('discoveryView.platform-filter-v1', { v1: discoveryPlatformName(selectedPlatform ?? { id: 'All', name: 'All Platforms', nameEn: 'All Platforms' }, language) })}
           className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium bg-muted text-foreground dark:bg-muted/40 dark:text-muted-foreground hover:bg-accent dark:hover:bg-accent transition-colors"
         >
           <Filter className="h-4 w-4" />
@@ -833,7 +833,7 @@ export const DiscoveryView: React.FC = React.memo(() => {
                     <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-foreground truncate leading-tight">
                       {language === 'zh'
                         ? currentChannel?.name
-                        : discoveryChannelName(currentChannel ?? { id: 'search', name: '仓库搜索', nameEn: 'Repo Search' }, language)}
+                        : discoveryChannelName(currentChannel ?? { id: 'search', name: 'Repo Search', nameEn: 'Repo Search' }, language)}
                     </h2>
                     {currentLastRefresh && (
                       <p className="hidden sm:block text-xs text-muted-foreground dark:text-muted-foreground">
