@@ -33,5 +33,7 @@ Repo-local agent notes go below the block above.
 - Vectors are pgvector (384 dims, bge-small through core-guardian) and keyword search is pg_textsearch BM25. Do not add Vectorize or an `ai` binding.
 - `cloudflare-worker/` (the old Vectorize proxy) and `server/` (Express + SQLite) are legacy, kept until the React app is pointed at the Worker (Maestro task `c94658981e62`).
 - Migrations: `cd worker && pnpm run migrate` from the LAN, before `pnpm run deploy`. The runtime role cannot run DDL.
-- Locale files under `src/locales/zh`, `zh-TW` and `ja` are real translations. Keep them. Everything else is US English.
+- No Chinese text anywhere (decided by Justin on 2026-10-16, PR #3). Chinese is not an app language: do not add `src/locales/zh` or `zh-TW` back.
+  Text that must match Chinese content from outside (GitHub issue titles, saved category names, CJK test inputs) is written as `\uXXXX` escapes with an English comment.
+  `src/locales/ja` (Japanese, which uses kanji) is the only exception and stays.
 - Frontend retrofit question is open: `docs/decisions/2026-10-15-frontend-reui-retrofit.md`.
