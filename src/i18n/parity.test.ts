@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { APP_LANGUAGES } from './languages';
 
 /**
- * Translation key set consistency check: built-in languages must strictly match the zh key set.
+ * Translation key set consistency check: built-in languages must strictly match the en key set.
  * Missing keys expose raw keys or fall back to English; orphaned keys indicate renamed keys not cleaned up in source dictionaries.
  * Whether values are translated individually is checked by scripts/check-i18n.cjs on PR diffs.
  */
@@ -39,9 +39,9 @@ const loadLanguageKeys = (): Record<string, Set<string>> => {
 describe('i18n dictionary key set consistency', () => {
   const keys = loadLanguageKeys();
 
-  it.each(APP_LANGUAGES)('strictly matches the zh key set for $code', (language) => {
-    const zhKeys = [...keys.zh].sort();
+  it.each(APP_LANGUAGES)('strictly matches the en key set for $code', (language) => {
+    const enKeys = [...keys.en].sort();
     const current = [...keys[language.code]].sort();
-    expect(current).toEqual(zhKeys);
+    expect(current).toEqual(enKeys);
   });
 });
