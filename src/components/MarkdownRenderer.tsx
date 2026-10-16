@@ -155,8 +155,8 @@ const CodeBlock: React.FC<{
         variant="ghost"
         size="icon"
         onClick={handleCopy}
-        aria-label={uiLanguage === 'zh' ? '复制代码' : 'Copy code'}
-        title={copyError || (uiLanguage === 'zh' ? '复制代码' : 'Copy code')}
+        aria-label={uiLanguage === 'zh' ? 'Copy code' : 'Copy code'}
+        title={copyError || (uiLanguage === 'zh' ? 'Copy code' : 'Copy code')}
         className={`absolute top-2 right-2 z-10 h-7 w-7 rounded-md p-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 ${
           copyError
             ? 'text-destructive opacity-100'

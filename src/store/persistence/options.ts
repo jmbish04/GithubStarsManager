@@ -272,7 +272,7 @@ state.subscriptionChannels = state.subscriptionChannels.map((ch: unknown) => {
 const chRecord = ch as Record<string, unknown>;
 const defaultCh = defaultChannelsMap.get(chRecord.id as string);
 if (chRecord.id === 'daily-dev' || chRecord.id === 'most-dev') {
-  return { ...chRecord, id: 'most-dev', name: '热门开发者', nameEn: 'Top Developers', icon: '👤' } as unknown as SubscriptionChannel;
+  return { ...chRecord, id: 'most-dev', name: 'Top Developers', nameEn: 'Top Developers', icon: '👤' } as unknown as SubscriptionChannel;
 }
 if (defaultCh) {
   return {
@@ -291,10 +291,10 @@ if (!hasTrending) {
 console.log('Migrating: adding trending channel');
 state.subscriptionChannels.push({
   id: 'trending',
-  name: '热门趋势',
+  name: 'Trending',
   nameEn: 'Trending',
   icon: 'trending',
-  description: 'GitHub 上近期最受关注的项目 Top 10',
+  description: 'Top 10 most watched projects recently on GitHub',
   enabled: true,
 } as SubscriptionChannel);
 }

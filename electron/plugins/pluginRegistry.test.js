@@ -158,7 +158,8 @@ test('refuses an oversized registry body', async () => {
 });
 
 test('counts UTF-8 bytes when a response has no readable stream', async () => {
-  const huge = async () => ({ ok: true, status: 200, text: async () => '界'.repeat(1_500_000) });
+  // \u754c is Chinese for "world" (3 UTF-8 bytes per character)
+  const huge = async () => ({ ok: true, status: 200, text: async () => '\u754c'.repeat(1_500_000) });
   const result = await loadPluginRegistry({ fetchImpl: huge });
   assert.equal(result.success, false);
   assert.equal(result.error.code, 'REGISTRY_TOO_LARGE');

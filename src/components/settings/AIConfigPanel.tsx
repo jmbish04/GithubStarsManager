@@ -310,26 +310,26 @@ export const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ t }) => {
 
   const defaultPrompt = useMemo(() => {
     if (language === 'zh') {
-      return `请分析以下GitHub仓库信息，并只输出合法JSON对象。不要输出思考过程、Markdown、代码块标记、解释或任何额外文本。
+      return `Please analyze the following GitHub repository information and only output a valid JSON object. Do not output thinking process, Markdown, code block markers, explanations, or any extra text.
 
-要求：
-- summary：中文概述，说明仓库的主要功能和用途，不超过50字。
-  禁止出现“我们被要求”“只输出JSON”“根据仓库信息”“summary/tags/platforms”等提示词复述。
-- tags：3-5个中文应用类型标签，请优先从提供的分类中选择。
+Requirements:
+- summary: A concise English overview explaining the main functionality and purpose, no more than 50 words.
+  Do not include prompt restatements such as "asked to", "only output JSON", "based on repository information", or "summary/tags/platforms".
+- tags: 3-5 English application type tags, please prioritize from the provided categories.
 {CATEGORIES_INFO}
-- platforms：只能从 ["mac","windows","linux","ios","android","docker","web","cli"] 中选择；无法判断则为 []。
+- platforms: Must only choose from ["mac","windows","linux","ios","android","docker","web","cli"]; use [] if unable to determine.
 
-输出格式：
+Output format:
 {
-  "summary": "中文概述",
-  "tags": ["标签1", "标签2", "标签3"],
+  "summary": "English overview",
+  "tags": ["tag1", "tag2", "tag3"],
   "platforms": ["web", "cli"]
 }
 
-平台线索：
-Dockerfile/docker-compose=docker；CLI/命令行/终端=cli；浏览器/前端/API=web；iOS/Swift/Xcode=ios；Android/Kotlin/Gradle=android；macOS/Homebrew=mac；Windows/.exe/MSI=windows；Linux/systemd/apt=linux。
+Platform hints:
+Dockerfile/docker-compose=docker; CLI/command-line/terminal=cli; browser/frontend/API=web; iOS/Swift/Xcode=ios; Android/Kotlin/Gradle=android; macOS/Homebrew=mac; Windows/.exe/MSI=windows; Linux/systemd/apt=linux.
 
-仓库信息：
+Repository information:
 {REPO_INFO}`;
     } else if (language === 'en') {
       return `Please analyze the following GitHub repository information and only output a valid JSON object. Do not output thinking process, Markdown, code block markers, explanations, or any extra text.

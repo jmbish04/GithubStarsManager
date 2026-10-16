@@ -37,7 +37,7 @@ const release: Release = {
 };
 
 async function expandPanel() {
-  const trigger = screen.getByRole('button', { name: /仓库概况/ });
+  const trigger = screen.getByRole('button', { name: /\u4ed3\u5e93\u6982\u51b5/ }); // Chinese for "Repository Overview"
   if (trigger.getAttribute('aria-expanded') !== 'true') {
     await userEvent.click(trigger);
   }
@@ -48,13 +48,13 @@ describe('RepositoryHealthPanel', () => {
   it('defaults to collapsed, expands facts after clicking the header', async () => {
     render(<RepositoryHealthPanel repository={makeRepo()} releases={[release]} language="zh" />);
 
-    const trigger = screen.getByRole('button', { name: /仓库概况/ });
+    const trigger = screen.getByRole('button', { name: /\u4ed3\u5e93\u6982\u51b5/ }); // Chinese for "Repository Overview"
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByText('活跃度')).not.toBeInTheDocument();
+    expect(screen.queryByText('\u6d3b\u8dc3\u5ea6')).not.toBeInTheDocument(); // Chinese for "Activity"
 
     await userEvent.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByText('活跃度')).toBeVisible();
+    expect(screen.getByText('\u6d3b\u8dc3\u5ea6')).toBeVisible(); // Chinese for "Activity"
   });
 
   it('formats relative time using the date-fns locale corresponding to language', async () => {
@@ -67,15 +67,15 @@ describe('RepositoryHealthPanel', () => {
     );
 
     await expandPanel();
-    // language only drives date-fns; ja locale uses "約N年前", distinct from Chinese "约N年前".
-    expect(screen.getByText(/約\d+(\.\d+)?年前/)).toBeInTheDocument();
+    // language only drives date-fns; ja locale uses Japanese "about N years ago", distinct from Chinese.
+    expect(screen.getByText(/\u7d04\d+(\.\d+)?\u5e74\u524d/)).toBeInTheDocument(); // Japanese for "about N years ago"
   });
 
   it('displays facts across four fixed groups', async () => {
     render(<RepositoryHealthPanel repository={makeRepo()} releases={[release]} language="zh" />);
     await expandPanel();
 
-    for (const label of ['活跃度', '维护', '社区', '成熟度']) {
+    for (const label of ['\u6d3b\u8dc3\u5ea6', '\u7ef4\u62a4', '\u793e\u533a', '\u6210\u719f\u5ea6']) { // "Activity", "Maintenance", "Community", "Maturity"
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });
@@ -85,9 +85,9 @@ describe('RepositoryHealthPanel', () => {
     await expandPanel();
 
     expect(
-      screen.getByText('以上为客观事实，不含健康总分。「未知」表示尚未获得该事实。'),
+      screen.getByText('\u4ee5\u4e0a\u4e3a\u5ba2\u89c2\u4e8b\u5b9e\uff0c\u4e0d\u542b\u5065\u5eb7\u603b\u5206\u3002\u300c\u672a\u77e5\u300d\u8868\u793a\u5c1a\u672a\u83b7\u5f97\u8be5\u4e8b\u5b9e\u3002'), // Objective facts disclaimer
     ).toBeInTheDocument();
-    expect(screen.queryByText(/健康评分|健康分数/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\u5065\u5eb7\u8bc4\u5206|\u5065\u5eb7\u5206\u6570/)).not.toBeInTheDocument(); // "Health score"
   });
 
   it('displays conservative observations as neutral information', async () => {
@@ -100,12 +100,12 @@ describe('RepositoryHealthPanel', () => {
     );
 
     // Collapsed state still shows neutral observation badges
-    expect(screen.getByText('近 12 个月无推送')).toBeInTheDocument();
-    expect(screen.queryByText(/不健康|已废弃/)).not.toBeInTheDocument();
+    expect(screen.getByText('\u8fd1 12 \u4e2a\u6708\u65e0\u63a8\u9001')).toBeInTheDocument(); // "No pushes in last 12 months"
+    expect(screen.queryByText(/\u4e0d\u5065\u5eb7|\u5df2\u5e9f\u5f03/)).not.toBeInTheDocument(); // "Unhealthy / Deprecated"
 
     await expandPanel();
     // "Archived" appears in both observation badges and maintenance group fact rows
-    expect(screen.getAllByText('已归档').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('\u5df2\u5f52\u6863').length).toBeGreaterThanOrEqual(2); // "Archived"
   });
 
   it('displays unknown facts as "Unknown" rather than guessing', async () => {
@@ -113,9 +113,9 @@ describe('RepositoryHealthPanel', () => {
     await expandPanel();
 
     // Contributors require network fetch to populate; no local data available
-    const contributorsRow = screen.getByText('贡献者').closest('div');
+    const contributorsRow = screen.getByText('\u8d21\u732e\u8005').closest('div'); // "Contributors"
     expect(contributorsRow).not.toBeNull();
-    expect(within(contributorsRow as HTMLElement).getByText('未知')).toBeInTheDocument();
+    expect(within(contributorsRow as HTMLElement).getByText('\u672a\u77e5')).toBeInTheDocument(); // "Unknown"
   });
 
   it('does not report "No releases" when Release data is absent', async () => {
@@ -128,7 +128,7 @@ describe('RepositoryHealthPanel', () => {
     );
     await expandPanel();
 
-    expect(screen.queryByText('无 Release')).not.toBeInTheDocument();
+    expect(screen.queryByText('\u65e0 Release')).not.toBeInTheDocument(); // "No Release"
     // Facts unrelated to Release are still displayed
     expect(screen.getByText('Stars')).toBeInTheDocument();
   });
@@ -143,6 +143,6 @@ describe('RepositoryHealthPanel', () => {
     );
     await expandPanel();
 
-    expect(screen.getByText('无 Release')).toBeInTheDocument();
+    expect(screen.getByText('\u65e0 Release')).toBeInTheDocument(); // "No Release"
   });
 });

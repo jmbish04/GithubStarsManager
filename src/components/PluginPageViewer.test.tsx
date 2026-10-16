@@ -59,7 +59,7 @@ describe('PluginPageViewer', () => {
         origin: 'plugin-page://com.example.page', source: frame.contentWindow,
       }));
     });
-    expect(confirm).toHaveBeenCalledWith('允许插件调用 AI？', expect.stringContaining('Example repository'), expect.any(Object));
+    expect(confirm).toHaveBeenCalledWith('\u5141\u8bb8\u63d2\u4ef6\u8c03\u7528 AI\uff1f', expect.stringContaining('Example repository'), expect.any(Object)); // Chinese for "Allow plugin to call AI?"
     expect(requestPageCapability).toHaveBeenCalledTimes(2);
     expect(generateChatText).toHaveBeenCalledWith({ system: 'System instructions', user: 'Example repository', maxTokens: undefined, signal: expect.any(AbortSignal) });
     const response = postMessage.mock.calls.find(([message]) => (message as { requestId?: string }).requestId === 'ai-1')?.[0];
@@ -116,7 +116,7 @@ describe('PluginPageViewer', () => {
         origin: 'plugin-page://com.example.page', source: frame.contentWindow,
       }));
     });
-    expect(confirm).toHaveBeenCalledWith('允许插件联网搜索？', expect.stringContaining('https://search.example.com'), expect.any(Object));
+    expect(confirm).toHaveBeenCalledWith('\u5141\u8bb8\u63d2\u4ef6\u8054\u7f51\u641c\u7d22\uff1f', expect.stringContaining('https://search.example.com'), expect.any(Object)); // Chinese for "Allow plugin to search the web?"
     expect(searchWeb).toHaveBeenCalledWith({ pluginId: 'com.example.page', pageId: 'dashboard', args: { query: 'Example', limit: 2 } });
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'search-1', success: true }), 'plugin-page://com.example.page');
   });

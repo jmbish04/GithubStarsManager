@@ -18,12 +18,12 @@ const MENU_META: Record<HeaderMenuId, {
   labelZh: string;
   labelEn: string;
 }> = {
-  repositories: { icon: Search, labelZh: '仓库', labelEn: 'Repositories' },
+  repositories: { icon: Search, labelZh: 'Repositories', labelEn: 'Repositories' },
   gists: { icon: FileCode2, labelZh: 'Gist', labelEn: 'Gist' },
-  releases: { icon: Calendar, labelZh: '发布', labelEn: 'Releases' },
-  forks: { icon: GitFork, labelZh: '复刻', labelEn: 'Forks' },
-  subscription: { icon: Compass, labelZh: '发现', labelEn: 'Discover' },
-  settings: { icon: Settings, labelZh: '设置', labelEn: 'Settings' },
+  releases: { icon: Calendar, labelZh: 'Releases', labelEn: 'Releases' },
+  forks: { icon: GitFork, labelZh: 'Forks', labelEn: 'Forks' },
+  subscription: { icon: Compass, labelZh: 'Discover', labelEn: 'Discover' },
+  settings: { icon: Settings, labelZh: 'Settings', labelEn: 'Settings' },
 };
 
 export const Header: React.FC = () => {

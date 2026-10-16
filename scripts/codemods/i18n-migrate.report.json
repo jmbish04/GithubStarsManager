@@ -9,7 +9,7 @@
     "file": "src/components/ReadmeModal.tsx",
     "line": 39,
     "reason": "host has no block body",
-    "snippet": "language === 'zh' ? '默认 README' : 'Default README'"
+    "snippet": "language === 'zh' ? 'Default README' : 'Default README'"
   },
   {
     "file": "src/components/SearchBar.tsx",
@@ -63,6 +63,6 @@
     "file": "src/features/repository-chat/hooks/useRepositoryChatSessions.ts",
     "line": 16,
     "reason": "host has no block body",
-    "snippet": "language === 'zh' ? '新对话' : 'New conversation'"
+    "snippet": "language === 'zh' ? 'New conversation' : 'New conversation'"
   }
 ]

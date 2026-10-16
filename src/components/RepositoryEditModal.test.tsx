@@ -37,7 +37,7 @@ const repository: Repository = {
 
 const storeState = {
   updateRepository: vi.fn(),
-  language: "zh" as const,
+  language: "en" as const,
   customCategories: [],
   hiddenDefaultCategoryIds: [],
   defaultCategoryOverrides: {},
@@ -59,7 +59,7 @@ describe("RepositoryEditModal", () => {
       <RepositoryEditModal isOpen onClose={onClose} repository={repository} />,
     );
 
-    const description = screen.getByLabelText("自定义描述");
+    const description = screen.getByLabelText("Custom description");
     fireEvent.change(description, {
       target: { value: "Draft that must survive sync" },
     });
@@ -73,7 +73,7 @@ describe("RepositoryEditModal", () => {
       />,
     );
 
-    expect(screen.getByLabelText("自定义描述")).toHaveValue(
+    expect(screen.getByLabelText("Custom description")).toHaveValue(
       "Draft that must survive sync",
     );
   });
@@ -97,7 +97,7 @@ describe("RepositoryEditModal", () => {
     expect(footer).toHaveClass("shrink-0");
     expect(
       screen
-        .getByText("编辑仓库信息")
+        .getByText("Edit Repository Info")
         .closest('[data-testid="modal-scroll-area"]'),
     ).toBeNull();
   });

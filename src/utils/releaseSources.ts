@@ -17,18 +17,18 @@ type ReleaseSourceLabelEntry = { zh: string; en: string } & Partial<Record<AppLa
 
 export const RELEASE_SOURCE_LABELS: Record<ReleaseSourceId, ReleaseSourceLabelEntry> = {
   'starred-release-subscription': {
-    zh: '星标订阅', en: 'Starred subscriptions', ja: 'スター購読', es: 'Suscripciones de estrellas',
-    'pt-BR': 'Assinaturas de estrelas', ru: 'Подписки на звёзды', 'zh-TW': '星標訂閱',
+    zh: 'Starred subscriptions', en: 'Starred subscriptions', ja: 'Starred subscriptions', es: 'Suscripciones de estrellas',
+    'pt-BR': 'Assinaturas de estrelas', ru: 'Подписки на звёзды', 'zh-TW': 'Starred subscriptions',
     fr: 'Abonnements étoiles', de: 'Star-Abos', ko: '스타 구독',
   },
   'watch-custom-release': {
-    zh: 'Watch 仓库', en: 'Watch repositories', ja: 'ウォッチ リポジトリ', es: 'Repositorios watch',
-    'pt-BR': 'Repositórios monitorados', ru: 'Watch-репозитории', 'zh-TW': 'Watch 儲存庫',
+    zh: 'Watch repositories', en: 'Watch repositories', ja: 'ウォッチ リポジトリ', es: 'Repositorios watch',
+    'pt-BR': 'Repositórios monitorados', ru: 'Watch-репозитории', 'zh-TW': 'Watch repositories',
     fr: 'Dépôts watch', de: 'Watch-Repositories', ko: '워치 저장소',
   },
   'custom-release': {
-    zh: '自定义订阅', en: 'Custom subscriptions', ja: 'カスタム購読', es: 'Suscripciones personalizadas',
-    'pt-BR': 'Assinaturas personalizadas', ru: 'Пользовательские подписки', 'zh-TW': '自訂訂閱',
+    zh: 'Custom subscriptions', en: 'Custom subscriptions', ja: 'Custom subscriptions', es: 'Suscripciones personalizadas',
+    'pt-BR': 'Assinaturas personalizadas', ru: 'Пользовательские подписки', 'zh-TW': 'Custom subscriptions',
     fr: 'Abonnements personnalisés', de: 'Benutzerdefinierte Abos', ko: '커스텀 구독',
   },
 };

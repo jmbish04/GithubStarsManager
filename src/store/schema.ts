@@ -359,87 +359,87 @@ export const mergeVectorSearchConfig = (
 export const defaultCategories: Category[] = [
   {
     id: 'all',
-    name: '全部分类',
+    name: '\u5168\u90e8\u5206\u7c7b', // Chinese for "All Categories"
     icon: '📁',
     keywords: []
   },
   {
     id: 'web',
-    name: 'Web应用',
+    name: 'Web\u5e94\u7528', // Chinese for "Web Apps"
     icon: '🌐',
-    keywords: ['web应用', 'web', 'website', 'frontend', 'react', 'vue', 'angular']
+    keywords: ['web\u5e94\u7528', 'web', 'website', 'frontend', 'react', 'vue', 'angular'] // Chinese for "web apps"
   },
   {
     id: 'mobile',
-    name: '移动应用',
+    name: '\u79fb\u52a8\u5e94\u7528', // Chinese for "Mobile Apps"
     icon: '📱',
-    keywords: ['移动应用', 'mobile', 'android', 'ios', 'flutter', 'react-native']
+    keywords: ['\u79fb\u52a8\u5e94\u7528', 'mobile', 'android', 'ios', 'flutter', 'react-native'] // Chinese for "mobile apps"
   },
   {
     id: 'desktop',
-    name: '桌面应用',
+    name: '\u684c\u9762\u5e94\u7528', // Chinese for "Desktop Apps"
     icon: '💻',
-    keywords: ['桌面应用', 'desktop', 'electron', 'gui', 'qt', 'gtk']
+    keywords: ['\u684c\u9762\u5e94\u7528', 'desktop', 'electron', 'gui', 'qt', 'gtk'] // Chinese for "desktop apps"
   },
   {
     id: 'database',
-    name: '数据库',
+    name: '\u6570\u636e\u5e93', // Chinese for "Database"
     icon: '🗄️',
-    keywords: ['数据库', 'database', 'sql', 'nosql', 'mongodb', 'mysql', 'postgresql']
+    keywords: ['\u6570\u636e\u5e93', 'database', 'sql', 'nosql', 'mongodb', 'mysql', 'postgresql'] // Chinese for "database"
   },
   {
     id: 'ai',
-    name: 'AI/机器学习',
+    name: 'AI/\u673a\u5668\u5b66\u4e60', // Chinese for "AI/Machine Learning"
     icon: '🤖',
-    keywords: ['ai工具', 'ai', 'ml', 'machine learning', 'deep learning', 'neural']
+    keywords: ['ai\u5de5\u5177', 'ai', 'ml', 'machine learning', 'deep learning', 'neural'] // Chinese for "ai tools"
   },
   {
     id: 'devtools',
-    name: '开发工具',
+    name: '\u5f00\u53d1\u5de5\u5177', // Chinese for "Development Tools"
     icon: '🔧',
-    keywords: ['开发工具', 'tool', 'cli', 'build', 'deploy', 'debug', 'test', 'automation']
+    keywords: ['\u5f00\u53d1\u5de5\u5177', 'tool', 'cli', 'build', 'deploy', 'debug', 'test', 'automation'] // Chinese for "development tools"
   },
   {
     id: 'security',
-    name: '安全工具',
+    name: '\u5b89\u5168\u5de5\u5177', // Chinese for "Security Tools"
     icon: '🛡️',
-    keywords: ['安全工具', 'security', 'encryption', 'auth', 'vulnerability']
+    keywords: ['\u5b89\u5168\u5de5\u5177', 'security', 'encryption', 'auth', 'vulnerability'] // Chinese for "security tools"
   },
   {
     id: 'game',
-    name: '游戏',
+    name: '\u6e38\u620f', // Chinese for "Games"
     icon: '🎮',
-    keywords: ['游戏', 'game', 'gaming', 'unity', 'unreal', 'godot']
+    keywords: ['\u6e38\u620f', 'game', 'gaming', 'unity', 'unreal', 'godot'] // Chinese for "game"
   },
   {
     id: 'design',
-    name: '设计工具',
+    name: '\u8bbe\u8ba1\u5de5\u5177', // Chinese for "Design Tools"
     icon: '🎨',
-    keywords: ['设计工具', 'design', 'ui', 'ux', 'graphics', 'image']
+    keywords: ['\u8bbe\u8ba1\u5de5\u5177', 'design', 'ui', 'ux', 'graphics', 'image'] // Chinese for "design tools"
   },
   {
     id: 'productivity',
-    name: '效率工具',
+    name: '\u6548\u7387\u5de5\u5177', // Chinese for "Productivity Tools"
     icon: '⚡',
-    keywords: ['效率工具', 'productivity', 'note', 'todo', 'calendar', 'task']
+    keywords: ['\u6548\u7387\u5de5\u5177', 'productivity', 'note', 'todo', 'calendar', 'task'] // Chinese for "productivity tools"
   },
   {
     id: 'education',
-    name: '教育学习',
+    name: '\u6559\u80b2\u5b66\u4e60', // Chinese for "Education"
     icon: '📚',
-    keywords: ['教育学习', 'education', 'learning', 'tutorial', 'course']
+    keywords: ['\u6559\u80b2\u5b66\u4e60', 'education', 'learning', 'tutorial', 'course'] // Chinese for "education"
   },
   {
     id: 'social',
-    name: '社交网络',
+    name: '\u793e\u4ea4\u7f51\u7edc', // Chinese for "Social Network"
     icon: '👥',
-    keywords: ['社交网络', 'social', 'chat', 'messaging', 'communication']
+    keywords: ['\u793e\u4ea4\u7f51\u7edc', 'social', 'chat', 'messaging', 'communication'] // Chinese for "social network"
   },
   {
     id: 'analytics',
-    name: '数据分析',
+    name: '\u6570\u636e\u5206\u6790', // Chinese for "Data Analytics"
     icon: '📊',
-    keywords: ['数据分析', 'analytics', 'data', 'visualization', 'chart']
+    keywords: ['\u6570\u636e\u5206\u6790', 'analytics', 'data', 'visualization', 'chart'] // Chinese for "data analytics"
   }
 ];
 
@@ -462,74 +462,74 @@ export const defaultPresetFilters: AssetFilter[] = PRESET_FILTERS.map(pf => ({
 export const defaultDiscoveryChannels: DiscoveryChannel[] = [
   {
     id: 'trending',
-    name: '趋势',
+    name: 'Trending',
     nameEn: 'Trending',
     icon: 'trending',
-    description: 'GitHub 趋势仓库，支持今日/本周/本月筛选',
+    description: 'GitHub trending repositories, supports filtering by today, this week, or this month',
     enabled: true,
   },
   {
     id: 'hot-release',
-    name: '热门发布',
+    name: 'Hot Release',
     nameEn: 'Hot Release',
     icon: 'rocket',
-    description: '最近14天内活跃更新的仓库',
+    description: 'Repositories actively updated in the last 14 days',
     enabled: true,
   },
   {
     id: 'most-popular',
-    name: '最受欢迎',
+    name: 'Most Popular',
     nameEn: 'Most Popular',
     icon: 'star',
-    description: '星标数超过1000的稳定热门仓库',
+    description: 'Stable popular repositories with more than 1000 stars',
     enabled: true,
   },
   {
     id: 'topic',
-    name: '主题探索',
+    name: 'Topic',
     nameEn: 'Topic',
     icon: 'tag',
-    description: '按主题分类浏览仓库',
+    description: 'Browse repositories categorized by topic',
     enabled: true,
   },
   {
     id: 'x-tweet',
-    name: 'X 推文',
+    name: 'X Tweets',
     nameEn: 'X Tweets',
     icon: 'tweet',
-    description: '关注 X 博主推文中分享的 GitHub 项目',
+    description: 'Follow GitHub projects shared in posts by X bloggers',
     enabled: true,
   },
   {
     id: 'telegram',
-    name: 'Telegram 频道',
+    name: 'Telegram Channels',
     nameEn: 'Telegram Channels',
     icon: 'telegram',
-    description: '关注 Telegram 频道消息中分享的 GitHub 项目',
+    description: 'Follow GitHub projects shared in Telegram channel messages',
     enabled: true,
   },
   {
     id: 'weekly',
-    name: '阮一峰周刊',
+    name: 'Ruanyifeng Weekly',
     nameEn: 'Ruanyifeng Weekly',
     icon: 'weekly',
-    description: '阮一峰科技爱好者周刊的开源项目投稿精选',
+    description: 'Featured open source project submissions from Ruan Yifeng Tech Enthusiast Weekly',
     enabled: true,
   },
   {
     id: 'search',
-    name: '仓库搜索',
+    name: 'Repo Search',
     nameEn: 'Repo Search',
     icon: 'search',
-    description: '自定义搜索发现新项目',
+    description: 'Discover new projects with custom search',
     enabled: true,
   },
   {
     id: 'code-search',
-    name: '代码搜索',
+    name: 'Code Search',
     nameEn: 'Code Search',
     icon: 'search',
-    description: '公开仓库代码全文检索，支持正则与仓库/路径/语言过滤',
+    description: 'Public repository code full-text search, supporting regex and repo/path/language filters',
     enabled: true,
   },
 ];

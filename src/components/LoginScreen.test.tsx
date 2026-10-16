@@ -62,9 +62,9 @@ const enterBackendMode = async () => {
       <LoginScreen />
     </TooltipProvider>
   );
-  fireEvent.click(screen.getByRole('button', { name: /已有后端数据/ }));
+  fireEvent.click(screen.getByRole('button', { name: /\u5df2\u6709\u540e\u7aef\u6570\u636e/ })); // Chinese for "Already have backend data"
   return {
-    urlInput: await screen.findByLabelText('后端 URL'),
+    urlInput: await screen.findByLabelText('\u540e\u7aef URL'), // Chinese for "Backend URL"
     apiKeyInput: screen.getByLabelText('API Key'),
   };
 };
@@ -72,9 +72,9 @@ const enterBackendMode = async () => {
 describe('LoginScreen token guidance', () => {
   it('explains Star permissions before sign-in', () => {
     render(<TooltipProvider><LoginScreen /></TooltipProvider>);
-    expect(screen.getByText('GitHub Token 权限')).toBeVisible();
+    expect(screen.getByText('GitHub Token \u6743\u9650')).toBeVisible(); // Chinese for "GitHub Token permissions"
     expect(screen.getByText('Starring')).toBeVisible();
-    fireEvent.click(screen.getByRole('tab', { name: '经典 Token' }));
+    fireEvent.click(screen.getByRole('tab', { name: '\u7ecf\u5178 Token' })); // Chinese for "Classic Token"
     expect(screen.getByText('public_repo')).toBeVisible();
   });
 });
@@ -104,9 +104,9 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'http://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u8fde\u63a5\u5e76\u6062\u590d\u6570\u636e' })); // Chinese for "Connect and restore data"
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('后端地址无效');
+    expect(await screen.findByRole('alert')).toHaveTextContent('\u540e\u7aef\u5730\u5740\u65e0\u6548'); // Chinese for "Invalid backend address"
     expect(mocks.restoreBackendSession).not.toHaveBeenCalled();
   });
 
@@ -116,9 +116,9 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u8fde\u63a5\u5e76\u6062\u590d\u6570\u636e' })); // Chinese for "Connect and restore data"
 
-    expect(await screen.findByText('后端保存的 GitHub Token 无法使用，请重新配置')).toBeInTheDocument();
+    expect(await screen.findByText('\u540e\u7aef\u4fdd\u5b58\u7684 GitHub Token \u65e0\u6cd5\u4f7f\u7528\uff0c\u8bf7\u91cd\u65b0\u914d\u7f6e')).toBeInTheDocument(); // Chinese for "Backend saved GitHub Token cannot be used, please reconfigure"
     expect(screen.getByLabelText('GitHub Personal Access Token')).toHaveAttribute('id', 'backend-github-token');
   });
 
@@ -132,7 +132,7 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u8fde\u63a5\u5e76\u6062\u590d\u6570\u636e' })); // Chinese for "Connect and restore data"
 
     await waitFor(() => expect(mocks.store.setUser).toHaveBeenCalledWith({ id: 1, login: 'octocat' }));
     expect(mocks.syncBackendData).toHaveBeenCalledOnce();
@@ -153,7 +153,7 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u8fde\u63a5\u5e76\u6062\u590d\u6570\u636e' })); // Chinese for "Connect and restore data"
 
     expect(await screen.findByRole('alert')).toHaveTextContent('sync failed');
     expect(mocks.store.setUser).not.toHaveBeenCalled();
@@ -169,11 +169,11 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u8fde\u63a5\u5e76\u6062\u590d\u6570\u636e' })); // Chinese for "Connect and restore data"
 
     const tokenInput = await screen.findByLabelText('GitHub Personal Access Token');
     fireEvent.change(tokenInput, { target: { value: 'ghp_new' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存并继续' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u4fdd\u5b58\u5e76\u7ee7\u7eed' })); // Chinese for "Save and continue"
 
     expect(await screen.findByRole('alert')).toHaveTextContent('sync failed');
     expect(mocks.store.setUser).not.toHaveBeenCalled();
@@ -196,11 +196,11 @@ describe('LoginScreen backend login', () => {
 
     fireEvent.change(urlInput, { target: { value: 'https://backend.example.com' } });
     fireEvent.change(apiKeyInput, { target: { value: 'secret' } });
-    fireEvent.click(screen.getByRole('button', { name: '连接并恢复数据' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u8fde\u63a5\u5e76\u6062\u590d\u6570\u636e' })); // Chinese for "Connect and restore data"
 
-    expect(await screen.findByText('本地数据冲突')).toBeInTheDocument();
+    expect(await screen.findByText('\u672c\u5730\u6570\u636e\u51b2\u7a81')).toBeInTheDocument(); // Chinese for "Local data conflict"
 
-    fireEvent.click(screen.getByRole('button', { name: '使用后端数据' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u4f7f\u7528\u540e\u7aef\u6570\u636e' })); // Chinese for "Use backend data"
 
     await waitFor(() => expect(mocks.store.setUser).toHaveBeenCalledWith({ id: 1, login: 'octocat' }));
     expect(mocks.syncBackendData).toHaveBeenCalledOnce();

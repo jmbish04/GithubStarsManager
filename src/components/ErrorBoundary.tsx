@@ -17,18 +17,18 @@ interface State {
 const getLocalizedStrings = () => {
   const lang = navigator.language?.startsWith('zh') ? 'zh' : 'en';
   return {
-    title: lang === 'zh' ? '应用加载出错' : 'Application Error',
+    title: lang === 'zh' ? 'Application Error' : 'Application Error',
     description: lang === 'zh'
-      ? '应用遇到了问题。请查看下方错误详情或将问题反馈给我们。'
+      ? 'Sorry, the application encountered an issue. Please see the error details below or report the issue to us.'
       : 'Sorry, the application encountered an issue. Please see the error details below or report the issue to us.',
-    reload: lang === 'zh' ? '重新加载页面' : 'Reload Page',
-    reportIssue: lang === 'zh' ? '在 GitHub 上反馈问题' : 'Report Issue on GitHub',
-    toggleDetails: lang === 'zh' ? '显示/隐藏详细信息' : 'Show/Hide Details',
-    errorDetails: lang === 'zh' ? '错误详情' : 'Error Details',
-    stackTrace: lang === 'zh' ? '堆栈跟踪' : 'Stack Trace',
-    browserHint: lang === 'zh' ? '建议使用的浏览器：' : 'Recommended browsers:',
-    copyError: lang === 'zh' ? '复制错误信息' : 'Copy Error Info',
-    copied: lang === 'zh' ? '已复制！' : 'Copied!',
+    reload: lang === 'zh' ? 'Reload Page' : 'Reload Page',
+    reportIssue: lang === 'zh' ? 'Report Issue on GitHub' : 'Report Issue on GitHub',
+    toggleDetails: lang === 'zh' ? 'Show/Hide Details' : 'Show/Hide Details',
+    errorDetails: lang === 'zh' ? 'Error Details' : 'Error Details',
+    stackTrace: lang === 'zh' ? 'Stack Trace' : 'Stack Trace',
+    browserHint: lang === 'zh' ? 'Recommended browsers:' : 'Recommended browsers:',
+    copyError: lang === 'zh' ? 'Copy Error Info' : 'Copy Error Info',
+    copied: lang === 'zh' ? 'Copied!' : 'Copied!',
   };
 };
 

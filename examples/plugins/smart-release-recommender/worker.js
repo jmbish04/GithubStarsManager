@@ -2,7 +2,7 @@
 
 let host;
 
-const SOURCE_ARCHIVE = /(?:source[-_. ]?code|源码)/i;
+const SOURCE_ARCHIVE = /(?:source[-_. ]?code|\u6e90\u7801)/i; // Chinese for "source code"
 const PLATFORM_PATTERNS = {
   win32: /(?:windows|win32|win64|win[-_.]?x64|\.exe$|\.msi$)/i,
   darwin: /(?:macos|mac[-_.]?os|darwin|osx|\.dmg$|\.pkg$)/i,

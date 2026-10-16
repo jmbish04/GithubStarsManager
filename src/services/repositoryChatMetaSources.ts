@@ -200,9 +200,12 @@ export const buildNoIssuesEvidence = (repository: Repository, keywords: string[]
 export const detectMetaIntent = (question: string): MetaInfoKind[] => {
   const normalized = question.toLowerCase();
   const kinds: MetaInfoKind[] = [];
-  if (/(?:最近|最新|更新了|更新日志|变更|新版本|版本历史|what'?s new|changelog|recent(?:ly)?\s+(?:update|release|change)|latest\s+(?:release|update|version)|release\s+notes?)/i.test(normalized)) kinds.push('releases');
-  if (/(?:构建包|安装包|安装文件|安装介质|哪些平台|什么平台|平台.*(?:构建|包|下载)|下载.*(?:包|文件)|binar|artifact|installer|build\s*packages?|prebuilt|download\s+(?:page|link|asset)|which\s+platforms?)/i.test(normalized)) kinds.push('releases');
-  if (/(?:报错|出错|错误|异常|崩溃|闪退|无法|失败|遇到.{0,8}问题|疑难|已知问题|bug|crash|broken|error|fail(?:ed|ure)?|not\s+work|issue\s+with|troubleshoot|doesn'?t\s+work)/i.test(normalized)) kinds.push('issues');
+  // Chinese keywords for "recent updates / changelog / what's new"
+  if (/(?:\u6700\u8fd1|\u6700\u65b0|\u66f4\u65b0\u4e86|\u66f4\u65b0\u65e5\u5fd7|\u53d8\u66f4|\u65b0\u7248\u672c|\u7248\u672c\u5386\u53f2|what'?s new|changelog|recent(?:ly)?\s+(?:update|release|change)|latest\s+(?:release|update|version)|release\s+notes?)/i.test(normalized)) kinds.push('releases');
+  // Chinese keywords for "build packages / installers / platforms / downloads"
+  if (/(?:\u6784\u5efa\u5305|\u5b89\u88c5\u5305|\u5b89\u88c5\u6587\u4ef6|\u5b89\u88c5\u4ecb\u8d28|\u54ea\u4e9b\u5e73\u53f0|\u4ec0\u4e48\u5e73\u53f0|\u5e73\u53f0.*(?:\u6784\u5efa|\u5305|\u4e0b\u8f7d)|\u4e0b\u8f7d.*(?:\u5305|\u6587\u4ef6)|binar|artifact|installer|build\s*packages?|prebuilt|download\s+(?:page|link|asset)|which\s+platforms?)/i.test(normalized)) kinds.push('releases');
+  // Chinese keywords for "errors / exceptions / crashes / failures / troubleshooting"
+  if (/(?:\u62a5\u9519|\u51fa\u9519|\u9519\u8bef|\u5f02\u5e38|\u5d29\u6e83|\u95ea\u9000|\u65e0\u6cd5|\u5931\u8d25|\u9047\u5230.{0,8}\u95ee\u9898|\u7591\u96be|\u5df2\u77e5\u95ee\u9898|bug|crash|broken|error|fail(?:ed|ure)?|not\s+work|issue\s+with|troubleshoot|doesn'?t\s+work)/i.test(normalized)) kinds.push('issues');
   // Both releases regexes may match simultaneously: de-duplicate to avoid occupying multiple meta target slots.
   return Array.from(new Set(kinds));
 };

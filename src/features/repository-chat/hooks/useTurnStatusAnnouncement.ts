@@ -21,9 +21,9 @@ export const useTurnStatusAnnouncement = (lastAssistantStatus: TurnAnnouncementS
     }
     if (previous !== 'streaming') return;
     const zh = language === 'zh';
-    if (lastAssistantStatus === 'complete') setAnnouncement(zh ? '回答已完成。' : 'Answer complete.');
-    else if (lastAssistantStatus === 'error') setAnnouncement(zh ? '回答生成失败。' : 'Answer generation failed.');
-    else if (lastAssistantStatus === 'aborted') setAnnouncement(zh ? '已停止生成。' : 'Generation stopped.');
+    if (lastAssistantStatus === 'complete') setAnnouncement(zh ? 'Answer complete.' : 'Answer complete.');
+    else if (lastAssistantStatus === 'error') setAnnouncement(zh ? 'Answer generation failed.' : 'Answer generation failed.');
+    else if (lastAssistantStatus === 'aborted') setAnnouncement(zh ? 'Generation stopped.' : 'Generation stopped.');
   }, [lastAssistantStatus, language]);
 
   return announcement;

@@ -49,13 +49,13 @@ const repository = (id: number, overrides: Partial<Repository> = {}): Repository
 });
 
 const categories = [
-  { id: 'all', name: '全部分类', icon: 'folder', keywords: [] },
-  { id: 'tools', name: '工具', icon: 'wrench', keywords: ['tool'], isCustom: true },
+  { id: 'all', name: 'All Categories', icon: 'folder', keywords: [] },
+  { id: 'tools', name: 'Tools', icon: 'wrench', keywords: ['tool'], isCustom: true },
 ];
 
 const createStoreState = () => ({
   githubToken: 'github-token',
-  language: 'zh' as const,
+  language: 'en' as const,
   updateRepository: vi.fn(),
   deleteRepository: vi.fn(),
   toggleReleaseSubscription: vi.fn(),
@@ -107,14 +107,14 @@ describe('useBulkRepositoryActions', () => {
     expect(storeState.deleteRepository).toHaveBeenCalledWith(first.id);
     expect(storeState.deleteRepository).not.toHaveBeenCalledWith(second.id);
     expect(mocks.forceSyncToBackend).toHaveBeenCalledTimes(1);
-    expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('失败 (1 个)'), 'error');
+    expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('Failed (1)'), 'error');
   });
 
   it('restores original fields through the pure patch and syncs exactly once', async () => {
     const target = repository(1, {
       custom_description: 'Custom description',
       custom_tags: ['custom'],
-      custom_category: '工具',
+      custom_category: 'Tools',
       category_locked: true,
       ai_summary: 'AI summary',
       ai_tags: ['ai'],
@@ -142,12 +142,12 @@ describe('useBulkRepositoryActions', () => {
   });
 
   it('uses category and lock patches while synchronizing each completed batch once', async () => {
-    const categorized = repository(1, { ai_tags: ['tool'], custom_category: '手动' });
+    const categorized = repository(1, { ai_tags: ['tool'], custom_category: 'Manual' });
     const notCategorized = repository(2);
     const { result } = renderActions();
 
     await act(async () => {
-      await result.current.categorize([categorized], '工具');
+      await result.current.categorize([categorized], 'Tools');
     });
     expect(storeState.updateRepository).toHaveBeenCalledWith(expect.objectContaining({ id: categorized.id, custom_category: undefined }));
     expect(mocks.forceSyncToBackend).toHaveBeenCalledTimes(1);

@@ -91,7 +91,7 @@ describe('ReleaseCard asset updated indicator', () => {
   it('shows container-level and per-asset indicators from the same source (updated_asset_ids)', () => {
     renderCard({ isUnread: true });
     // Both container-level and asset-level indicators are shown
-    expect(screen.getAllByText('资产已更新')).toHaveLength(2);
+    expect(screen.getAllByText('\u8d44\u4ea7\u5df2\u66f4\u65b0')).toHaveLength(2); // Chinese for "Asset updated"
   });
 
   it('shows no indicator once updated_asset_ids is cleared (release marked read)', () => {
@@ -99,7 +99,7 @@ describe('ReleaseCard asset updated indicator', () => {
       isUnread: false,
       release: makeRelease(1, { updated_asset_ids: [] }),
     });
-    expect(screen.queryByText('资产已更新')).not.toBeInTheDocument();
+    expect(screen.queryByText('\u8d44\u4ea7\u5df2\u66f4\u65b0')).not.toBeInTheDocument(); // Chinese for "Asset updated"
   });
 
   it('regression: asset updated_at newer than published_at alone shows no indicator', () => {
@@ -109,7 +109,7 @@ describe('ReleaseCard asset updated indicator', () => {
       isUnread: true,
       release: makeRelease(1, { updated_asset_ids: undefined }),
     });
-    expect(screen.queryByText('资产已更新')).not.toBeInTheDocument();
+    expect(screen.queryByText('\u8d44\u4ea7\u5df2\u66f4\u65b0')).not.toBeInTheDocument(); // Chinese for "Asset updated"
   });
 
   it('does not show the indicator for assets without an asset id (source code links)', () => {
@@ -121,7 +121,7 @@ describe('ReleaseCard asset updated indicator', () => {
       ],
     });
     // Container indicator is still shown (updated_asset_ids is non-empty), but the source code row has no assetId, so no per-asset indicator is shown
-    expect(screen.getAllByText('资产已更新')).toHaveLength(1);
+    expect(screen.getAllByText('\u8d44\u4ea7\u5df2\u66f4\u65b0')).toHaveLength(1); // Chinese for "Asset updated"
   });
 
   it('marks only the clicked asset as read via onMarkAssetAsRead', () => {
@@ -222,9 +222,9 @@ describe('ReleaseCard asset updated indicator', () => {
       ],
     });
     // Header (effectiveReleaseTime) and asset row each render one Chinese relative time
-    expect(screen.getAllByText(/个月前|周前|天前|小时前|分钟前|年前/).length).toBe(2);
+    expect(screen.getAllByText(/\u4e2a\u6708\u524d|\u5468\u524d|\u5929\u524d|\u5c0f\u65f6\u524d|\u5206\u949f\u524d|\u5e74\u524d/).length).toBe(2); // Chinese relative time suffixes
     const assetRow = screen.getByRole('button', { name: /app\.dmg/ });
-    expect(within(assetRow).getByText(/前$/)).toBeInTheDocument();
+    expect(within(assetRow).getByText(/\u524d$/)).toBeInTheDocument(); // Chinese for "ago"
   });
 
   it('hides the asset updated time when updated_at is missing', () => {
@@ -235,7 +235,7 @@ describe('ReleaseCard asset updated indicator', () => {
     });
     // Header still contains Chinese relative time, so assert only on the absence within the asset row
     const assetRow = screen.getByRole('button', { name: /app\.dmg/ });
-    expect(within(assetRow).queryByText(/前$/)).not.toBeInTheDocument();
+    expect(within(assetRow).queryByText(/\u524d$/)).not.toBeInTheDocument(); // Chinese for "ago"
   });
 
   it('hides the asset updated time when updated_at is invalid', () => {
@@ -245,7 +245,7 @@ describe('ReleaseCard asset updated indicator', () => {
       ],
     });
     const assetRow = screen.getByRole('button', { name: /app\.dmg/ });
-    expect(within(assetRow).queryByText(/前$/)).not.toBeInTheDocument();
+    expect(within(assetRow).queryByText(/\u524d$/)).not.toBeInTheDocument(); // Chinese for "ago"
   });
 
 describe('ReleaseCard asset list filtering', () => {
@@ -270,12 +270,12 @@ describe('ReleaseCard asset list filtering', () => {
     // Title count tracks visible assets
     expect(screen.getByText('(1)')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '显示全部 3 个' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u663e\u793a\u5168\u90e8 3 \u4e2a' })); // Chinese for "Show all 3"
     expect(screen.getByText('app.exe')).toBeInTheDocument();
     expect(screen.getByText('app.AppImage')).toBeInTheDocument();
     expect(screen.getByText('(3)')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '仅显示命中的 1 个' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u4ec5\u663e\u793a\u547d\u4e2d\u7684 1 \u4e2a' })); // Chinese for "Show only matching 1"
     expect(screen.queryByText('app.exe')).not.toBeInTheDocument();
     expect(screen.getByText('(1)')).toBeInTheDocument();
   });
@@ -283,7 +283,7 @@ describe('ReleaseCard asset list filtering', () => {
   it('falls back to the filtered list when the match set changes (filter switched or edited)', () => {
     const view = renderCard({ downloadLinks: [links[0]], allDownloadLinks: links });
 
-    fireEvent.click(screen.getByRole('button', { name: '显示全部 3 个' }));
+    fireEvent.click(screen.getByRole('button', { name: '\u663e\u793a\u5168\u90e8 3 \u4e2a' })); // Chinese for "Show all 3"
     expect(screen.getByText('app.exe')).toBeInTheDocument();
 
     // Filter switched or keywords edited (match set changed) -> auto-resets to "show matched assets only",
@@ -292,7 +292,7 @@ describe('ReleaseCard asset list filtering', () => {
     expect(screen.queryByText('app.dmg')).not.toBeInTheDocument();
     expect(screen.getByText('app.exe')).toBeInTheDocument();
     expect(screen.queryByText('app.AppImage')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '显示全部 3 个' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '\u663e\u793a\u5168\u90e8 3 \u4e2a' })).toBeInTheDocument(); // Chinese for "Show all 3"
   });
 
   it('renders every asset without a toggle when nothing was filtered out', () => {
@@ -300,7 +300,7 @@ describe('ReleaseCard asset list filtering', () => {
 
     expect(screen.getByText('app.dmg')).toBeInTheDocument();
     expect(screen.getByText('app.exe')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /显示全部/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /\u663e\u793a\u5168\u90e8/ })).not.toBeInTheDocument(); // Chinese for "Show all"
   });
 });
 

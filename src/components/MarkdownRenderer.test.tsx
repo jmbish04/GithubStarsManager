@@ -459,7 +459,7 @@ describe('MarkdownRenderer', () => {
         .spyOn(HTMLAnchorElement.prototype, 'click')
         .mockImplementation(() => undefined);
       try {
-        const downloadButton = overlay?.querySelector('button[title="下载图片"]') as HTMLButtonElement;
+        const downloadButton = overlay?.querySelector('button[title="\u4e0b\u8f7d\u56fe\u7247"]') as HTMLButtonElement; // Chinese for "Download image"
         expect(downloadButton).toBeInTheDocument();
 
         fireEvent.click(downloadButton);
@@ -522,14 +522,14 @@ describe('MarkdownRenderer', () => {
         <MarkdownRenderer content={'```\n\nplain fenced text\n\n```'} />
       );
       expect(container.querySelector('pre pre')).toBeNull();
-      expect(container.querySelector('button[aria-label="复制代码"]')).toBeInTheDocument();
+      expect(container.querySelector('button[aria-label="Copy code"]')).toBeInTheDocument();
       expect(container.querySelector('pre code')!.textContent).toBe('plain fenced text');
     });
 
     it('should provide a hover copy button for code blocks', () => {
       const content = '```javascript\nconsole.log("hello");\n```';
       const { container } = render(<MarkdownRenderer content={content} />);
-      expect(container.querySelector('button[aria-label="复制代码"]')).toBeInTheDocument();
+      expect(container.querySelector('button[aria-label="Copy code"]')).toBeInTheDocument();
     });
 
     it('should normalize language aliases', () => {

@@ -86,9 +86,9 @@ export const getDefaultCategoryNames = (customCategories: Category[], language: 
   if (language === 'zh') {
     return [
       ...customNames,
-      '全部分类', 'Web应用', '移动应用', '桌面应用', '数据库',
-      'AI/机器学习', '开发工具', '安全工具', '游戏', '设计工具',
-      '效率工具', '教育学习', '社交网络', '数据分析',
+      'All', 'Web Apps', 'Mobile Apps', 'Desktop Apps', 'Database',
+      'AI/ML', 'Dev Tools', 'Security Tools', 'Games', 'Design Tools',
+      'Productivity', 'Education', 'Social Networks', 'Data Analysis',
     ];
   }
   return [

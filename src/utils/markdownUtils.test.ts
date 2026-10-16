@@ -61,7 +61,9 @@ describe('stripMarkdownFormatting', () => {
   });
 
   it('should handle Chinese characters', () => {
-    expect(stripMarkdownFormatting('**中文加粗**')).toBe('中文加粗');
-    expect(stripMarkdownFormatting('[链接文本](https://example.com)')).toBe('链接文本');
+    // Chinese for "bold Chinese text"
+    expect(stripMarkdownFormatting('**\u4e2d\u6587\u52a0\u7c97**')).toBe('\u4e2d\u6587\u52a0\u7c97');
+    // Chinese for "link text"
+    expect(stripMarkdownFormatting('[\u94fe\u63a5\u6587\u672c](https://example.com)')).toBe('\u94fe\u63a5\u6587\u672c');
   });
 });

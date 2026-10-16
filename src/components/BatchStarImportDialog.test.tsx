@@ -166,9 +166,9 @@ describe('BatchStarImportDialog', () => {
 
   it('shows translated descriptions while the translation view is on', () => {
     mocks.translationsVisible = true;
-    mocks.translations = { 'owner/repo': '示例仓库' };
+    mocks.translations = { 'owner/repo': 'Translated repository' };
     render(<BatchStarImportDialog isOpen onClose={vi.fn()} />);
-    expect(screen.getByText('示例仓库')).toBeInTheDocument();
+    expect(screen.getByText('Translated repository')).toBeInTheDocument();
     expect(screen.queryByText('Example repository')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'batchStar.show-original' })).toBeEnabled();
   });

@@ -58,12 +58,12 @@ const STATUS_COLORS: Record<string, string> = {
 type ModalTab = 'general' | 'timing' | 'requestHeader' | 'requestBody' | 'responseHeader' | 'responseBody';
 
 const MODAL_TABS: { id: ModalTab; zh: string; en: string }[] = [
-  { id: 'general', zh: '概览', en: 'General' },
-  { id: 'timing', zh: '耗时', en: 'Timing & Notes' },
-  { id: 'requestHeader', zh: '请求头', en: 'Request Header' },
-  { id: 'requestBody', zh: '请求体', en: 'Request Body' },
-  { id: 'responseHeader', zh: '返回头', en: 'Response Header' },
-  { id: 'responseBody', zh: '返回体', en: 'Response Body' },
+  { id: 'general', zh: 'General', en: 'General' },
+  { id: 'timing', zh: 'Timing & Notes', en: 'Timing & Notes' },
+  { id: 'requestHeader', zh: 'Request Header', en: 'Request Header' },
+  { id: 'requestBody', zh: 'Request Body', en: 'Request Body' },
+  { id: 'responseHeader', zh: 'Response Header', en: 'Response Header' },
+  { id: 'responseBody', zh: 'Response Body', en: 'Response Body' },
 ];
 
 function formatRelativeTime(iso: string): string {

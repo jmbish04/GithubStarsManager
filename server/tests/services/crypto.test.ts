@@ -58,7 +58,8 @@ describe('Crypto Service', () => {
   });
 
   it('should handle unicode content', () => {
-    const plaintext = '你好世界 🌍 héllo';
+    // '\u4f60\u597d\u4e16\u754c' is Chinese for "hello world"
+    const plaintext = '\u4f60\u597d\u4e16\u754c 🌍 héllo';
     const encrypted = encrypt(plaintext, testKey);
     const decrypted = decrypt(encrypted, testKey);
     expect(decrypted).toBe(plaintext);

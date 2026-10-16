@@ -17,7 +17,7 @@ describe('readmeVariants', () => {
     expect(variants[0]).toMatchObject({
       key: 'default',
       path: null,
-      label: '默认 README',
+      label: 'Default README',
       isDefault: true,
     });
   });
@@ -66,8 +66,8 @@ describe('readmeVariants', () => {
       file('README.pt-BR.md'),
     ], 'en').map((variant) => variant.label);
 
-    expect(zhLabels).toContain('中文 · README_zh.md');
-    expect(zhLabels).toContain('葡萄牙语（巴西） · README.pt-BR.md');
+    expect(zhLabels).toContain('Chinese · README_zh.md');
+    expect(zhLabels).toContain('Portuguese (Brazil) · README.pt-BR.md');
     expect(enLabels).toContain('Chinese · README_zh.md');
     expect(enLabels).toContain('Portuguese (Brazil) · README.pt-BR.md');
   });

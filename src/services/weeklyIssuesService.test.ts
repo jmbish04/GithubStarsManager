@@ -76,10 +76,12 @@ vi.mock('./weeklyIssuesStorage', () => ({
 }));
 
 const makeIssue = (overrides: Partial<GitHubIssueListRead> & { number: number }): GitHubIssueListRead => ({
-  title: '【开源自荐】some tool',
+  // Chinese for "[open source self-recommendation] some tool"
+  title: '\u3010\u5f00\u6e90\u81ea\u8350\u3011some tool',
   state: 'open',
   html_url: `https://github.com/ruanyf/weekly/issues/${overrides.number}`,
-  body: '项目地址：https://github.com/foo/bar',
+  // Chinese for "Project address: ..."
+  body: '\u9879\u76ee\u5730\u5740\uff1ahttps://github.com/foo/bar',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
   labels: [],
@@ -107,7 +109,8 @@ const makeDetail = (fullName: string, stars = 10): GitHubRepoDetailRead => ({
 
 describe('extractRepoFullNames', () => {
   it('extracts plain repo urls and dedupes', () => {
-    const body = '项目地址：https://github.com/foo/bar\n备用：https://github.com/foo/bar';
+    // Chinese for "Project address:" and "Backup:"
+    const body = '\u9879\u76ee\u5730\u5740\uff1ahttps://github.com/foo/bar\n\u5907\u7528\uff1ahttps://github.com/foo/bar';
     expect(extractRepoFullNames(body)).toEqual(['foo/bar']);
   });
 
@@ -122,7 +125,8 @@ describe('extractRepoFullNames', () => {
       '![img](https://github.com/user-attachments/assets/abcd-1234)',
       'https://github.com/features/codespaces',
       'https://github.com/ruanyf/weekly/issues/1',
-      '项目：https://github.com/real/one',
+      // Chinese for "Project:"
+      '\u9879\u76ee\uff1ahttps://github.com/real/one',
     ].join('\n');
     expect(extractRepoFullNames(body)).toEqual(['real/one']);
   });
@@ -130,7 +134,8 @@ describe('extractRepoFullNames', () => {
   it('returns empty for null/empty body and tolerates trailing CJK punctuation', () => {
     expect(extractRepoFullNames(null)).toEqual([]);
     expect(extractRepoFullNames('')).toEqual([]);
-    expect(extractRepoFullNames('仓库：https://github.com/foo/bar。欢迎试用')).toEqual(['foo/bar']);
+    // Chinese for "Repository: https://github.com/foo/bar. Welcome to try it out"
+    expect(extractRepoFullNames('\u4ed3\u5e93\uff1ahttps://github.com/foo/bar\u3002\u6b22\u8fce\u8bd5\u7528')).toEqual(['foo/bar']);
   });
 
   it('strips trailing ascii periods but preserves legal trailing hyphens', () => {
@@ -154,8 +159,10 @@ describe('processWeeklyIssue', () => {
     const repos = new Map<string, WeeklyStoredRepo>();
 
     expect(processWeeklyIssue(makeIssue({ number: 1, isPullRequest: true }), issues, repos, marks())).toBe(false);
-    expect(processWeeklyIssue(makeIssue({ number: 2, title: '【文章推荐】weekly blog' }), issues, repos, marks())).toBe(false);
-    expect(processWeeklyIssue(makeIssue({ number: 3, body: '看这里 https://example.com/x' }), issues, repos, marks())).toBe(false);
+    // Chinese for "[article recommendation] weekly blog"
+    expect(processWeeklyIssue(makeIssue({ number: 2, title: '\u3010\u6587\u7ae0\u63a8\u8350\u3011weekly blog' }), issues, repos, marks())).toBe(false);
+    // Chinese for "Look here https://example.com/x"
+    expect(processWeeklyIssue(makeIssue({ number: 3, body: '\u770b\u8fd9\u91cc https://example.com/x' }), issues, repos, marks())).toBe(false);
     expect(issues.size).toBe(0);
     expect(repos.size).toBe(0);
   });
@@ -490,7 +497,8 @@ describe('fetchWeeklyIssueBody without token', () => {
 
   const storedIssue = (number: number): WeeklyStoredIssue => ({
     number,
-    title: '【开源自荐】cached',
+    // Chinese for "[open source self-recommendation] cached"
+    title: '\u3010\u5f00\u6e90\u81ea\u8350\u3011cached',
     body: 'cached body',
     labels: ['weekly'],
     state: 'open',

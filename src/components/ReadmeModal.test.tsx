@@ -92,7 +92,7 @@ describe('ReadmeModal multilingual README switching', () => {
     ]);
     mockedGitHubApiService.mockImplementation(function () { return mockGitHubApi; });
     (backend.getRepositoryReadme as ReturnType<typeof vi.fn>).mockResolvedValue('Default README content');
-    (backend.getRepositoryReadmeByPath as ReturnType<typeof vi.fn>).mockResolvedValue('中文 README 内容');
+    (backend.getRepositoryReadmeByPath as ReturnType<typeof vi.fn>).mockResolvedValue('Chinese README content');
     (backend.listRepositoryReadmeCandidates as ReturnType<typeof vi.fn>).mockResolvedValue([
       { path: 'README.md', type: 'blob' },
       { path: 'README_zh.md', type: 'blob' },
@@ -107,12 +107,12 @@ describe('ReadmeModal multilingual README switching', () => {
     expect(backend.getRepositoryReadme).toHaveBeenCalledWith('owner', 'demo', expect.any(AbortSignal));
 
     const user = userEvent.setup();
-    const selector = await screen.findByRole('combobox', { name: '切换 README 语言' });
+    const selector = await screen.findByRole('combobox', { name: '\u5207\u6362 README \u8bed\u8a00' }); // Chinese for "Switch README language"
     expect(selector).toBeInTheDocument();
     await user.click(selector);
-    expect(await screen.findByRole('option', { name: '默认 README' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: '中文 · README_zh.md' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: '日语 · docs/README.ja.md' })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'Default README' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Chinese · README_zh.md' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Japanese · docs/README.ja.md' })).toBeInTheDocument();
   });
 
   it('loads the selected README variant by path', async () => {
@@ -120,15 +120,15 @@ describe('ReadmeModal multilingual README switching', () => {
 
     await screen.findByText('Default README content');
     const user = userEvent.setup();
-    const selector = await screen.findByRole('combobox', { name: '切换 README 语言' });
+    const selector = await screen.findByRole('combobox', { name: '\u5207\u6362 README \u8bed\u8a00' }); // Chinese for "Switch README language"
 
     await user.click(selector);
-    await user.click(await screen.findByRole('option', { name: '中文 · README_zh.md' }));
+    await user.click(await screen.findByRole('option', { name: 'Chinese · README_zh.md' }));
 
     await waitFor(() => {
       expect(backend.getRepositoryReadmeByPath).toHaveBeenCalledWith('owner', 'demo', 'README_zh.md', expect.any(AbortSignal));
     });
-    expect(await screen.findByText('中文 README 内容')).toBeInTheDocument();
+    expect(await screen.findByText('Chinese README content')).toBeInTheDocument();
   });
 
   it('does not show the selector when no localized README exists', async () => {
@@ -142,7 +142,7 @@ describe('ReadmeModal multilingual README switching', () => {
     await waitFor(() => {
       expect(backend.listRepositoryReadmeCandidates).toHaveBeenCalled();
     });
-    expect(screen.queryByLabelText('切换 README 语言')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('\u5207\u6362 README \u8bed\u8a00')).not.toBeInTheDocument(); // Chinese for "Switch README language"
   });
 
   it('shows backend README errors instead of treating them as missing README', async () => {
@@ -154,7 +154,7 @@ describe('ReadmeModal multilingual README switching', () => {
 
       expect(await screen.findByText('GitHub token not configured')).toBeInTheDocument();
       expect(mockGitHubApi.getRepositoryReadme).not.toHaveBeenCalled();
-      expect(screen.queryByText('该仓库没有 README 文件')).not.toBeInTheDocument();
+      expect(screen.queryByText('\u8be5\u4ed3\u5e93\u6ca1\u6709 README \u6587\u4ef6')).not.toBeInTheDocument(); // Chinese for "This repository has no README file"
     } finally {
       consoleErrorSpy.mockRestore();
     }
@@ -183,7 +183,7 @@ describe('ReadmeModal multilingual README switching', () => {
 
     render(<ReadmeModal isOpen onClose={vi.fn()} repository={mockRepository} />);
 
-    expect(await screen.findByText('该仓库没有 README 文件')).toBeInTheDocument();
+    expect(await screen.findByText('\u8be5\u4ed3\u5e93\u6ca1\u6709 README \u6587\u4ef6')).toBeInTheDocument(); // Chinese for "This repository has no README file"
     expect(mockGitHubApi.getRepositoryReadme).not.toHaveBeenCalled();
   });
 
@@ -192,17 +192,17 @@ describe('ReadmeModal multilingual README switching', () => {
     try {
       setMockStore('github-token');
       (backend.getRepositoryReadmeByPath as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('GitHub token not configured'));
-      mockGitHubApi.getRepositoryReadmeByPath.mockResolvedValue('Direct 中文 README 内容');
+      mockGitHubApi.getRepositoryReadmeByPath.mockResolvedValue('Direct Chinese README content');
 
       render(<ReadmeModal isOpen onClose={vi.fn()} repository={mockRepository} />);
 
       await screen.findByText('Default README content');
       const user = userEvent.setup();
-      const selector = await screen.findByRole('combobox', { name: '切换 README 语言' });
+      const selector = await screen.findByRole('combobox', { name: '\u5207\u6362 README \u8bed\u8a00' }); // Chinese for "Switch README language"
       await user.click(selector);
-      await user.click(await screen.findByRole('option', { name: '中文 · README_zh.md' }));
+      await user.click(await screen.findByRole('option', { name: 'Chinese · README_zh.md' }));
 
-      expect(await screen.findByText('Direct 中文 README 内容')).toBeInTheDocument();
+      expect(await screen.findByText('Direct Chinese README content')).toBeInTheDocument();
       expect(mockGitHubApi.getRepositoryReadmeByPath).toHaveBeenCalledWith('owner', 'demo', 'README_zh.md', expect.any(AbortSignal));
     } finally {
       consoleWarnSpy.mockRestore();
@@ -223,10 +223,10 @@ describe('ReadmeModal multilingual README switching', () => {
 
       expect(await screen.findByText('Default README content')).toBeInTheDocument();
       const user = userEvent.setup();
-      const selector = await screen.findByRole('combobox', { name: '切换 README 语言' });
+      const selector = await screen.findByRole('combobox', { name: '\u5207\u6362 README \u8bed\u8a00' }); // Chinese for "Switch README language"
       expect(selector).toBeInTheDocument();
       await user.click(selector);
-      expect(await screen.findByRole('option', { name: '中文 · README_zh.md' })).toBeInTheDocument();
+      expect(await screen.findByRole('option', { name: 'Chinese · README_zh.md' })).toBeInTheDocument();
       expect(mockGitHubApi.listRepositoryReadmeCandidates).toHaveBeenCalledWith('owner', 'demo', undefined, expect.any(AbortSignal));
     } finally {
       consoleWarnSpy.mockRestore();

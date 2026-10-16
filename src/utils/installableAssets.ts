@@ -69,7 +69,8 @@ const PACKAGE_TYPES: PackageTypeEntry[] = [...PACKAGE_TYPE_ENTRIES].sort(
  * but with more complete coverage (that reference implementation only covers source, checksum, and signature).
  */
 const EXCLUSION_RULES: ReadonlyArray<{ reason: string; pattern: RegExp }> = [
-  { reason: 'source code archive', pattern: /(?:^|[^a-z0-9])(?:source|src)(?:[^a-z0-9]?(?:code|archive))?(?=$|[^a-z0-9])|源码/ },
+  // Chinese for "source code" (\u6e90\u7801)
+  { reason: 'source code archive', pattern: /(?:^|[^a-z0-9])(?:source|src)(?:[^a-z0-9]?(?:code|archive))?(?=$|[^a-z0-9])|\u6e90\u7801/ },
   { reason: 'checksum file', pattern: /(?:checksum|sha256sum|sha512sum|\.(?:sha256|sha512|md5)(?:\.(?:zip|7z|tar\.gz)|$)|(?:^|[^a-z0-9])md5(?=$|[^a-z0-9]))/ },
   { reason: 'signature file', pattern: /\.(?:sig|asc|minisig|p7s)(?:\.(?:zip|7z|tar\.gz)|$)|(?:^|[^a-z0-9])sigstore(?=$|[^a-z0-9])/ },
   { reason: 'debug symbols', pattern: /\.(?:pdb|dsym)(?:\.(?:zip|7z|tar\.gz)|$)|(?:^|[^a-z0-9])(?:symbols?|dsym)(?=$|[^a-z0-9])/ },

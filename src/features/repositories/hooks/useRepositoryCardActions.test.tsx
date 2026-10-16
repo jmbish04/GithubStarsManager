@@ -80,7 +80,7 @@ const createStoreState = () => ({
   githubToken: 'github-token',
   activeAIConfig: 'ai-config',
   setAnalyzingRepository: vi.fn(),
-  language: 'zh' as const,
+  language: 'en' as const,
   updateRepository: vi.fn(),
   deleteRepository: vi.fn(),
   vectorSearchConfig: {
@@ -206,7 +206,7 @@ describe('useRepositoryCardActions', () => {
 
     expect(mocks.findSimilarRepositories).not.toHaveBeenCalled();
     expect(mocks.toast).toHaveBeenCalledWith(
-      '向量搜索未就绪：请先在设置中开启向量搜索并完成索引。',
+      'Vector search is not ready. Please enable vector search and build the index in settings first.',
       'error',
     );
   });
@@ -225,7 +225,7 @@ describe('useRepositoryCardActions', () => {
       analysis_failed: true,
       analysis_error: 'model unavailable',
     }));
-    expect(mocks.toast).toHaveBeenCalledWith('AI分析失败，请检查AI配置和网络连接。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('AI analysis failed. Please check AI configuration and network connection.', 'error');
     expect(mocks.forceSyncToBackend).not.toHaveBeenCalled();
   });
 
@@ -269,7 +269,7 @@ describe('useRepositoryCardActions', () => {
     }));
     expect(storeState.enterSimilarView).toHaveBeenCalledWith([], repository);
     expect(mocks.forceSyncToBackend).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith('未找到相似的仓库。', 'info');
+    expect(mocks.toast).toHaveBeenCalledWith('No similar repositories found.', 'info');
   });
 
   it('does not delete local data or trigger a backend sync when remote unstar fails', async () => {
@@ -282,7 +282,7 @@ describe('useRepositoryCardActions', () => {
 
     expect(storeState.deleteRepository).not.toHaveBeenCalled();
     expect(mocks.forceSyncToBackend).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith('取消 Star 失败，请检查网络连接或重新登录。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Failed to unstar repository. Please check your network connection or login again.', 'error');
   });
 
   it('syncs only after a successful remote unstar and local deletion', async () => {
@@ -295,6 +295,6 @@ describe('useRepositoryCardActions', () => {
     expect(mocks.unstarRepository).toHaveBeenCalledWith('owner', 'example-repository');
     expect(storeState.deleteRepository).toHaveBeenCalledWith(repository.id);
     expect(mocks.forceSyncToBackend).toHaveBeenCalledOnce();
-    expect(mocks.toast).toHaveBeenCalledWith('已成功取消 Star', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('Successfully unstarred', 'success');
   });
 });

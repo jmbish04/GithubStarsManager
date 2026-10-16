@@ -19,8 +19,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../store/useAppStore', () => ({
   useAppStore: vi.fn(),
   getAllCategories: vi.fn(() => [
-    { id: 'all', name: '全部分类', icon: 'folder', keywords: [] },
-    { id: 'locked', name: '已锁定', icon: 'lock', keywords: [], isCustom: true },
+    { id: 'all', name: 'All Categories', icon: 'folder', keywords: [] },
+    { id: 'locked', name: 'Locked', icon: 'lock', keywords: [], isCustom: true },
   ]),
 }));
 
@@ -174,7 +174,7 @@ beforeEach(() => {
     setLoading: (isLoading) => setStoreState({ isLoading }),
     updateRepository: vi.fn(),
     deleteRepository: vi.fn(),
-    language: 'zh',
+    language: 'en',
     customCategories: [],
     hiddenDefaultCategoryIds: [],
     defaultCategoryOverrides: {},
@@ -202,13 +202,13 @@ describe('RepositoryList repository workflow contracts', () => {
     const lockedRepository = createRepository(1, {
       custom_description: 'Keep this description',
       custom_tags: ['keep-tag'],
-      custom_category: '已锁定',
+      custom_category: 'Locked',
       category_locked: true,
     });
     const failedRepository = createRepository(2, {
       custom_description: 'Do not erase',
       custom_tags: ['do-not-erase'],
-      custom_category: '已锁定',
+      custom_category: 'Locked',
       category_locked: true,
     });
     mocks.analyzeRepositoriesPipelined.mockImplementation(async (...args: unknown[]) => {
@@ -234,7 +234,7 @@ describe('RepositoryList repository workflow contracts', () => {
       ai_summary: 'AI summary',
       ai_tags: ['ai-tag'],
       ai_platforms: ['web'],
-      custom_category: '已锁定',
+      custom_category: 'Locked',
       category_locked: true,
       custom_description: 'Keep this description',
       custom_tags: ['keep-tag'],
@@ -245,7 +245,7 @@ describe('RepositoryList repository workflow contracts', () => {
       id: failedRepository.id,
       custom_description: 'Do not erase',
       custom_tags: ['do-not-erase'],
-      custom_category: '已锁定',
+      custom_category: 'Locked',
       category_locked: true,
       analysis_failed: true,
       analysis_error: 'AI unavailable',
@@ -256,7 +256,7 @@ describe('RepositoryList repository workflow contracts', () => {
     const repository = createRepository(1, {
       custom_description: 'Custom description',
       custom_tags: ['custom-tag'],
-      custom_category: '已锁定',
+      custom_category: 'Locked',
       category_locked: true,
       ai_summary: 'AI summary',
       ai_tags: ['ai-tag'],
@@ -332,7 +332,7 @@ describe('RepositoryList repository workflow contracts', () => {
       ai_summary: 'Completed before stop',
       custom_description: 'User description',
     })));
-    await user.click(await screen.findByRole('button', { name: '停止' }));
+    await user.click(await screen.findByRole('button', { name: 'Stop' }));
 
     await waitFor(() => expect(mocks.abort).toHaveBeenCalledTimes(1));
     expect(storeState.updateRepository).toHaveBeenCalledWith(expect.objectContaining({

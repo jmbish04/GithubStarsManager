@@ -175,11 +175,11 @@ describe('ReleaseTimeline unread snapshot', () => {
     markAllReleasesOnBackend.mockRejectedValueOnce(new Error('backend offline'));
 
     render(<ReleaseTimeline />);
-    await user.click(screen.getByRole('button', { name: '全部已读' }));
+    await user.click(screen.getByRole('button', { name: '\u5168\u90e8\u5df2\u8bfb' })); // Chinese for "Mark all as read"
 
     await waitFor(() => {
       expect(storeState.readReleases).toEqual(new Set([999]));
-      expect(toastMock).toHaveBeenCalledWith('标记全部已读失败', 'error');
+      expect(toastMock).toHaveBeenCalledWith('\u6807\u8bb0\u5168\u90e8\u5df2\u8bfb\u5931\u8d25', 'error'); // Chinese for "Failed to mark all as read"
     });
   });
 
@@ -190,7 +190,7 @@ describe('ReleaseTimeline unread snapshot', () => {
     const itemTexts = await screen.findAllByText('owner/repo');
     expect(itemTexts.length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('button', { name: '显示下载资产' }));
+    await user.click(screen.getByRole('button', { name: '\u663e\u793a\u4e0b\u8f7d\u8d44\u4ea7' })); // Chinese for "Show download assets"
 
     await waitFor(() => {
       expect(storeState.markReleaseAsRead).toHaveBeenCalledWith(101);
@@ -275,7 +275,7 @@ describe('ReleaseTimeline asset filter matching', () => {
     activateFilter();
 
     render(<ReleaseTimeline />);
-    expect(await screen.findByText('当前过滤器没有匹配到任何资产，请尝试其他过滤条件')).toBeInTheDocument();
+    expect(await screen.findByText('\u5f53\u524d\u8fc7\u6ee4\u5668\u6ca1\u6709\u5339\u914d\u5230\u4efb\u4f55\u8d44\u4ea7\uff0c\u8bf7\u5c1d\u8bd5\u5176\u4ed6\u8fc7\u6ee4\u6761\u4ef6')).toBeInTheDocument(); // Chinese for "Current filter did not match any assets, please try other filter conditions"
     expect(screen.queryByText('owner/gamma')).not.toBeInTheDocument();
   });
 
@@ -300,17 +300,17 @@ describe('ReleaseTimeline asset filter matching', () => {
     activateFilter();
 
     render(<ReleaseTimeline />);
-    const assetToggles = await screen.findAllByRole('button', { name: '显示下载资产' });
+    const assetToggles = await screen.findAllByRole('button', { name: '\u663e\u793a\u4e0b\u8f7d\u8d44\u4ea7' }); // Chinese for "Show download assets"
     await user.click(assetToggles[0]);
 
     expect(await screen.findByText('app-portable.zip')).toBeInTheDocument();
     expect(screen.queryByText('app-setup.exe')).not.toBeInTheDocument();
 
     // Card provides an entry to expand all assets and allows collapsing afterwards
-    await user.click(screen.getByRole('button', { name: '显示全部 2 个' }));
+    await user.click(screen.getByRole('button', { name: '\u663e\u793a\u5168\u90e8 2 \u4e2a' })); // Chinese for "Show all 2"
     expect(await screen.findByText('app-setup.exe')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '仅显示命中的 1 个' }));
+    await user.click(screen.getByRole('button', { name: '\u4ec5\u663e\u793a\u547d\u4e2d\u7684 1 \u4e2a' })); // Chinese for "Show only matching 1"
     expect(screen.queryByText('app-setup.exe')).not.toBeInTheDocument();
   });
 
@@ -331,7 +331,7 @@ describe('ReleaseTimeline asset filter matching', () => {
     activateFilter({ id: 'f1', name: 'macOS', keywords: ['macos', 'arm64'] });
 
     render(<ReleaseTimeline />);
-    const assetToggles = await screen.findAllByRole('button', { name: '显示下载资产' });
+    const assetToggles = await screen.findAllByRole('button', { name: '\u663e\u793a\u4e0b\u8f7d\u8d44\u4ea7' }); // Chinese for "Show download assets"
     await user.click(assetToggles[0]);
 
     // Only keep the item whose name contains macos or arm64
@@ -342,7 +342,7 @@ describe('ReleaseTimeline asset filter matching', () => {
     expect(screen.queryByText('Source code (v601.tar.gz)')).not.toBeInTheDocument();
     // 3 real assets + 2 source archives collapsed, count tracks visible items
     expect(screen.getByText('(1)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '显示全部 5 个' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '\u663e\u793a\u5168\u90e8 5 \u4e2a' })).toBeInTheDocument(); // Chinese for "Show all 5"
   });
 
   it('shows every asset of an always-included repository even when keywords miss them', async () => {
@@ -355,12 +355,12 @@ describe('ReleaseTimeline asset filter matching', () => {
     activateFilter({ id: 'f1', name: 'Portable', keywords: ['portable'], includeRepos: ['owner/beta'] });
 
     render(<ReleaseTimeline />);
-    const assetToggles = await screen.findAllByRole('button', { name: '显示下载资产' });
+    const assetToggles = await screen.findAllByRole('button', { name: '\u663e\u793a\u4e0b\u8f7d\u8d44\u4ea7' }); // Chinese for "Show download assets"
     await user.click(assetToggles[0]);
 
     expect(await screen.findByText('beta-1.0.zip')).toBeInTheDocument();
     expect(screen.getByText('beta-1.0.exe')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /显示全部/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /\u663e\u793a\u5168\u90e8/ })).not.toBeInTheDocument(); // Chinese for "Show all"
   });
 
   it('ignores the auto-generated source archives when matching include keywords', async () => {
@@ -417,7 +417,7 @@ describe('ReleaseTimeline per-filter repository exclusions', () => {
     );
 
     render(<ReleaseTimeline />);
-    await expectVisible('当前过滤器没有匹配到任何资产，请尝试其他过滤条件');
+    await expectVisible('\u5f53\u524d\u8fc7\u6ee4\u5668\u6ca1\u6709\u5339\u914d\u5230\u4efb\u4f55\u8d44\u4ea7\uff0c\u8bf7\u5c1d\u8bd5\u5176\u4ed6\u8fc7\u6ee4\u6761\u4ef6'); // Chinese for "Current filter did not match any assets, please try other filter conditions"
     expect(screen.queryByText('owner/alpha')).not.toBeInTheDocument();
   });
 
@@ -525,7 +525,7 @@ describe('ReleaseTimeline per-filter repository exclusions', () => {
     );
 
     render(<ReleaseTimeline />);
-    await expectVisible('当前过滤器没有匹配到任何资产，请尝试其他过滤条件');
+    await expectVisible('\u5f53\u524d\u8fc7\u6ee4\u5668\u6ca1\u6709\u5339\u914d\u5230\u4efb\u4f55\u8d44\u4ea7\uff0c\u8bf7\u5c1d\u8bd5\u5176\u4ed6\u8fc7\u6ee4\u6761\u4ef6'); // Chinese for "Current filter did not match any assets, please try other filter conditions"
     expect(screen.queryByText('owner/alpha')).not.toBeInTheDocument();
   });
 

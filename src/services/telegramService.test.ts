@@ -161,7 +161,8 @@ describe('parseTelegramChannelHtml (real t.me/s/geekhub23 public preview fixture
     const first = parsed.messages[0];
     expect(first.messageId).toBe('geekhub23/589');
     expect(first.channel).toBe('geekhub23');
-    expect(first.displayName).toBe('GeekHub资源分享');
+    // Chinese for "Resource sharing"
+    expect(first.displayName).toBe('GeekHub\u8d44\u6e90\u5206\u4eab');
     expect(first.htmlUrl).toBe('https://t.me/geekhub23/589');
     expect(first.createdAt).toBe('2026-08-28T02:32:35.000Z');
   });

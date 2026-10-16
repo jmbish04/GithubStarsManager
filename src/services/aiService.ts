@@ -308,18 +308,18 @@ function extractFullTextFromResponse(apiType: AIApiType, data: unknown): string 
 
 function getStatusCodeMeaning(statusCode: number, language: string): string {
   const meanings: Record<number, { zh: string; en: string }> = {
-    400: { zh: '请求参数错误', en: 'Bad Request' },
-    401: { zh: 'API密钥无效或已过期', en: 'Invalid or expired API key' },
-    403: { zh: '没有权限访问该资源', en: 'Forbidden - no permission' },
-    404: { zh: 'API端点或模型不存在', en: 'API endpoint or model not found' },
-    408: { zh: '请求超时', en: 'Request timeout' },
-    429: { zh: '请求过于频繁，已达到速率限制', en: 'Rate limit exceeded' },
-    500: { zh: '服务器内部错误', en: 'Internal server error' },
-    502: { zh: '网关错误，服务器暂时不可用', en: 'Bad Gateway' },
-    503: { zh: '服务暂时不可用，请稍后重试', en: 'Service unavailable' },
-    504: { zh: '网关超时', en: 'Gateway timeout' },
+    400: { zh: 'Bad Request', en: 'Bad Request' },
+    401: { zh: 'Invalid or expired API key', en: 'Invalid or expired API key' },
+    403: { zh: 'Forbidden - no permission', en: 'Forbidden - no permission' },
+    404: { zh: 'API endpoint or model not found', en: 'API endpoint or model not found' },
+    408: { zh: 'Request timeout', en: 'Request timeout' },
+    429: { zh: 'Rate limit exceeded', en: 'Rate limit exceeded' },
+    500: { zh: 'Internal server error', en: 'Internal server error' },
+    502: { zh: 'Bad Gateway', en: 'Bad Gateway' },
+    503: { zh: 'Service unavailable', en: 'Service unavailable' },
+    504: { zh: 'Gateway timeout', en: 'Gateway timeout' },
   };
-  return meanings[statusCode]?.[language as 'zh' | 'en'] || (language === 'zh' ? '未知错误' : 'Unknown error');
+  return meanings[statusCode]?.[language as 'zh' | 'en'] || (language === 'zh' ? 'Unknown error' : 'Unknown error');
 }
 
 function getErrorTypeFromStatus(statusCode: number): ConnectionTestResult['errorType'] {
@@ -417,7 +417,7 @@ export class AIService {
     }
     if (!isLocalOrLanHost(host)) {
       throw new Error(this.language === 'zh'
-        ? 'AI 服务地址必须使用 HTTPS：为保护 API Key，仅 localhost / 127.0.0.1 等本机或局域网地址允许 HTTP。'
+        ? 'The AI endpoint must use HTTPS: to protect your API key, plain HTTP is only allowed for local or LAN addresses (localhost / 127.0.0.1).'
         : 'The AI endpoint must use HTTPS: to protect your API key, plain HTTP is only allowed for local or LAN addresses (localhost / 127.0.0.1).');
     }
   }
@@ -1237,7 +1237,7 @@ ${options.user}` : options.user;
     try {
       const outputLanguageDirective = getOutputLanguageDirective(this.language);
       const system = this.language === 'zh'
-        ? '你是一个专业的GitHub仓库分析助手。请严格按照用户指定的语言进行分析，无论原始内容是什么语言。请用中文简洁地分析仓库，提供实用的概述、分类标签和支持的平台类型。只输出合法JSON，不要输出思考过程、Markdown、代码块标记或任何额外文本。summary字段只能描述仓库功能，不得复述提示词、输出格式或“只输出JSON”等要求。'
+        ? 'You are a professional GitHub repository analysis assistant. Please strictly analyze in the language specified by the user, regardless of the original content language. Please analyze repositories concisely in English, providing practical overviews, category tags, and supported platform types. Only output valid JSON. Do not output thinking process, Markdown, code block markers, or any extra text. The summary field must describe repository functionality only; never restate the prompt, output format, or JSON-only requirements.'
         : this.language === 'en'
           ? 'You are a professional GitHub repository analysis assistant. Please strictly analyze in the language specified by the user, regardless of the original content language. Please analyze repositories concisely in English, providing practical overviews, category tags, and supported platform types. Only output valid JSON. Do not output thinking process, Markdown, code block markers, or any extra text. The summary field must describe repository functionality only; never restate the prompt, output format, or JSON-only requirements.'
           : 'You are a professional GitHub repository analysis assistant. Analyze repositories concisely, providing practical overviews, category tags, and supported platform types. Only output valid JSON. Do not output thinking process, Markdown, code block markers, or any extra text. The summary field must describe repository functionality only; never restate the prompt, output format, or JSON-only requirements.'
@@ -1274,7 +1274,7 @@ ${options.user}` : options.user;
         }
 
         lastContent = content;
-        lastInvalidReason = result.invalidReason || (this.language === 'zh' ? '返回内容不符合要求' : 'Response did not meet requirements');
+        lastInvalidReason = result.invalidReason || (this.language === 'zh' ? 'Response did not meet requirements' : 'Response did not meet requirements');
 
         if (attempt < AIService.ANALYSIS_MAX_ATTEMPTS) {
           logger.warn('ai', 'AI analysis response invalid, retrying', {
@@ -1288,7 +1288,7 @@ ${options.user}` : options.user;
       }
 
       throw new Error(this.language === 'zh'
-        ? `AI返回内容不符合要求，已重试${AIService.ANALYSIS_MAX_ATTEMPTS - 1}次：${lastInvalidReason}`
+        ? `AI response did not meet requirements after ${AIService.ANALYSIS_MAX_ATTEMPTS - 1} retries: ${lastInvalidReason}`
         : `AI response did not meet requirements after ${AIService.ANALYSIS_MAX_ATTEMPTS - 1} retries: ${lastInvalidReason}`);
     } catch (error) {
       logger.errorFromError('ai', 'AI analysis failed', error, { configId, durationMs: Date.now() - startTime });
@@ -1304,7 +1304,7 @@ ${options.user}` : options.user;
 
     const outputLanguageDirective = getOutputLanguageDirective(this.language);
     const system = this.language === 'zh'
-      ? '你是一个专业的 GitHub Gist 分析助手。请用中文简洁总结 gist 的用途、关键内容和可能的使用场景。只输出摘要文本，不要 Markdown 标题。'
+      ? 'You are a professional GitHub Gist analysis assistant. Summarize the gist purpose, key content, and likely use case concisely in English. Output summary text only, no Markdown heading.'
       : this.language === 'en'
         ? 'You are a professional GitHub Gist analysis assistant. Summarize the gist purpose, key content, and likely use case concisely in English. Output summary text only, no Markdown heading.'
         : 'You are a professional GitHub Gist analysis assistant. Summarize the gist purpose, key content, and likely use case concisely. Output summary text only, no Markdown heading.'
@@ -1312,14 +1312,14 @@ ${options.user}` : options.user;
 
     const user = this.language === 'zh'
       ? `
-请分析以下 GitHub Gist，输出不超过 80 字的中文摘要。
+Analyze this GitHub Gist and output an English summary under 80 words.
 
-描述：${this.sanitizeForPrompt(gist.description || '无描述')}
-创建者：${gist.owner?.login || '未知'}
-文件：
-${this.sanitizeForPrompt(fileList || '无文件')}
+Description: ${this.sanitizeForPrompt(gist.description || 'No description')}
+Owner: ${gist.owner?.login || 'Unknown'}
+Files:
+${this.sanitizeForPrompt(fileList || 'No files')}
 
-内容预览：
+Content preview:
 ${this.sanitizeForPrompt(contentPreview).slice(0, 6000)}
       `.trim()
       : this.language === 'en'
@@ -1390,11 +1390,11 @@ ${outputLanguageDirective ? `\n${outputLanguageDirective}` : ''}
     const sourceName = sourceLanguage ? (LANGUAGE_NAMES[sourceLanguage] || sourceLanguage) : 'auto-detect';
 
     const system = this.language === 'zh'
-      ? '你是一个专业的机器翻译引擎。把用户提供的每条文本翻译成自然流畅的目标语言。规则：保留占位符（如 {0}）、HTML 行内标签（如 <code>）、专有名词和命令原样不译；不加解释；输出一个 JSON 字符串数组，长度与输入完全一致。'
+      ? 'You are a professional machine translation engine. Translate each input text into the target language naturally. Rules: keep placeholders (e.g. {0}), inline HTML tags (e.g. <code>), proper nouns and commands untranslated; no explanations; output a JSON array of strings with exactly the same length as the input.'
       : 'You are a professional machine translation engine. Translate each input text into the target language naturally. Rules: keep placeholders (e.g. {0}), inline HTML tags (e.g. <code>), proper nouns and commands untranslated; no explanations; output a JSON array of strings with exactly the same length as the input.';
 
     const user = this.language === 'zh'
-      ? `目标语言：${targetName}\n源语言：${sourceName}\n\n待翻译文本（JSON 数组）：\n${JSON.stringify(texts)}`
+      ? `Target language: ${targetName}\nSource language: ${sourceName}\n\nTexts to translate (JSON array):\n${JSON.stringify(texts)}`
       : `Target language: ${targetName}\nSource language: ${sourceName}\n\nTexts to translate (JSON array):\n${JSON.stringify(texts)}`;
 
     const totalChars = texts.reduce((sum, t) => sum + t.length, 0);
@@ -1444,12 +1444,12 @@ ${outputLanguageDirective ? `\n${outputLanguageDirective}` : ''}
   ): Promise<string> {
     const body = this.sanitizeForPrompt(releaseBody || '').slice(0, 12000);
     if (!body.trim()) {
-      throw new Error(this.language === 'zh' ? 'Release 内容为空，无法分析。' : 'Release body is empty, cannot analyze.');
+      throw new Error(this.language === 'zh' ? 'Release body is empty, cannot analyze.' : 'Release body is empty, cannot analyze.');
     }
 
     const outputLanguageDirective = getOutputLanguageDirective(this.language);
     const system = this.language === 'zh'
-      ? '你是一个专业的 GitHub Release 更新日志分析助手。请用简体中文，以通俗易懂的语言总结本次更新。直接输出 Markdown，不要输出任何额外解释、代码块标记或“以下是总结”之类的开场白。排版需易读，使用列表形式，并按重要程度从高到低排序。'
+      ? 'You are a professional GitHub Release changelog analysis assistant. Summarize this update in plain, easy-to-understand English. Output Markdown directly, without any extra explanation, code fences, or opening remarks such as "Here is the summary". Use a readable layout with lists, ordered from most to least important.'
       : this.language === 'en'
         ? 'You are a professional GitHub Release changelog analysis assistant. Summarize this update in plain, easy-to-understand English. Output Markdown directly, without any extra explanation, code fences, or opening remarks such as "Here is the summary". Use a readable layout with lists, ordered from most to least important.'
         : 'You are a professional GitHub Release changelog analysis assistant. Summarize this update in plain, easy-to-understand language. Output Markdown directly, without any extra explanation, code fences, or opening remarks such as "Here is the summary". Use a readable layout with lists, ordered from most to least important.'
@@ -1461,15 +1461,15 @@ ${outputLanguageDirective ? `\n${outputLanguageDirective}` : ''}
 
     const user = this.language === 'zh'
       ? `
-以下是 GitHub 仓库 "${repoName}" 的 Release（标签：${tagName}${releaseName ? `，名称：${releaseName}` : ''}）的更新说明。
+Below is the changelog of a GitHub Release for "${repoName}" (tag: ${tagName}${releaseName ? `, name: ${releaseName}` : ''}).
 
-请完成以下要求：
-1. 用通俗易懂的语言，面向普通用户总结本次更新的要点。
-2. 尽量区分「新功能 / 特性」与「Bug 修复」两类内容（无对应内容时可省略该分类）。
-3. 使用列表形式（可用子列表），按重要程度从高到低排序，最重要的写在最前面。
-4. 只输出 Markdown 内容，不要加额外说明。
+Requirements:
+1. Summarize the update in plain language for general users.
+2. Separate "New Features" from "Bug Fixes" where applicable (omit a section if empty).
+3. Use lists (nested lists are fine), ordered from most to least important.
+4. Output only Markdown content, no extra commentary.
 
-更新说明原文：
+Changelog:
 ${body}
       `.trim()
       : `
@@ -1514,7 +1514,7 @@ AI Summary: ${gist.ai_summary || 'None'}`;
     }).join('\n\n');
 
     const system = this.language === 'zh'
-      ? '你是 GitHub Gist 搜索排序助手。根据用户查询返回最相关 gist 的 id 数组 JSON，不要输出额外文字。'
+      ? 'You are a GitHub Gist search reranking assistant. Return a JSON array of the most relevant gist ids for the user query. Do not output extra text.'
       : 'You are a GitHub Gist search reranking assistant. Return a JSON array of the most relevant gist ids for the user query. Do not output extra text.';
 
     const content = await this.requestText({
@@ -1562,7 +1562,7 @@ AI Summary: ${gist.ai_summary || 'None'}`;
     const candidates = repositories.slice(0, 50);
 
     const system = this.language === 'zh'
-      ? '你是 GitHub 仓库搜索排序助手。根据用户查询，从候选仓库中选出最相关的，按相关性从高到低返回 ID 数组 JSON。只输出 JSON 数组，不要输出额外文字。'
+      ? 'You are a GitHub repository search reranking assistant. Given a user query and candidate repositories, return a JSON array of repository IDs ordered from most to least relevant. Output only the JSON array, no extra text.'
       : 'You are a GitHub repository search reranking assistant. Given a user query and candidate repositories, return a JSON array of repository IDs ordered from most to least relevant. Output only the JSON array, no extra text.';
 
     const content = await this.requestText({
@@ -1656,20 +1656,20 @@ AI Summary: ${gist.ai_summary || 'None'}`;
 
     if (this.language === 'zh') {
       return `
-上一次 AI 输出不符合要求，原因：${invalidReason}
+The previous AI output did not meet the requirements. Reason: ${invalidReason}
 
-请基于同一仓库信息重新生成结果。必须只输出一个合法 JSON 对象，不要 Markdown、代码块、解释或任何额外文本。
+Regenerate the result for the same repository information. Output exactly one valid JSON object. Do not output Markdown, code fences, explanations, or any extra text.
 
-强制要求：
-- summary 必须是仓库功能和用途的中文概述，不超过50字。
-- summary 禁止复述提示词、输出格式、字段名或“只输出JSON”等要求。
-- tags 必须是字符串数组。
-- platforms 只能从 ["mac","windows","linux","ios","android","docker","web","cli"] 中选择。
+Mandatory requirements:
+- summary must describe the repository functionality and purpose in no more than 50 words.
+- summary must not restate the prompt, output format, field names, or JSON-only requirements.
+- tags must be a string array.
+- platforms must only use ["mac","windows","linux","ios","android","docker","web","cli"].
 
-原始分析任务：
+Original analysis task:
 ${originalPrompt}
 
-上一次错误输出（仅用于纠错，不要复述）：
+Previous invalid output for correction only. Do not restate it:
 ${previousOutput}
       `.trim();
     }
@@ -1703,9 +1703,9 @@ ${previousOutput}
    */
   private formatRepositoryHealthFacts(repository: Repository): string {
     const zh = this.language === 'zh';
-    const yes = zh ? '是' : 'yes';
-    const no = zh ? '否' : 'no';
-    const unknown = zh ? '未知' : 'unknown';
+    const yes = zh ? 'yes' : 'yes';
+    const no = zh ? 'no' : 'no';
+    const unknown = zh ? 'unknown' : 'unknown';
     const toDate = (value?: string | null): string => {
       if (!value || !Number.isFinite(Date.parse(value))) return unknown;
       return new Date(value).toISOString().slice(0, 10);
@@ -1717,39 +1717,39 @@ ${previousOutput}
     const tri = (value: boolean | undefined): string =>
       value === undefined ? unknown : value ? yes : no;
     const status = [
-      `${zh ? '已归档' : 'archived'}=${tri(snapshot.archived)}`,
-      `${zh ? '已停用' : 'disabled'}=${tri(snapshot.disabled)}`,
-      `${zh ? 'Fork' : 'fork'}=${tri(snapshot.fork)}`,
-      `${zh ? '模板' : 'template'}=${tri(snapshot.isTemplate)}`,
+      `${zh ? 'archived' : 'archived'}=${tri(snapshot.archived)}`,
+      `${zh ? 'disabled' : 'disabled'}=${tri(snapshot.disabled)}`,
+      `${zh ? 'fork' : 'fork'}=${tri(snapshot.fork)}`,
+      `${zh ? 'template' : 'template'}=${tri(snapshot.isTemplate)}`,
     ].join(', ');
     const observations = snapshot.signals.length
       ? snapshot.signals.map((signal) => signal.id).join(', ')
-      : (zh ? '无' : 'none');
+      : (zh ? 'none' : 'none');
 
     return [
-      `${zh ? '状态' : 'Status'}: ${status}`,
-      `${zh ? '创建时间' : 'Created'}: ${toDate(repository.created_at)} | ${zh ? '最近推送' : 'Last push'}: ${toDate(repository.pushed_at)}`,
-      `License: ${repository.license || (zh ? '未声明' : 'none')} | ${zh ? 'Open Issues' : 'Open issues'}: ${repository.open_issues_count ?? unknown}`,
-      `${zh ? '保守观测' : 'Observations'}: ${observations}`,
+      `${zh ? 'Status' : 'Status'}: ${status}`,
+      `${zh ? 'Created' : 'Created'}: ${toDate(repository.created_at)} | ${zh ? 'Last push' : 'Last push'}: ${toDate(repository.pushed_at)}`,
+      `License: ${repository.license || (zh ? 'none' : 'none')} | ${zh ? 'Open issues' : 'Open issues'}: ${repository.open_issues_count ?? unknown}`,
+      `${zh ? 'Observations' : 'Observations'}: ${observations}`,
     ].join('\n');
   }
 
   private createCustomAnalysisPrompt(repository: Repository, readmeContent: string, customCategories?: string[], categoryHints?: string): string {
     const repoInfo = `
-${this.language === 'zh' ? '仓库名称' : 'Repository Name'}: ${repository.full_name}
-${this.language === 'zh' ? '描述' : 'Description'}: ${this.sanitizeForPrompt(repository.description || (this.language === 'zh' ? '无描述' : 'No description'))}
-${this.language === 'zh' ? '编程语言' : 'Programming Language'}: ${repository.language || (this.language === 'zh' ? '未知' : 'Unknown')}
-${this.language === 'zh' ? 'Star数' : 'Stars'}: ${repository.stargazers_count}
-${this.language === 'zh' ? '主题标签' : 'Topics'}: ${repository.topics?.join(', ') || (this.language === 'zh' ? '无' : 'None')}
-${this.language === 'zh' ? '客观事实（中性，不代表质量结论）' : 'Objective facts (neutral, not a quality verdict)'}:
+${this.language === 'zh' ? 'Repository Name' : 'Repository Name'}: ${repository.full_name}
+${this.language === 'zh' ? 'Description' : 'Description'}: ${this.sanitizeForPrompt(repository.description || (this.language === 'zh' ? 'No description' : 'No description'))}
+${this.language === 'zh' ? 'Programming Language' : 'Programming Language'}: ${repository.language || (this.language === 'zh' ? 'Unknown' : 'Unknown')}
+${this.language === 'zh' ? 'Stars' : 'Stars'}: ${repository.stargazers_count}
+${this.language === 'zh' ? 'Topics' : 'Topics'}: ${repository.topics?.join(', ') || (this.language === 'zh' ? 'None' : 'None')}
+${this.language === 'zh' ? 'Objective facts (neutral, not a quality verdict)' : 'Objective facts (neutral, not a quality verdict)'}:
 ${this.sanitizeForPrompt(this.formatRepositoryHealthFacts(repository))}
 
-${this.language === 'zh' ? 'README内容 (前2000字符)' : 'README Content (first 2000 characters)'}:
+${this.language === 'zh' ? 'README Content (first 2000 characters)' : 'README Content (first 2000 characters)'}:
 ${this.sanitizeForPrompt(readmeContent.substring(0, 2000))}
     `.trim();
 
     const categoriesInfo = customCategories && customCategories.length > 0 
-      ? `\n\n${this.language === 'zh' ? '可用的应用分类' : 'Available Application Categories'}: ${customCategories.join(', ')}`
+      ? `\n\n${this.language === 'zh' ? 'Available Application Categories' : 'Available Application Categories'}: ${customCategories.join(', ')}`
       : '';
 
     let customPrompt = this.config.customPrompt || '';
@@ -1761,7 +1761,7 @@ ${this.sanitizeForPrompt(readmeContent.substring(0, 2000))}
       customPrompt = customPrompt.replace(/\{CATEGORIES_HINT\}/g, sanitizedHints);
     } else if (sanitizedHints) {
       customPrompt = `${customPrompt.trim()}\n\n${this.language === 'zh'
-        ? '自定义分类提示：\n' + sanitizedHints
+        ? 'Custom category hints:\n' + sanitizedHints
         : 'Custom category hints:\n' + sanitizedHints}`;
     }
 
@@ -1771,45 +1771,45 @@ ${this.sanitizeForPrompt(readmeContent.substring(0, 2000))}
 
   private createAnalysisPrompt(repository: Repository, readmeContent: string, customCategories?: string[], categoryHints?: string): string {
     const repoInfo = `
-${this.language === 'zh' ? '仓库名称' : 'Repository Name'}: ${repository.full_name}
-${this.language === 'zh' ? '描述' : 'Description'}: ${this.sanitizeForPrompt(repository.description || (this.language === 'zh' ? '无描述' : 'No description'))}
-${this.language === 'zh' ? '编程语言' : 'Programming Language'}: ${repository.language || (this.language === 'zh' ? '未知' : 'Unknown')}
-${this.language === 'zh' ? 'Star数' : 'Stars'}: ${repository.stargazers_count}
-${this.language === 'zh' ? '主题标签' : 'Topics'}: ${repository.topics?.join(', ') || (this.language === 'zh' ? '无' : 'None')}
-${this.language === 'zh' ? '客观事实（中性，不代表质量结论）' : 'Objective facts (neutral, not a quality verdict)'}:
+${this.language === 'zh' ? 'Repository Name' : 'Repository Name'}: ${repository.full_name}
+${this.language === 'zh' ? 'Description' : 'Description'}: ${this.sanitizeForPrompt(repository.description || (this.language === 'zh' ? 'No description' : 'No description'))}
+${this.language === 'zh' ? 'Programming Language' : 'Programming Language'}: ${repository.language || (this.language === 'zh' ? 'Unknown' : 'Unknown')}
+${this.language === 'zh' ? 'Stars' : 'Stars'}: ${repository.stargazers_count}
+${this.language === 'zh' ? 'Topics' : 'Topics'}: ${repository.topics?.join(', ') || (this.language === 'zh' ? 'None' : 'None')}
+${this.language === 'zh' ? 'Objective facts (neutral, not a quality verdict)' : 'Objective facts (neutral, not a quality verdict)'}:
 ${this.sanitizeForPrompt(this.formatRepositoryHealthFacts(repository))}
 
-${this.language === 'zh' ? 'README内容 (前2000字符)' : 'README Content (first 2000 characters)'}:
+${this.language === 'zh' ? 'README Content (first 2000 characters)' : 'README Content (first 2000 characters)'}:
 ${this.sanitizeForPrompt(readmeContent.substring(0, 2000))}
     `.trim();
 
     if (this.language === 'zh') {
       const categoriesLine = customCategories && customCategories.length > 0
-        ? `\n可用分类（tags 请优先从中选择）：${customCategories.join(', ')}`
+        ? `\nAvailable categories (tags should prioritize these): ${customCategories.join(', ')}`
         : '';
       const hintLine = categoryHints && categoryHints.length > 0
-        ? `\n\n自定义分类提示：以下是用户自定义的分类及其关键词。当仓库的名称、描述、Topics 或 README 明显与某个自定义分类的关键词相关时，请务必把该自定义分类名作为 tags 之一（仍保持中文，3-5个）。\n${this.sanitizeForPrompt(categoryHints)}`
+        ? `\n\nCustom category hint: The following are user-defined custom categories with their keywords. When the repository keywords, description, Topics, or README clearly relate to these keywords, include the custom category name as-is in tags (3-5 tags total).\n${this.sanitizeForPrompt(categoryHints)}`
         : '';
       return `
-请分析以下GitHub仓库信息，并只输出合法JSON对象。不要输出思考过程、Markdown、代码块标记、解释或任何额外文本。
+Please analyze the following GitHub repository information and only output a valid JSON object. Do not output thinking process, Markdown, code block markers, explanations, or any extra text.
 
-要求：
-- summary：中文概述，说明仓库的主要功能和用途，不超过50字。
-  禁止出现“我们被要求”“只输出JSON”“根据仓库信息”“summary/tags/platforms”等提示词复述。
-- tags：3-5个中文应用类型标签${customCategories && customCategories.length > 0 ? '，请优先从上方的可用分类中选择' : '，类似应用商店的分类，如：开发工具、Web应用、移动应用、数据库、AI工具等'}。${categoriesLine}${hintLine}
-- platforms：只能从 ["mac","windows","linux","ios","android","docker","web","cli"] 中选择；无法判断则为 []。
+Requirements:
+- summary: A concise overview explaining the main functionality and purpose, no more than 50 words.
+  Do not include prompt restatements such as "asked to", "only output JSON", "based on repository information", or "summary/tags/platforms".
+- tags: 3-5 application type tags${customCategories && customCategories.length > 0 ? ', please prioritize from the available categories above' : ', similar to app store categories such as: development tools, web apps, mobile apps, database, AI tools, etc.'}.${categoriesLine}${hintLine}
+- platforms: Must only choose from ["mac","windows","linux","ios","android","docker","web","cli"]; use [] if unable to determine.
 
-输出格式：
+Output format:
 {
-  "summary": "中文概述",
-  "tags": ["标签1", "标签2", "标签3"],
+  "summary": "overview",
+  "tags": ["tag1", "tag2", "tag3"],
   "platforms": ["web", "cli"]
 }
 
-平台线索：
-Dockerfile/docker-compose=docker；CLI/命令行/终端=cli；浏览器/前端/API=web；iOS/Swift/Xcode=ios；Android/Kotlin/Gradle=android；macOS/Homebrew=mac；Windows/.exe/MSI=windows；Linux/systemd/apt=linux。
+Platform hints:
+Dockerfile/docker-compose=docker; CLI/command-line/terminal=cli; browser/frontend/API=web; iOS/Swift/Xcode=ios; Android/Kotlin/Gradle=android; macOS/Homebrew=mac; Windows/.exe/MSI=windows; Linux/systemd/apt=linux.
 
-仓库信息：
+Repository information:
 ${repoInfo}
       `.trim();
     }
@@ -1869,16 +1869,22 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
 
     if (cleaned.length < 3) return null;
 
-    if (/^[\s.,;:!?，。；：！？、]+$/.test(cleaned)) return null;
+    if (/^[\s.,;:!?\uff0c\u3002\uff1b\uff1a\uff01\uff1f\u3001]+$/.test(cleaned)) return null;
 
     const promptRestatementPatterns: RegExp[] = [
-      /^(?:我们|我)被要求(?:只?输出|分析|评估|总结|概述|介绍|提供|生成|返回)/i,
-      /^(?:根据|按照|基于)(?:给定的?)?(?:要求|提示|指示|任务|prompt|instruction)[，,。.\s]/i,
-      /^(?:根据|按照|基于)(?:给定的?)?(?:仓库|项目|repo|repository)(?:信息|描述)?[，,。.\s]*(?:需要|应|要)?(?:提供|输出|生成|返回)(?:\s*summary|\s*摘要|\s*tags?|\s*platforms?)/i,
-      /(?:^|[。！？.!?]\s*)(?:只输出|输出)\s*(?:一个)?(?:合法)?\s*JSON(?:对象)?(?:[，,。.!?]|$)/i,
-      /(?:不要|不应|不能)(?:输出)?(?:任何)?(?:思考过程|Markdown|代码块|解释|额外文本)/i,
-      /(?:需要|要求)(?:提供|输出|生成|返回)\s*(?:summary|摘要)[、,，\s]*(?:tags?)[、,，\s]*(?:和|与|and)?\s*platforms?/i,
-      /\bsummary\b[、,，/\s]*(?:tags?)[、,，/\s]*(?:和|与|and)?\s*platforms?\b/i,
+      // Chinese for "we/I was asked to output/analyze/summarize/provide/return"
+      /^(?:\u6211\u4eec|\u6211)\u88ab\u8981\u6c42(?:\u53ea?\u8f93\u51fa|\u5206\u6790|\u8bc4\u4f30|\u603b\u7ed3|\u6982\u8ff0|\u4ecb\u7ecd|\u63d0\u4f9b|\u751f\u6210|\u8fd4\u56de)/i,
+      // Chinese for "based on/according to given request/prompt/instruction"
+      /^(?:\u6839\u636e|\u6309\u7167|\u57fa\u4e8e)(?:\u7ed9\u5b9a\u7684?)?(?:\u8981\u6c42|\u63d0\u793a|\u6307\u793a|\u4efb\u52a1|prompt|instruction)[\uff0c,\u3002.\s]/i,
+      // Chinese for "based on repository info/description, provide summary/tags/platforms"
+      /^(?:\u6839\u636e|\u6309\u7167|\u57fa\u4e8e)(?:\u7ed9\u5b9a\u7684?)?(?:\u4ed3\u5e93|\u9879\u76ee|repo|repository)(?:\u4fe1\u606f|\u63cf\u8ff0)?[\uff0c,\u3002.\s]*(?:\u9700\u8981|\u5e94|\u8981)?(?:\u63d0\u4f9b|\u8f93\u51fa|\u751f\u6210|\u8fd4\u56de)(?:\s*summary|\s*\u6458\u8981|\s*tags?|\s*platforms?)/i,
+      // Chinese for "only output a valid JSON object"
+      /(?:^|[\u3002\uff01\uff1f.!?]\s*)(?:\u53ea\u8f93\u51fa|\u8f93\u51fa)\s*(?:\u4e00\u4e2a)?(?:\u5408\u6cd5)?\s*JSON(?:\u5bf9\u8c61)?(?:[\uff0c,\u3002.!?]|$)/i,
+      // Chinese for "do not output thinking/Markdown/code block/explanation/extra text"
+      /(?:\u4e0d\u8981|\u4e0d\u5e94|\u4e0d\u80fd)(?:\u8f93\u51fa)?(?:\u4efb\u4f55)?(?:\u601d\u8003\u8fc7\u7a0b|Markdown|\u4ee3\u7801\u5757|\u89e3\u91ca|\u989d\u5916\u6587\u672c)/i,
+      // Chinese for "provide summary, tags, and platforms"
+      /(?:\u9700\u8981|\u8981\u6c42)(?:\u63d0\u4f9b|\u8f93\u51fa|\u751f\u6210|\u8fd4\u56de)\s*(?:summary|\u6458\u8981)[\u3001,\uff0c\s]*(?:tags?)[\u3001,\uff0c\s]*(?:\u548c|\u4e0e|and)?\s*platforms?/i,
+      /\bsummary\b[\u3001,\uff0c/\s]*(?:tags?)[\u3001,\uff0c/\s]*(?:\u548c|\u4e0e|and)?\s*platforms?\b/i,
       /^(?:I|we)\s*(?:(?:have been|was|were|am)\s*)?(?:asked|instructed|told|requested)\b/i,
       /^(?:based|according)\s+(?:on|to)\s+(?:the\s+)?(?:request|prompt|instruction|task)[.,:;\s]/i,
       /^(?:based|according)\s+(?:on|to)\s+(?:the\s+)?(?:repository|repo|project)\s+(?:information|description)[.,:;\s]*(?:we\s+)?(?:need|should|must|will)?\s*(?:provide|output|generate|return)/i,
@@ -1929,8 +1935,8 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
             platforms,
             isValid: false,
             invalidReason: rawSummary
-              ? (this.language === 'zh' ? 'summary包含提示词复述或不是仓库概述' : 'summary contains prompt restatement or is not a repository overview')
-              : (this.language === 'zh' ? 'summary缺失或为空' : 'summary is missing or empty'),
+              ? (this.language === 'zh' ? 'summary contains prompt restatement or is not a repository overview' : 'summary contains prompt restatement or is not a repository overview')
+              : (this.language === 'zh' ? 'summary is missing or empty' : 'summary is missing or empty'),
           };
         }
 
@@ -1947,7 +1953,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         tags: [],
         platforms: [],
         isValid: false,
-        invalidReason: this.language === 'zh' ? '未返回合法JSON对象' : 'No valid JSON object returned',
+        invalidReason: this.language === 'zh' ? 'No valid JSON object returned' : 'No valid JSON object returned',
       };
     } catch (error) {
       logger.errorFromError('ai', 'Failed to parse AI response', error);
@@ -1956,7 +1962,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         tags: [],
         platforms: [],
         isValid: false,
-        invalidReason: this.language === 'zh' ? '解析AI返回失败' : 'Failed to parse AI response',
+        invalidReason: this.language === 'zh' ? 'Failed to parse AI response' : 'Failed to parse AI response',
       };
     }
   }
@@ -2029,7 +2035,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
           success: false,
           errorType: 'unknown',
           message: this.language === 'zh'
-            ? '无效的协议，请使用 http:// 或 https://'
+            ? 'Invalid protocol, please use http:// or https://'
             : 'Invalid protocol, please use http:// or https://',
         };
       }
@@ -2047,13 +2053,13 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         if (content) {
           return {
             success: true,
-            message: this.language === 'zh' ? '连接成功' : 'Connection successful',
+            message: this.language === 'zh' ? 'Connection successful' : 'Connection successful',
           };
         }
         return {
           success: false,
           errorType: 'unknown',
-          message: this.language === 'zh' ? '未收到响应内容' : 'No content received',
+          message: this.language === 'zh' ? 'No content received' : 'No content received',
         };
       } finally {
         clearTimeout(timeoutId);
@@ -2072,7 +2078,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
           success: false,
           errorType: 'timeout',
           message: this.language === 'zh'
-            ? `连接超时（${timeoutMs / 1000}秒）。请检查：1. 网络连接是否正常 2. API端点是否正确 3. 服务器是否响应缓慢`
+            ? `Connection timeout (${timeoutMs / 1000}s). Please check: 1. Network connection 2. API endpoint 3. Server response time`
             : `Connection timeout (${timeoutMs / 1000}s). Please check: 1. Network connection 2. API endpoint 3. Server response time`,
         };
       }
@@ -2083,7 +2089,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
           success: false,
           errorType: 'network',
           message: this.language === 'zh'
-            ? '网络连接失败。请检查：1. 网络连接是否正常 2. API端点地址是否正确 3. 防火墙或代理设置'
+            ? 'Network connection failed. Please check: 1. Network connection 2. API endpoint 3. Firewall or proxy settings'
             : 'Network connection failed. Please check: 1. Network connection 2. API endpoint 3. Firewall or proxy settings',
         };
       }
@@ -2094,19 +2100,19 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         const errorType = getErrorTypeFromStatus(statusCode) ?? 'unknown';
         const suggestions: Record<string, { zh: string; en: string }> = {
           auth: {
-            zh: '请检查 API 密钥是否正确，或密钥是否已过期',
+            zh: 'Please check if the API key is correct or expired',
             en: 'Please check if the API key is correct or expired',
           },
           timeout: {
-            zh: '请求超时，请稍后重试或检查网络连接',
+            zh: 'Request timeout, please retry later or check network',
             en: 'Request timeout, please retry later or check network',
           },
           server: {
-            zh: '服务器端错误，请稍后重试或联系服务提供商',
+            zh: 'Server error, please retry later or contact provider',
             en: 'Server error, please retry later or contact provider',
           },
           unknown: {
-            zh: '请检查 API 端点、模型名称和请求参数是否正确',
+            zh: 'Please check API endpoint, model name and request parameters',
             en: 'Please check API endpoint, model name and request parameters',
           },
         };
@@ -2117,7 +2123,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
           statusText: meaning,
           errorType,
           message: this.language === 'zh'
-            ? `HTTP ${statusCode} - ${meaning}\n建议：${suggestions[errorType].zh}`
+            ? `HTTP ${statusCode} - ${meaning}\nSuggestion: ${suggestions[errorType].zh}`
             : `HTTP ${statusCode} - ${meaning}\nSuggestion: ${suggestions[errorType].en}`,
         };
       }
@@ -2127,7 +2133,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         success: false,
         errorType: 'unknown',
         message: this.language === 'zh'
-          ? `连接失败：${errorMessage || '未知错误'}\n请检查 API 端点、API 密钥和模型名称是否正确`
+          ? `Connection failed: ${errorMessage || 'Unknown error'}\nPlease check API endpoint, API key and model name`
           : `Connection failed: ${errorMessage || 'Unknown error'}\nPlease check API endpoint, API key and model name`,
       };
     }
@@ -2143,7 +2149,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
    */
   async generateHyDEQuery(query: string, signal?: AbortSignal): Promise<string> {
     const system = this.language === 'zh'
-      ? '你是一个搜索助手。根据用户的搜索意图，生成一段 2-3 句话的理想 GitHub 仓库描述，包含相关技术术语、编程语言和使用场景。只输出描述文本，不要输出其他内容。'
+      ? 'You are a search assistant. Given a user search query, generate a 2-3 sentence description of the ideal GitHub repository that would perfectly match this query. Include relevant technical terms, programming languages, and use cases. Output only the description, no extra text.'
       : 'You are a search assistant. Given a user search query, generate a 2-3 sentence description of the ideal GitHub repository that would perfectly match this query. Include relevant technical terms, programming languages, and use cases. Output only the description, no extra text.';
 
     const content = await this.requestText({
@@ -2195,7 +2201,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
       //    so ample budget is provided; non-reasoning models only charge for actual usage with no overhead.
       onPhase?.('expanding');
       const system = this.language === 'zh'
-        ? '你是一个智能搜索助手。请分析用户的搜索意图，提取关键词并提供多语言翻译。'
+        ? 'You are an intelligent search assistant. Please analyze user search intent, extract keywords and provide multilingual translations.'
         : 'You are an intelligent search assistant. Please analyze user search intent, extract keywords and provide multilingual translations.';
       const content = await this.requestText({
         system,
@@ -2284,16 +2290,16 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
     const summaries = this.sanitizeForPrompt(this.buildCandidateSummaries(candidates));
     const intentLine = intent
       ? (this.language === 'zh'
-        ? `\n\n用户意图说明：${this.sanitizeForPrompt(intent)}`
+        ? `\n\nQuery intent: ${this.sanitizeForPrompt(intent)}`
         : `\n\nQuery intent: ${this.sanitizeForPrompt(intent)}`)
       : '';
 
     const system = this.language === 'zh'
-      ? '你是 GitHub 仓库搜索排序助手。根据用户查询，从候选仓库中选出真正相关的仓库，按相关性从高到低返回其 ID 的 JSON 数组。注意：ID 是候选列表中给出的真实仓库 ID（一长串数字），严禁使用序号、行号或自行编号。只输出 JSON 数组，不要输出任何额外文字。若没有仓库能满足查询意图，返回空数组 []。'
+      ? 'You are a GitHub repository search reranking assistant. Select the repositories that truly match the user query and return their IDs as a JSON array ordered from most to least relevant. The ID is the real repository ID (a long number) from the candidate list; never use ordinals or line numbers. Output only the JSON array, no extra text. If no repository satisfies the query intent, return an empty array [].'
       : 'You are a GitHub repository search reranking assistant. Select the repositories that truly match the user query and return their IDs as a JSON array ordered from most to least relevant. The ID is the real repository ID (a long number) from the candidate list; never use ordinals or line numbers. Output only the JSON array, no extra text. If no repository satisfies the query intent, return an empty array [].';
 
     const user = this.language === 'zh'
-      ? `用户查询：「${this.sanitizeForPrompt(query)}」${intentLine}\n\n候选仓库（共 ${candidates.length} 个）：\n${summaries}\n\n要求：\n- 只保留能满足查询意图的仓库；若没有仓库能真正满足意图，返回 []，不要用仅部分沾边的仓库凑数。\n- 相关性相近时，star 数更高、更活跃的优先。\n- 最多返回 ${AIService.SELECTION_MAX_RESULTS} 个 ID。`
+      ? `User query: "${this.sanitizeForPrompt(query)}"${intentLine}\n\nCandidate repositories (${candidates.length} total):\n${summaries}\n\nRequirements:\n- Keep only repositories that satisfy the query intent; if none truly do, return [] instead of padding with loosely related ones.\n- When relevance is similar, prefer higher stars and more active projects.\n- Return at most ${AIService.SELECTION_MAX_RESULTS} IDs.`
       : `User query: "${this.sanitizeForPrompt(query)}"${intentLine}\n\nCandidate repositories (${candidates.length} total):\n${summaries}\n\nRequirements:\n- Keep only repositories that satisfy the query intent; if none truly do, return [] instead of padding with loosely related ones.\n- When relevance is similar, prefer higher stars and more active projects.\n- Return at most ${AIService.SELECTION_MAX_RESULTS} IDs.`;
 
     const content = await this.requestText({
@@ -2430,7 +2436,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
   }
 
   /**
-   * Segments continuous CJK runs in text into bigrams (e.g. "星标仓库" -> 星标 / 标仓 / 仓库),
+   * Segments continuous CJK runs in text into bigrams (e.g. bigrams from continuous CJK runs),
    * deduplicated and capped. Because Chinese lacks space segmentation, full substring matching against English metadata
    * almost always fails; bigrams are the lowest-cost recall mechanism without external dictionary dependencies.
    */
@@ -2452,20 +2458,20 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
   private createSearchPrompt(query: string): string {
     if (this.language === 'zh') {
       return `
-用户搜索查询: "${query}"
+User search query: "${query}"
 
-请分析这个搜索查询并提供：
-1. 一句话复述用户的真实搜索意图（不超过30字）
-2. 主要关键词（中英文）
-3. 相关的技术术语和同义词
-4. 可能的应用类型或分类
+Please analyze this search query and provide:
+1. One sentence restating the user's true search intent (max 30 words)
+2. Main keywords (in English and Chinese)
+3. Related technical terms and synonyms
+4. Possible application types or categories
 
-以JSON格式回复：
+Reply in JSON format:
 {
-  "intent": "一句话复述用户的真实搜索意图",
-  "keywords": ["关键词1", "keyword1", "关键词2", "keyword2"],
-  "categories": ["分类1", "category1"],
-  "synonyms": ["同义词1", "synonym1"]
+  "intent": "One sentence restating the user's true search intent",
+  "keywords": ["keyword1", "\u5173\u952e\u8bcd1", "keyword2", "\u5173\u952e\u8bcd2"],
+  "categories": ["category1", "\u5206\u7c7b1"],
+  "synonyms": ["synonym1", "\u540c\u4e49\u8bcd1"]
 }
       `.trim();
     } else {
@@ -2481,9 +2487,9 @@ Please analyze this search query and provide:
 Reply in JSON format:
 {
   "intent": "One sentence restating the user's true search intent",
-  "keywords": ["keyword1", "关键词1", "keyword2", "关键词2"],
-  "categories": ["category1", "分类1"],
-  "synonyms": ["synonym1", "同义词1"]
+  "keywords": ["keyword1", "\u5173\u952e\u8bcd1", "keyword2", "\u5173\u952e\u8bcd2"],
+  "categories": ["category1", "\u5206\u7c7b1"],
+  "synonyms": ["synonym1", "\u540c\u4e49\u8bcd1"]
 }
       `.trim();
     }

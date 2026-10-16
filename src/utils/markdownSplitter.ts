@@ -46,9 +46,9 @@ const LANGUAGE_PATTERNS: { lang: DetectedLanguage; regex: RegExp }[] = [
 ];
 
 const LANGUAGE_NAMES: Record<DetectedLanguage, string> = {
-  zh: '中文',
+  zh: 'Chinese',
   en: 'English',
-  ja: '日本語',
+  ja: 'Japanese',
   ko: '한국어',
   fr: 'Français',
   de: 'Deutsch',

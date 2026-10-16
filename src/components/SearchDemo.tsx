@@ -28,9 +28,9 @@ const searchExamples: SearchExample[] = [
     expectedResults: ['Vue.js related projects']
   },
   {
-    query: '查找所有笔记应用',
+    query: 'find note-taking apps',
     type: 'ai',
-    description: 'AI semantic search with Chinese query',
+    description: 'AI semantic search with natural language query',
     expectedResults: ['Note-taking tools such as Obsidian, Notion, Logseq']
   },
   {
@@ -40,9 +40,9 @@ const searchExamples: SearchExample[] = [
     expectedResults: ['ML frameworks such as TensorFlow, PyTorch, scikit-learn']
   },
   {
-    query: '代码编辑器',
+    query: 'code editor',
     type: 'ai',
-    description: 'AI understanding Chinese intent',
+    description: 'AI understanding intent',
     expectedResults: ['Editors such as VSCode, Vim, Emacs']
   },
   {

@@ -26,14 +26,14 @@ describe('BackToTop', () => {
     mocks.state.themeTokens.animation = 'reduced';
     render(<BackToTop />);
 
-    fireEvent.click(screen.getByRole('button', { name: /back to top|返回顶部/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to top|\u8fd4\u56de\u9876\u90e8/i }));
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
   });
 
   it('keeps smooth scrolling for the normal motion setting', () => {
     render(<BackToTop />);
 
-    fireEvent.click(screen.getByRole('button', { name: /back to top|返回顶部/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to top|\u8fd4\u56de\u9876\u90e8/i }));
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
   });
 
@@ -41,7 +41,7 @@ describe('BackToTop', () => {
     window.matchMedia = vi.fn().mockReturnValue({ matches: true });
     render(<BackToTop />);
 
-    fireEvent.click(screen.getByRole('button', { name: /back to top|返回顶部/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to top|\u8fd4\u56de\u9876\u90e8/i }));
     expect(window.matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
   });

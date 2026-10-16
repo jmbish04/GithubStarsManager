@@ -28,9 +28,9 @@ interface ReadmeModalProps {
 }
 
 const FONT_SIZES = [
-  { label: '小', labelEn: 'Small', value: 'text-sm' },
-  { label: '中', labelEn: 'Medium', value: 'text-base' },
-  { label: '大', labelEn: 'Large', value: 'text-lg' },
+  { label: 'Small', labelEn: 'Small', value: 'text-sm' },
+  { label: 'Medium', labelEn: 'Medium', value: 'text-base' },
+  { label: 'Large', labelEn: 'Large', value: 'text-lg' },
 ];
 
 const TOC_MAX_LEVEL = 6;

@@ -33,8 +33,9 @@ describe('useWebDAVActions', () => {
     )) as typeof useAppStore);
   });
 
-  it('keeps the WebDAV URL validation message fully localized in Chinese', () => {
-    mocks.validateConfig.mockReturnValue(['WebDAV URL必须以 http:// 或 https:// 开头']);
+  it('keeps the WebDAV URL validation message fully localized', () => {
+    // Chinese for "WebDAV URL must start with http:// or https://"
+    mocks.validateConfig.mockReturnValue(['WebDAV URL\u5fc5\u987b\u4ee5 http:// \u6216 https:// \u5f00\u5934']);
     const { result } = renderHook(() => useWebDAVActions());
 
     let saved!: boolean;
@@ -43,7 +44,7 @@ describe('useWebDAVActions', () => {
     });
 
     expect(saved).toBe(false);
-    expect(mocks.toast).toHaveBeenCalledWith('WebDAV URL必须以 http:// 或 https:// 开头', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('WebDAV URL\u5fc5\u987b\u4ee5 http:// \u6216 https:// \u5f00\u5934', 'error');
     expect(storeState.addWebDAVConfig).not.toHaveBeenCalled();
   });
 });

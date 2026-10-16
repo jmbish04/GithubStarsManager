@@ -544,7 +544,7 @@ export const useSearchActions = (): SearchActions => {
             const appliedTotal = Object.values(appliedTagsCount).reduce((a, b) => a + b, 0);
             const listSummary = Object.entries(appliedTagsCount)
               .map(([name, count]) => `${name}(${count})`)
-              .join('、');
+              .join(', ');
             const createdHint = createdCategoriesCount > 0
               ? t('useSearchActions.list-sync-new-categories', { count: createdCategoriesCount })
               : '';

@@ -78,7 +78,7 @@ const createStoreState = () => ({
     concurrency: 1,
   }],
   activeAIConfig: 'ai-config',
-  language: 'zh' as const,
+  language: 'en' as const,
   updateRepository: vi.fn(),
   setLoading: vi.fn(),
   setAnalysisProgress: vi.fn(),
@@ -246,7 +246,7 @@ describe('useRepositoryAnalysisJob', () => {
       await result.current.run(runOptions([repository(1)]));
     });
 
-    expect(mocks.toast).toHaveBeenCalledWith('AI分析失败，请检查AI配置和网络连接。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('AI analysis failed. Please check AI configuration and network connection.', 'error');
     expect(result.current).toMatchObject({ isRunning: false, isPaused: false, progress: { current: 0, total: 0 } });
   });
 

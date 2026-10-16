@@ -94,7 +94,7 @@ describe('pushCategoriesToLists language switch auto-rename', () => {
 
   it('renames persistedId-mapped Chinese list to category name in English without creating new list', async () => {
     const { push, api, state } = makeSliceHarness({
-      currentLists: [{ id: 'L_zh', name: '开发工具', items: [] }],
+      currentLists: [{ id: 'L_zh', name: '\u5f00\u53d1\u5de5\u5177', items: [] }], // Chinese for "Development Tools"
       categoryListIdMap: { devtools: 'L_zh' },
     });
 
@@ -109,7 +109,7 @@ describe('pushCategoriesToLists language switch auto-rename', () => {
 
   it('matches existing Chinese list by name variant when unmapped: renames and saves mapping', async () => {
     const { push, api, state } = makeSliceHarness({
-      currentLists: [{ id: 'L_legacy', name: '开发工具', items: [] }],
+      currentLists: [{ id: 'L_legacy', name: '\u5f00\u53d1\u5de5\u5177', items: [] }], // Chinese for "Development Tools"
     });
 
     await push();
@@ -134,7 +134,7 @@ describe('pushCategoriesToLists language switch auto-rename', () => {
   it('retains mapping and continues push when rename fails (best-effort, retries next round)', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { push, api, state } = makeSliceHarness({
-      currentLists: [{ id: 'L_zh', name: '开发工具', items: [] }],
+      currentLists: [{ id: 'L_zh', name: '\u5f00\u53d1\u5de5\u5177', items: [] }], // Chinese for "Development Tools"
       categoryListIdMap: { devtools: 'L_zh' },
     });
     api.updateUserList.mockRejectedValue(new Error('network down'));
@@ -147,7 +147,7 @@ describe('pushCategoriesToLists language switch auto-rename', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       'githubLists',
       'Some lists failed to rename, will retry next push',
-      { failures: ['开发工具 -> Development Tools'] }
+      { failures: ['\u5f00\u53d1\u5de5\u5177 -> Development Tools'] } // Chinese for "Development Tools"
     );
     warnSpy.mockRestore();
   });
@@ -228,7 +228,7 @@ describe('pushCategoriesToLists hidden categories do not participate in push', (
 
   it('preserves existing mapping for hidden categories without renaming or creating', async () => {
     const { push, api, state } = makeSliceHarness({
-      currentLists: [{ id: 'L_web', name: 'Web应用', items: [] }],
+      currentLists: [{ id: 'L_web', name: 'Web\u5e94\u7528', items: [] }], // Chinese for "Web Apps"
       categoryListIdMap: { web: 'L_web' },
     });
 
@@ -241,7 +241,7 @@ describe('pushCategoriesToLists hidden categories do not participate in push', (
 
   it('preserves existing repository membership in hidden category list (kept as unmanaged member)', async () => {
     const { push, api } = makeSliceHarness({
-      currentLists: [{ id: 'L_web', name: 'Web应用', items: ['owner/my-cli-app'] }],
+      currentLists: [{ id: 'L_web', name: 'Web\u5e94\u7528', items: ['owner/my-cli-app'] }], // Chinese for "Web Apps"
       categoryListIdMap: { web: 'L_web' },
       nodeIdMap: new Map([['owner/my-cli-app', 'node_1']]),
     });
