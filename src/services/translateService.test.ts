@@ -20,11 +20,11 @@ vi.mock('./aiService', () => ({
 import { translateText, translateBatch } from './translateService';
 
 interface MockFetchOptions {
-  /** 模拟响应体：json() 的返回值（针对微软引擎）。 */
+  /** Mock response body: return value of json() (for Microsoft engine). */
   msBody?: Array<{ translations?: Array<{ text?: string }> }>;
-  /** 模拟响应体：json() 的返回值（针对 Google 引擎，直接透传）。 */
+  /** Mock response body: return value of json() (for Google engine, passed directly). */
   rawBody?: unknown;
-  /** json() 挂起直到 signal 中止（模拟慢速 body 读取）。 */
+  /** json() hangs until signal is aborted (simulating slow body read). */
   hangBody?: boolean;
   status?: number;
 }
@@ -34,7 +34,7 @@ const createMockResponse = (init: RequestInit, options: MockFetchOptions) => {
   const ok = (options.status ?? 200) < 400;
   const json = (): Promise<unknown> => {
     if (options.hangBody) {
-      // 模拟真实 fetch 行为：读取 body 期间 signal 中止会以 AbortError 拒绝
+      // Simulate real fetch behavior: aborting signal while reading body rejects with AbortError
       return new Promise((_, reject) => {
         signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
       });
@@ -82,7 +82,7 @@ describe('translateService', () => {
     expect(String(calledUrl)).toContain('isEnterpriseClient=false');
     expect(init.method).toBe('POST');
     expect(JSON.parse(String(init.body))).toEqual(['Hello world']);
-    // 新端点无需鉴权头
+    // New endpoint does not require Authorization header
     expect((init.headers as Record<string, string>)['Authorization']).toBeUndefined();
   });
 
@@ -104,11 +104,11 @@ describe('translateService', () => {
     expect(r1.translatedText).toBe('你好世界');
     expect(String(pairs.mock.calls[0][0])).toContain('client=dict-chrome-ex');
     expect(String(pairs.mock.calls[0][0])).toContain('sl=auto&tl=zh-CN');
-    // body 为 q=… 表单
+    // Body is q=… form
     const googleInit = pairs.mock.calls[0][1] as RequestInit;
     expect(String(googleInit.body)).toBe('q=Hello+world');
 
-    // 显式 sl 时接口返回裸字符串数组，同样要能归一化
+    // When sl is explicitly specified, API returns a flat string array; must normalize as well
     const flat = installFetch({ rawBody: ['你好世界'] });
     const r2 = await translateText({ text: 'Hello world', to: 'zh', from: 'en' });
     expect(r2.translatedText).toBe('你好世界');
@@ -121,7 +121,7 @@ describe('translateService', () => {
     const fetchMock = installFetch({
       rawBody: [['translated', 'en']],
     });
-    // 每次请求返回与该请求条数相同的译文
+    // Each request returns translations matching the count of that request
     fetchMock.mockImplementation(async (_url: string | URL, init: RequestInit = {}) => {
       const count = String(init.body).split('&').filter((p) => p.startsWith('q=')).length;
       return createMockResponse(init, { rawBody: Array.from({ length: count }, () => ['translated', 'en']) });
@@ -130,7 +130,7 @@ describe('translateService', () => {
     const results = await translateBatch(texts, 'zh', 'en');
 
     expect(results).toHaveLength(25);
-    // 20 条上限 → 至少 2 个请求
+    // 20 item limit -> at least 2 requests
     expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -146,10 +146,10 @@ describe('translateService', () => {
       textType: 'html',
     });
 
-    // 请求里是占位符而非代码标签
+    // Placeholders in request instead of code tags
     const protectInit = fetchMock.mock.calls[0][1] as RequestInit;
     expect(JSON.parse(String(protectInit.body))).toEqual(['Run {0} to install dependencies']);
-    // 译文中占位符被还原回 <code>
+    // Placeholders restored back to <code> in translated text
     expect(result.translatedText).toBe('运行 <code>npm install</code> 以安装依赖');
   });
 
@@ -172,7 +172,7 @@ describe('translateService', () => {
       textType: 'html',
     });
 
-    // $& 不能被解释为"整个匹配"，必须原样还原
+    // $& must not be interpreted as "whole match", must restore verbatim
     expect(result.translatedText).toBe("运行 <code>sed 's/a/$&/' file</code> 处理文本");
   });
 
@@ -183,7 +183,7 @@ describe('translateService', () => {
     const promise = translateText({ text: 'Hello world', to: 'zh', from: 'en' });
     const assertion = expect(promise).rejects.toThrow('Request timed out after 20000ms');
 
-    // 3 次尝试 × 20s 超时 + 两次退避 sleep（1s + 2s）
+    // 3 attempts × 20s timeout + two backoff sleeps (1s + 2s)
     await vi.advanceTimersByTimeAsync(3 * 20_000 + 3_000);
     await assertion;
 
@@ -225,7 +225,7 @@ describe('translateService', () => {
     await vi.advanceTimersByTimeAsync(3_000);
     await assertion;
 
-    // 500 → 重试；400 → 立即抛出
+    // 500 -> retry; 400 -> throw immediately
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -235,11 +235,11 @@ describe('translateService', () => {
     const fetchMock = installFetch({ msBody: [] });
 
     const promise = translateText({ text: 'Hello', to: 'zh', from: 'en' });
-    const assertion = expect(promise).rejects.toThrow('AI 翻译引擎未就绪');
+    const assertion = expect(promise).rejects.toThrow('AI translation engine is not ready');
     await vi.advanceTimersByTimeAsync(3_000);
     await assertion;
 
-    // AI 引擎不走直连接口
+    // AI engine does not use direct connection endpoint
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

@@ -51,8 +51,8 @@ type ParsedAIResponse = RepositoryAnalysisResult & {
 };
 
 /**
- * 统一的 AI 请求错误，携带 HTTP 状态码与（可选）服务端建议的等待时长。
- * 上层（限流器 / 优化器）依赖 status / retryAfterMs 判断退避策略。
+ * Unified AI request error carrying the HTTP status code and an optional server-recommended retry delay.
+ * Higher-level callers (rate limiters, optimizers) rely on status and retryAfterMs to determine backoff strategies.
  */
 export class AIRequestError extends Error {
   readonly status: number;
@@ -68,7 +68,7 @@ export class AIRequestError extends Error {
   }
 }
 
-/** 支持检查一个错误对象是否是 AI 限流（429 或代理透传的限流错误）。 */
+/** Checks whether an error indicates AI rate limiting (HTTP 429 or proxy rate-limit errors). */
 export function isRateLimitedError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const e = error as { statusCode?: unknown; status?: unknown; isRateLimit?: unknown; message?: unknown };
@@ -79,7 +79,7 @@ export function isRateLimitedError(error: unknown): boolean {
   return /429|rate\s*limit|too many requests/i.test(msg);
 }
 
-/** 从限流错误中读取服务端建议的等待毫秒数（Retry-After / retry-after-ms）。 */
+/** Reads the server-recommended wait time in milliseconds from a rate-limit error (Retry-After / retry-after-ms). */
 export function getRetryAfterMsFromError(error: unknown): number | undefined {
   if (!error || typeof error !== 'object') return undefined;
   const e = error as { retryAfterMs?: unknown; retryAfter?: unknown };
@@ -88,7 +88,7 @@ export function getRetryAfterMsFromError(error: unknown): number | undefined {
   return undefined;
 }
 
-/** 解析响应头里的 Retry-After（retry-after-ms → retry-after 秒 → HTTP date）。 */
+/** Parses Retry-After from response headers (retry-after-ms -> retry-after seconds -> HTTP date). */
 function parseRetryAfterMs(response: Response): number | undefined {
   const msHeader = response.headers.get('retry-after-ms');
   if (msHeader) {
@@ -108,7 +108,7 @@ function parseRetryAfterMs(response: Response): number | undefined {
   return undefined;
 }
 
-/** 流式请求不可用（如走后端代理等仅支持整段 JSON 的通道）。调用方应降级为非流式。 */
+/** Streaming requests are unsupported on this transport (e.g. backend proxies supporting only full JSON responses). Callers should fall back to non-streaming. */
 export class AIStreamUnsupportedError extends Error {
   constructor(message = 'Streaming is not supported on this transport') {
     super(message);
@@ -120,12 +120,12 @@ export function isAIStreamUnsupportedError(error: unknown): boolean {
   return error instanceof AIStreamUnsupportedError;
 }
 
-/** 判断错误是否为请求取消（AbortError）。取消不是失败：调用方应停止流程而非兜底。 */
+/** Checks whether an error is a request cancellation (AbortError). Cancellation is not a failure: callers should halt instead of falling back. */
 export function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
 }
 
-/** 当前 AI 配置/端点不支持模型原生工具调用（function calling）。调用方应降级到编排式循环。 */
+/** The current AI configuration/endpoint does not support native model tool calling (function calling). Callers should fall back to an orchestrated loop. */
 export class AIToolCallUnsupportedError extends Error {
   constructor(message = 'Tool calling is not supported on this AI configuration') {
     super(message);
@@ -140,14 +140,14 @@ export function isAIToolCallUnsupportedError(error: unknown): boolean {
 export interface AIToolDefinition {
   name: string;
   description: string;
-  /** JSON Schema 格式的参数定义。 */
+  /** Parameter definition in JSON Schema format. */
   parameters: Record<string, unknown>;
 }
 
 export interface AIToolCall {
   id: string;
   name: string;
-  /** 原始 JSON 字符串参数（由调用方解析，解析失败按空对象处理）。 */
+  /** Raw JSON argument string (parsed by the caller; treated as an empty object if parsing fails). */
   arguments: string;
 }
 
@@ -157,15 +157,16 @@ export type AIToolLoopMessage =
   | { role: 'tool'; toolCallId: string; content: string };
 
 /**
- * 该配置是否实际启用原生工具调用：协议族支持 且 用户在该 AI 配置中显式
- * 勾选“支持工具调用”。两者缺一不可——避免未经验证的端点默认进入工具循环。
- * 端点实际能力不足时由请求失败降级兜底。
+ * Whether the configuration actually enables native tool calling: the protocol family must support it
+ * and the user must have explicitly checked "supports tool calling" in this AI config.
+ * Both are required to prevent unverified endpoints from defaulting into tool loops.
+ * Any capability shortfall at the endpoint falls back gracefully on request failure.
  */
 export function supportsChatToolCalls(config: Pick<AIConfig, 'apiType' | 'supportsToolCalls'>): boolean {
   return isToolCallCapableApiType(config.apiType) && config.supportsToolCalls === true;
 }
 
-/** 逐事件消费 SSE 字节流，把每个 data: 载荷交给回调（自动跨 chunk 缓冲不完整行）。 */
+/** Consumes an SSE byte stream event-by-event, passing each data: payload to the callback (automatically buffering incomplete lines across chunks). */
 export async function consumeSseStream(body: ReadableStream<Uint8Array>, onData: (payload: string) => void): Promise<void> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -183,9 +184,9 @@ export async function consumeSseStream(body: ReadableStream<Uint8Array>, onData:
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       let separatorIndex: number;
-      // SSE 行分隔符按规范接受 CRLF / LF / 裸 CR。
+      // SSE line delimiters accept CRLF / LF / bare CR per specification.
       while ((separatorIndex = buffer.search(/[\r\n]/)) >= 0) {
-        // 末尾的 \r 可能与下一块开头的 \n 组成 CRLF，先等更多数据再定。
+        // A trailing \r might form a CRLF with a leading \n in the next chunk; wait for more data.
         if (buffer[separatorIndex] === '\r' && separatorIndex === buffer.length - 1) break;
         const separatorLength = buffer[separatorIndex] === '\r' && buffer[separatorIndex + 1] === '\n' ? 2 : 1;
         const line = buffer.slice(0, separatorIndex);
@@ -195,11 +196,11 @@ export async function consumeSseStream(body: ReadableStream<Uint8Array>, onData:
         } else if (line.startsWith('data:')) {
           dataLines.push(line.slice(5).replace(/^ /, ''));
         }
-        // event:/id:/注释行与这些 API 无关，直接忽略。
+        // event:/id:/comment lines are irrelevant to these APIs and are ignored.
       }
     }
-    // 冲刷解码器中剩余的多字节序列，EOF 残余按同样规则切分：覆盖未以换行
-    // 结尾的最后一行、裸 CR 分隔与末尾悬挂的 \r。
+    // Flush remaining multibyte sequences in the decoder, splitting EOF remnants with the same rules:
+    // covers the final line without a newline, bare CR separators, and a trailing dangling \r.
     buffer += decoder.decode();
     const residualLines = buffer.split(/\r\n|\r|\n/);
     buffer = '';
@@ -263,7 +264,7 @@ export function extractGeminiDelta(payload: string): string {
   }
 }
 
-/** 服务端未按 SSE 返回时，从整段 JSON 响应里提取文本（与 requestText 的解析保持一致）。 */
+/** When the server does not respond with SSE, extracts text from the complete JSON response (consistent with requestText parsing). */
 function extractFullTextFromResponse(apiType: AIApiType, data: unknown): string {
   if (apiType === 'openai-responses') {
     const typed = data as OpenAIResponse;
@@ -335,13 +336,13 @@ export class AIService {
   private static readonly ANALYSIS_MAX_ATTEMPTS = 3;
   private static readonly ANALYSIS_MAX_TOKENS = 4096;
   private static readonly RERANKING_MAX_TOKENS = 4096;
-  /** 库容不超过该数量时跳过词法召回，直接把全库交给 LLM 精选。 */
+  /** When library size does not exceed this threshold, skip lexical recall and pass the full library directly to the LLM for selection. */
   private static readonly SELECTION_FULL_LIBRARY_LIMIT = 150;
-  /** 大库时送入 LLM 的候选上限：token 成本与库容解耦的关键。 */
+  /** Candidate limit sent to the LLM for large libraries: essential for decoupling token costs from total library size. */
   private static readonly SELECTION_CANDIDATE_LIMIT = 100;
-  /** 词法候选不足该数量时用 star 排序补足，保证 LLM 始终有足够候选。 */
+  /** When lexical candidates fall below this threshold, backfill using star ranking to ensure the LLM always has sufficient candidates. */
   private static readonly SELECTION_MIN_CANDIDATES = 15;
-  /** LLM 精选最多返回的相关仓库数。 */
+  /** Maximum number of relevant repositories returned by LLM selection. */
   private static readonly SELECTION_MAX_RESULTS = 20;
   private static readonly SELECTION_MAX_TOKENS = 800;
 
@@ -364,7 +365,7 @@ export class AIService {
       responseHeaders?: Record<string, string>;
       responseBody?: string;
       status?: number;
-      /** 是否走 SSE 流式返回（流式调试日志使用）。 */
+      /** Whether the response was streamed via SSE (used by streaming debug logs). */
       streamed?: boolean;
     }
   ): void {
@@ -379,18 +380,18 @@ export class AIService {
   }
 
   /**
-   * 清理用户内容中可能导致 JSON 序列化问题的字符
-   * - 移除 null 字节和控制字符（保留 \n \r \t）
-   * - 替换孤立代理项（lone surrogates），避免某些 JSON 解析器报错
+   * Sanitizes characters in user content that could cause JSON serialization issues:
+   * - Strips null bytes and control characters (preserving \n \r \t).
+   * - Replaces lone surrogates to avoid errors in certain JSON parsers.
    */
   private sanitizeForPrompt(content: string): string {
-    // 移除 null 字节和控制字符（保留换行、回车、制表符）
+    // Strip null bytes and control characters (preserving newlines, carriage returns, and tabs).
     // eslint-disable-next-line no-control-regex
     let sanitized = content.replace(/[\0-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-    // 替换孤立代理项，同时保留合法代理对（避免 lookbehind 以兼容 Safari 12+）
+    // Replace lone surrogates while preserving valid surrogate pairs (avoid lookbehind for Safari 12+ compatibility).
     sanitized = sanitized.replace(
       /([\uD800-\uDBFF][\uDC00-\uDFFF])|[\uD800-\uDBFF]|[\uDC00-\uDFFF]/g,
-      (m, pair) => (pair ? m : '�')
+      (m, pair) => (pair ? m : '\uFFFD')
     );
     return sanitized;
   }
@@ -400,9 +401,9 @@ export class AIService {
   }
 
   /**
-   * 直连模式安全守卫：禁止把 Authorization / x-api-key / URL key 通过明文
-   * HTTP 发往远端。仅本机或局域网地址（如 localhost、127.0.0.1、192.168.x.x 等）豁免
-   * （本地推理/局域网设备服务场景）。走后端代理时由代理负责，不在此检查。
+   * Direct-mode security guard: forbids sending Authorization / x-api-key / URL keys over plain
+   * HTTP to remote hosts. Only local or LAN addresses (such as localhost, 127.0.0.1, 192.168.x.x, etc.) are exempt
+   * (for local inference / LAN device server setups). Backend proxy requests are handled by the proxy and not checked here.
    */
   private requireSecureDirectEndpoint(): void {
     if (backend.isAvailable) return;
@@ -412,7 +413,7 @@ export class AIService {
     try {
       host = new URL(base).hostname;
     } catch {
-      // 保留字符串解析结果
+      // Keep the string-parsed host fallback
     }
     if (!isLocalOrLanHost(host)) {
       throw new Error(this.language === 'zh'
@@ -522,7 +523,7 @@ export class AIService {
         data = await backend.proxyAIRequestWithFallback(this.config.id, this.config, requestBody, options.signal) as Record<string, unknown>;
       } else {
         const response = await fetch(requestUrl, {
-          // 直连携带 API Key，禁止跟随重定向以防凭据外泄。
+          // Direct fetch includes API key; forbid following redirects to prevent credential leakage.
           redirect: 'error',
           method: 'POST',
           headers: {
@@ -637,7 +638,7 @@ export class AIService {
         data = await backend.proxyAIRequestWithFallback(this.config.id, this.config, requestBody, options.signal);
       } else {
         const response = await fetch(requestUrl, {
-          // 直连携带 API Key，禁止跟随重定向以防凭据外泄。
+          // Direct fetch includes API key; forbid following redirects to prevent credential leakage.
           redirect: 'error',
           method: 'POST',
           headers: {
@@ -737,7 +738,7 @@ ${options.user}` : options.user;
       data = await backend.proxyAIRequestWithFallback(this.config.id, this.config, requestBody, options.signal);
     } else {
       const response = await fetch(requestUrl, {
-        // 直连在 URL 携带 API Key，禁止跟随重定向以防凭据外泄。
+        // Direct fetch includes API key in URL; forbid following redirects to prevent credential leakage.
         redirect: 'error',
         method: 'POST',
         headers: {
@@ -802,8 +803,9 @@ ${options.user}` : options.user;
   }
 
   /**
-   * 流式文本生成（SSE）。仅支持直连模式；走后端代理时抛 AIStreamUnsupportedError，
-   * 由调用方决定降级。返回完整拼接文本；增量通过 onChunk 逐段回调。
+   * Streaming text generation (SSE). Only direct-fetch mode is supported; requests via backend proxy
+   * throw AIStreamUnsupportedError, letting the caller decide whether to fall back. Returns the full concatenated
+   * text, with incremental chunks emitted via the onChunk callback.
    */
   private async requestTextStream(options: {
     system: string;
@@ -814,14 +816,14 @@ ${options.user}` : options.user;
     onChunk: (delta: string) => void;
   }): Promise<string> {
     if (backend.isAvailable) {
-      // /api/proxy/ai 会整体缓冲 JSON 响应，无法转发 SSE 帧。
+      // /api/proxy/ai buffers the entire JSON response and cannot forward SSE frames.
       throw new AIStreamUnsupportedError();
     }
     this.requireSecureDirectEndpoint();
     if (this.isDeepSeekReasonerModel()) {
-      // deepseek-reasoner 的最终文本可能仅存在于 reasoning_content（思考链），
-      // 非流式路径对此有专门处理（且思考链不得用于其他 DeepSeek 模型）。流式
-      // 增量无法安全区分思考与正文，直接走阻塞路径以复用既有语义。
+      // For deepseek-reasoner, the final output may reside solely in reasoning_content (chain-of-thought),
+      // which the non-streaming path handles specially (and reasoning_content must not be passed to other DeepSeek models).
+      // Streaming deltas cannot safely distinguish thinking from output, so route directly to the blocking path to reuse existing semantics.
       throw new AIStreamUnsupportedError();
     }
 
@@ -903,14 +905,14 @@ ${options.user}` : options.user;
       throw new AIStreamUnsupportedError();
     }
 
-    // 请求头仅在 debug 日志中展示，密钥做掩码
+    // Request headers are shown in debug logs only with credentials masked
     const debugHeaders: Record<string, string> = { ...headers };
     if (debugHeaders['Authorization']) debugHeaders['Authorization'] = 'Bearer ***';
     if (debugHeaders['x-api-key']) debugHeaders['x-api-key'] = '***';
     const maskedUrl = requestUrl.replace(/([?&]key=)[^&]+/, '$1***');
 
     const response = await fetch(requestUrl, {
-      // 直连携带 API Key（URL 或请求头），禁止跟随重定向以防凭据外泄。
+      // Direct fetch includes API key (URL or headers); forbid following redirects to prevent credential leakage.
       redirect: 'error',
       method: 'POST',
       headers,
@@ -931,12 +933,12 @@ ${options.user}` : options.user;
 
     const contentType = response.headers.get('content-type') || '';
     if (!contentType) {
-      // 缺失 Content-Type 时按内容嗅探：body 含 data: 帧走 SSE 解析，
-      // 否则按整段 JSON / 纯文本回退（此时 body 已整体读入，逐段回调）。
+      // Sniff content when Content-Type is missing: parse as SSE if body contains data: frames,
+      // otherwise fall back to full JSON / plain text (where body is already buffered, invoking callback per chunk).
       const raw = await response.text();
       const ssePayloads: string[] = [];
       let dataLines: string[] = [];
-      // SSE 行分隔符按规范接受 CRLF / LF / 裸 CR。
+      // SSE line delimiters accept CRLF / LF / bare CR per specification.
       for (const line of raw.split(/\r\n|\r|\n/)) {
         if (line === '') {
           if (dataLines.length > 0) {
@@ -950,8 +952,8 @@ ${options.user}` : options.user;
       if (dataLines.length > 0) ssePayloads.push(dataLines.join('\n'));
 
       if (ssePayloads.length > 0) {
-        // 只有至少一帧解出当前 API 的有效增量才算 SSE；普通文本里恰好出现
-        // "data:" 开头的行时继续走下方 JSON / 纯文本回退。
+        // Treat as SSE only if at least one frame yields a valid delta for the current API;
+        // if a plain text response happens to contain lines starting with "data:", continue to JSON/text fallback.
         const deltas = ssePayloads
           .map((payload) => extractDelta(payload))
           .filter((delta) => delta !== '');
@@ -982,8 +984,8 @@ ${options.user}` : options.user;
     }
 
     if (!contentType.includes('text/event-stream')) {
-      // 服务端忽略 stream:true 时可能返回整段 JSON（application/json）或纯文本
-      // 回答：先按 JSON 解析提取结构化文本，失败则把原始文本作为一次性 chunk。
+      // When the server ignores stream:true, it may return a full JSON response (application/json) or plain text:
+      // parse as JSON first to extract structured text, falling back to raw text as a single chunk.
       const raw = await response.text();
       let text = '';
       try {
@@ -1036,7 +1038,7 @@ ${options.user}` : options.user;
     });
   }
 
-  /** 流式版本的 generateChatText；不支持流式的通道抛 AIStreamUnsupportedError。 */
+  /** Streaming version of generateChatText; transports that do not support streaming throw AIStreamUnsupportedError. */
   async generateChatTextStream(options: {
     system: string;
     user: string;
@@ -1056,10 +1058,10 @@ ${options.user}` : options.user;
   }
 
   /**
-   * 原生 function calling（OpenAI chat completions 线格式）。与 generateChatText
-   * 共享 URL/鉴权/重定向守卫；只做单次请求——多轮对话由调用方把返回的
-   * tool_calls 与工具结果追加进 messages 后再次调用。端点不支持 tools 时抛
-   * AIToolCallUnsupportedError，调用方可降级到编排式循环。
+   * Native function calling (OpenAI chat completions wire format). Shares URL/auth/redirect guards
+   * with generateChatText; executes a single request—multi-turn loops append returned tool_calls
+   * and tool outputs to messages before invoking again. When the endpoint lacks tool support, throws
+   * AIToolCallUnsupportedError so callers can fall back to an orchestrated loop.
    */
   async generateWithTools(options: {
     system: string;
@@ -1088,11 +1090,11 @@ ${options.user}` : options.user;
         if (message.role === 'assistant') {
           return {
             role: 'assistant',
-            // content 为空（null/''）时直接省略该字段：显式 null 与空字符串在
-            // 部分网关与模型上会被拒绝；带 tool_calls 的消息省略 content 是
-            // 兼容性最好的线格式。
+            // Omit content when empty (null/''): explicit null and empty strings are rejected by
+            // some gateways and models; omitting content on messages with tool_calls is the most
+            // compatible wire format.
             ...(message.content ? { content: message.content } : {}),
-            // 空 tool_calls 会与 content:null 组合成部分网关拒绝的请求体，直接省略。
+            // Empty tool_calls combined with content:null produces payloads rejected by some gateways, so omit it entirely.
             ...(message.toolCalls.length > 0 ? {
               tool_calls: message.toolCalls.map((call) => ({
                 id: call.id,
@@ -1135,12 +1137,12 @@ ${options.user}` : options.user;
     let data: Record<string, unknown>;
 
     if (backend.isAvailable) {
-      // 代理整体透传请求体（含 tools 字段），响应仍由客户端解析。
+      // Proxy forwards the request body as-is (including tools field); response is still parsed by the client.
       try {
         data = await backend.proxyAIRequestWithFallback(this.config.id, this.config, requestBody, options.signal) as Record<string, unknown>;
       } catch (error) {
-        // 代理错误不保留上游响应体：按状态码 + 消息识别端点拒绝 tools 的情形，
-        // 与直连路径同样转为 AIToolCallUnsupportedError，让调用方落回编排式循环。
+        // Proxy errors do not preserve upstream response body: identify endpoint tool rejections by status + message,
+        // converting to AIToolCallUnsupportedError like the direct path so callers fall back to the orchestrated loop.
         const carrier = error as { status?: unknown; statusCode?: unknown };
         const status = typeof carrier.status === 'number' ? carrier.status : carrier.statusCode;
         const message = error instanceof Error ? error.message : String(error ?? '');
@@ -1151,7 +1153,7 @@ ${options.user}` : options.user;
       }
     } else {
       const response = await fetch(requestUrl, {
-        // 直连携带 API Key，禁止跟随重定向以防凭据外泄。
+        // Direct fetch includes API key; forbid following redirects to prevent credential leakage.
         redirect: 'error',
         method: 'POST',
         headers: {
@@ -1182,8 +1184,8 @@ ${options.user}` : options.user;
           response.status,
           parseRetryAfterMs(response),
         );
-        // 网关不支持 tools 时通常以 4xx 拒绝并提及 tools/function：识别为
-        // 能力缺失而非瞬时故障，让调用方落回编排式循环。
+        // Gateways lacking tool support typically reject with 4xx mentioning tools/function:
+        // identify as missing capability rather than transient failure so callers fall back to the orchestrated loop.
         if ((response.status === 400 || response.status === 404 || response.status === 422) && /\btools?\b|function/i.test(errorDetail)) {
           throw new AIToolCallUnsupportedError(`Endpoint rejected tool calling: ${errorDetail.slice(0, 200)}`);
         }
@@ -1290,7 +1292,7 @@ ${options.user}` : options.user;
         : `AI response did not meet requirements after ${AIService.ANALYSIS_MAX_ATTEMPTS - 1} retries: ${lastInvalidReason}`);
     } catch (error) {
       logger.errorFromError('ai', 'AI analysis failed', error, { configId, durationMs: Date.now() - startTime });
-      // 抛出错误，让调用方处理失败状态
+      // Re-throw the error so callers can handle the failure state
       throw error;
     }
   }
@@ -1355,13 +1357,13 @@ ${outputLanguageDirective ? `\n${outputLanguageDirective}` : ''}
   }
 
   /**
-   * 使用当前 AI 配置批量翻译文本（README 双语渲染的 AI 翻译引擎）。
-   * 输入一组字符串，返回等长的译文数组；模型输出 JSON 数组，解析失败或
-   * 数量不符时抛错（由调用方按瞬时错误重试）。
-   * @param texts 待翻译文本（不含 Markdown 块级结构，多为段落/标题/列表项）
-   * @param targetLanguage 目标语言代码（'zh' | 'en' 等）
-   * @param sourceLanguage 可选源语言代码，缺省时由模型自动判断
-   * @param signal 可选 AbortSignal
+   * Batch translates text using the current AI configuration (used as the AI translation engine for README bilingual rendering).
+   * Takes an array of strings and returns a translated array of equal length; the model outputs a JSON array,
+   * throwing an error if parsing fails or counts do not match (callers retry on transient errors).
+   * @param texts Input texts to translate (without Markdown block structures, typically paragraphs/headers/list items)
+   * @param targetLanguage Target language code ('zh' | 'en', etc.)
+   * @param sourceLanguage Optional source language code; auto-detected by the model when omitted
+   * @param signal Optional AbortSignal
    */
   async translateTexts(
     texts: string[],
@@ -1400,7 +1402,7 @@ ${outputLanguageDirective ? `\n${outputLanguageDirective}` : ''}
       system,
       user,
       temperature: 0.2,
-      // 输出至少要容纳等长译文：按输入长度估算并留出 JSON 结构开销
+      // Output must accommodate an equal-length translation: estimate from input length with JSON overhead
       maxTokens: Math.min(16000, Math.max(1024, Math.ceil(totalChars * 2) + 512)),
       signal,
     });
@@ -1412,7 +1414,7 @@ ${outputLanguageDirective ? `\n${outputLanguageDirective}` : ''}
     return parsed;
   }
 
-  /** 从模型输出中提取 JSON 字符串数组；容忍代码块围栏与前后杂文，失败返回 null。 */
+  /** Extracts a JSON string array from model output; tolerates code fences and surrounding text, returning null on failure. */
   private parseTranslationResponse(raw: string, expectedCount: number): string[] | null {
     const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     const start = cleaned.indexOf('[');
@@ -1429,11 +1431,11 @@ ${outputLanguageDirective ? `\n${outputLanguageDirective}` : ''}
   }
 
   /**
-   * 分析单个 release 的更新日志，输出通俗易懂、按重要程度排序的 Markdown 总结。
-   * 用于 Release 列表项的「总结」按钮。直接返回 Markdown 文本，调用方负责渲染。
-   * @param releaseBody release 的正文（Markdown 更新说明）
-   * @param meta release 的元信息
-   * @param signal 可选 AbortSignal
+   * Analyzes an individual release's changelog, producing an easy-to-read Markdown summary ordered by importance.
+   * Used by the "Summarize" button on Release list items. Returns raw Markdown text directly for caller rendering.
+   * @param releaseBody Release body text (Markdown release notes)
+   * @param meta Release metadata
+   * @param signal Optional AbortSignal
    */
   async analyzeReleaseSummary(
     releaseBody: string,
@@ -1491,8 +1493,8 @@ ${body}
       signal,
     });
 
-    // 防御性处理：部分模型仍会用 ```markdown 或 ``` 包裹返回内容，
-    // 剥离首尾代码块标记，避免 MarkdownRenderer 将其渲染成代码块。
+    // Defensive handling: some models still wrap responses in ```markdown or ```;
+    // strip leading/trailing code fence markers to prevent MarkdownRenderer from rendering as a code block.
     return response
       .replace(/^```(?:markdown)?[ \t]*\n?/i, '')
       .replace(/\n?[ \t]*```\s*$/i, '')
@@ -1546,17 +1548,17 @@ AI Summary: ${gist.ai_summary || 'None'}`;
   }
 
   /**
-   * 对仓库列表做真正的语义重排序（参照 gist 重排序模式）
-   * 将候选仓库摘要发送给 LLM，让其按相关性排序返回 ID 列表
-   * @param repositories 候选仓库列表（通常是向量搜索的 top-K 结果）
-   * @param query 用户搜索查询
-   * @returns 按语义相关性排序的仓库列表
+   * Performs true semantic reranking on repository lists (following the gist reranking pattern).
+   * Sends candidate repository summaries to the LLM to return an ID list ordered by relevance.
+   * @param repositories Candidate repository list (typically vector search top-K results)
+   * @param query User search query
+   * @returns Repository list sorted by semantic relevance
    */
   async searchRepositoriesWithSemanticReranking(repositories: Repository[], query: string, signal?: AbortSignal): Promise<Repository[]> {
     if (repositories.length === 0) return [];
 
-    // 限制候选数量，控制 token 消耗
-    // 注意：searchTopK 配置与此上限独立；若 searchTopK > 50，超出部分不会被重排序
+    // Limit candidate count to control token usage
+    // Note: the searchTopK setting is independent of this limit; candidates beyond 50 will not be reranked
     const candidates = repositories.slice(0, 50);
 
     const system = this.language === 'zh'
@@ -1577,13 +1579,13 @@ AI Summary: ${gist.ai_summary || 'None'}`;
       return repositories;
     }
     const rankedIds = new Set(ranked.map(r => r.id));
-    // 未被 LLM 排到的仓库追加到末尾（保留原始顺序）
+    // Repositories not ranked by the LLM are appended to the end (preserving original order)
     return [...ranked, ...repositories.filter(r => !rankedIds.has(r.id))];
   }
 
   /**
-   * 构造候选仓库的紧凑摘要（序号. ID | 全名 / 简介 / 语言 | ★ | License | Tags）。
-   * 语义重排序与无向量精选共用同一格式。
+   * Builds compact summaries of candidate repositories (index. ID | full_name / description / language | ★ | License | Tags).
+   * Shared by both semantic reranking and vectorless selection.
    */
   private buildCandidateSummaries(candidates: Repository[]): string {
     return candidates.map((repo, index) => {
@@ -1595,7 +1597,7 @@ AI Summary: ${gist.ai_summary || 'None'}`;
       const parts = [`${index + 1}. ID: ${repo.id} | ${repo.full_name}`];
       if (desc) parts.push(`   ${desc}`);
       const meta = [repo.language, `★${stars}`];
-      // 与 embedding 一致：归一化后、非哨兵才写入，避免 raw 对象变成 "[object Object]"
+      // Consistent with embedding: write only normalized, non-sentinel values to avoid raw objects becoming "[object Object]"
       const lic = normalizeLicense(repo.license);
       if (lic !== NO_LICENSE_SENTINEL) meta.push(`License: ${lic}`);
       if (tags) meta.push(`Tags: ${tags}`);
@@ -1605,10 +1607,10 @@ AI Summary: ${gist.ai_summary || 'None'}`;
   }
 
   /**
-   * 从模型输出解析排序后的仓库列表。ID 优先匹配；模型偶尔会把候选行号
-   * （1..N）当作 ID 返回，此时在候选范围内按行号解析——否则整份重排结果会被
-   * 静默丢弃。返回 null 表示响应无效（没有可解析的 JSON 数组，或非空数组的
-   * ID 全部无法落位）；空数组是合法结果（模型明确判定无相关仓库）。
+   * Parses the ranked repository list from model output. Matches by ID first; occasionally models
+   * return candidate row indices (1..N) as IDs, which are resolved within candidate bounds to prevent
+   * discarding the entire reranked result. Returns null on invalid response (no parseable JSON array,
+   * or none of the IDs in a non-empty array could be matched); an empty array is a valid result (model explicitly deemed nothing relevant).
    */
   private resolveRankedRepositories(content: string, candidates: Repository[]): Repository[] | null {
     const jsonMatch = content.match(/\[[\s\S]*?\]/);
@@ -1628,8 +1630,8 @@ AI Summary: ${gist.ai_summary || 'None'}`;
       const key = String(raw).trim();
       let repo = byId.get(key);
       if (!repo) {
-        // 真实 GitHub ID 都是大整数，与 1..N 行号不会冲突；先按 ID 匹配失败
-        // 再尝试行号，两种引用风格都能正确落位。
+        // Real GitHub IDs are large integers and never collide with 1..N row numbers;
+        // try ID match first and fall back to row number so both referencing styles resolve correctly.
         const ordinal = Number(key);
         if (Number.isInteger(ordinal) && ordinal >= 1 && ordinal <= candidates.length) {
           repo = candidates[ordinal - 1];
@@ -1643,8 +1645,8 @@ AI Summary: ${gist.ai_summary || 'None'}`;
         }
       }
     }
-    // 非空响应却一个 ID 都没落位：是幻觉 ID / 响应无效，不是模型判空。
-    // 返回 null 让调用方走词法兜底，避免把无效响应当成"无相关结果"呈现空态。
+    // Non-empty response where zero IDs resolved: hallucinated IDs / invalid response, not an intentional empty result.
+    // Return null to let callers fall back to lexical scores, avoiding presenting an invalid response as "no results".
     if (ids.length > 0 && ranked.length === 0) return null;
     return ranked;
   }
@@ -1692,11 +1694,12 @@ ${previousOutput}
   }
 
   /**
-   * Repository Health 客观事实摘要，供 AI 分析提示复用。
+   * Objective fact summary for Repository Health, reused across AI analysis prompts.
    *
-   * 只输出中性事实与保守观测，并显式标注「不是质量结论」：模型不应仅因为最近没有
-   * 提交就把成熟稳定项目判为劣质。主观评分属于插件（roadmap §4.3）。
-   * 分析路径拿不到 Release 列表，因此这里不包含 Release 相关事实，绝不猜测。
+   * Outputs only neutral facts and conservative observations, explicitly noting "not a quality verdict":
+   * models should not penalize mature, stable projects simply because they lack recent commits.
+   * Subjective scoring belongs to plugins (roadmap §4.3).
+   * The analysis pipeline cannot access release lists, so release facts are excluded here—never guessed.
    */
   private formatRepositoryHealthFacts(repository: Repository): string {
     const zh = this.language === 'zh';
@@ -1709,8 +1712,8 @@ ${previousOutput}
     };
 
     const snapshot = deriveRepositoryHealthSnapshot(repository);
-    // 三态渲染：`undefined` 是「本地没有这个事实」，必须输出 unknown，
-    // 用 truthiness 会把它说成「否」，等于向模型伪造了一条事实。
+    // Tri-state rendering: `undefined` indicates "fact unavailable locally" and must output unknown;
+    // using truthiness would turn it into "no", which falsifies a fact to the model.
     const tri = (value: boolean | undefined): string =>
       value === undefined ? unknown : value ? yes : no;
     const status = [
@@ -1853,8 +1856,8 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
   private static readonly VALID_PLATFORMS = ['mac', 'windows', 'linux', 'ios', 'android', 'docker', 'web', 'cli'];
 
   /**
-   * 校验 summary 是否为真实仓库概述。
-   * 命中提示词复述时直接判为无效，由上层触发重新生成。
+   * Validates whether summary is a genuine repository overview.
+   * If it matches prompt restatement patterns, it is flagged as invalid to trigger regeneration.
    */
   private sanitizeSummary(raw: string): string | null {
     if (!raw) return null;
@@ -2059,11 +2062,11 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
       const err = error as Error;
       const errorMessage = err.message || '';
 
-      // 解析状态码
+      // Parse status code
       const statusMatch = errorMessage.match(/(\d{3})/);
       const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : undefined;
 
-      // 处理超时错误
+      // Handle timeout errors
       if (errorMessage.includes('timeout') || errorMessage.includes('abort') || err.name === 'AbortError') {
         return {
           success: false,
@@ -2074,7 +2077,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         };
       }
 
-      // 处理网络错误
+      // Handle network errors
       if (errorMessage.includes('fetch') || errorMessage.includes('network') || errorMessage.includes('Failed to fetch')) {
         return {
           success: false,
@@ -2085,7 +2088,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         };
       }
 
-      // 如果有状态码，提供详细的错误信息
+      // If status code is present, provide detailed error information
       if (statusCode) {
         const meaning = getStatusCodeMeaning(statusCode, this.language);
         const errorType = getErrorTypeFromStatus(statusCode) ?? 'unknown';
@@ -2119,7 +2122,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         };
       }
 
-      // 默认错误
+      // Default error fallback
       return {
         success: false,
         errorType: 'unknown',
@@ -2131,12 +2134,12 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
   }
 
   /**
-   * HyDE (Hypothetical Document Embedding) 查询预处理
-   * 根据用户查询生成一个"理想仓库描述"，用该描述生成向量而非原始查询
-   * 对短查询、中文查询、概念查询效果显著提升
-   * @param query 用户原始查询
-   * @param signal 可选 AbortSignal
-   * @returns 生成的理想仓库描述（用于向量嵌入）
+   * HyDE (Hypothetical Document Embedding) query preprocessing.
+   * Generates an "ideal repository description" based on the user query, using it for vector generation instead of the raw query.
+   * Significantly improves results for short queries, Chinese queries, and conceptual queries.
+   * @param query Raw user query
+   * @param signal Optional AbortSignal
+   * @returns Generated ideal repository description (for vector embedding)
    */
   async generateHyDEQuery(query: string, signal?: AbortSignal): Promise<string> {
     const system = this.language === 'zh'
@@ -2151,29 +2154,30 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
       signal,
     });
 
-    // 清理可能的引号或多余空白
+    // Clean up potential quotes or extra whitespace
     return content.replace(/^["']|["']$/g, '').trim() || query;
   }
 
   /**
-   * 无向量路径的 AI 语义搜索（向量搜索不可用时的降级链）。
-   * 三段式：
-   * ① 查询扩展 + 意图复述（一次 chat 调用）；
-   * ② 本地词法打分召回候选（小库直接全量；大库取 top-K，token 成本与库容解耦）；
-   * ③ LLM 精选排序（只返回真正相关的仓库，最多 20 个）。
-   * 与旧实现（LLM 只做关键词扩展、本地 OR 子串过滤）的本质区别：LLM 能看到
-   * 仓库摘要并直接决定结果与顺序。LLM 调用/解析失败时按词法得分序兜底；
-   * 模型明确表示"无相关结果"时返回空数组（UI 呈现空态而非噪声）。
+   * Vectorless AI semantic search fallback chain (when vector search is unavailable).
+   * Three-phase workflow:
+   * ① Query expansion + intent restatement (single chat invocation);
+   * ② Local lexical scoring to recall candidates (full library for small repos; top-K for large repos to decouple token cost from library size);
+   * ③ LLM selection and reranking (returns only truly relevant repositories, up to 20).
+   * Key difference from legacy implementations (LLM keyword expansion + local OR substring filter):
+   * the LLM inspects repository summaries directly to determine results and ranking.
+   * If LLM calls or parsing fail, falls back to lexical score ranking;
+   * when the model explicitly indicates "no relevant results", returns an empty array (UI renders empty state rather than noise).
    */
   async searchRepositoriesWithSelection(
     repositories: Repository[],
     query: string,
     options: {
       signal?: AbortSignal;
-      /** 搜索阶段回调，供 UI 展示进度（扩展查询 → 精选排序）。 */
+      /** Search phase callback for UI progress indicators (query expansion -> candidate selection). */
       onPhase?: (phase: 'expanding' | 'selecting') => void;
-      /** AI 精选未能产出结果时回调，供 UI 提示原因：ai_failed=请求/配置失败，
-       *  unparseable=响应无法解析，ai_empty=模型判定无相关仓库。 */
+      /** Fallback callback when AI selection yields no results, informing the UI of the reason: ai_failed=request/config failure,
+       *  unparseable=unparseable response, ai_empty=model determined no repositories are relevant. */
       onFallback?: (reason: 'ai_failed' | 'unparseable' | 'ai_empty') => void;
     } = {}
   ): Promise<Repository[]> {
@@ -2186,9 +2190,9 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
     try {
       logger.info('ai', 'Starting AI selection search', { apiType: this.getApiType(), model: this.config.model, configId: this.config.id, query });
 
-      // ① 查询扩展 + 意图复述。思考类模型的思考 token 与输出共享预算，
-      //    预算太小会把 JSON 截断在半截（实测 glm 思考模型 300 token 不够），
-      //    给足余量；非思考模型只按实际用量计费，无额外成本。
+      // ① Query expansion + intent restatement. Reasoning models share token budget between thinking and output;
+      //    insufficient budget truncates JSON midway (e.g. 300 tokens is insufficient for GLM reasoning models),
+      //    so ample budget is provided; non-reasoning models only charge for actual usage with no overhead.
       onPhase?.('expanding');
       const system = this.language === 'zh'
         ? '你是一个智能搜索助手。请分析用户的搜索意图，提取关键词并提供多语言翻译。'
@@ -2206,16 +2210,16 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         intent = parsed.intent;
       }
 
-      // ② 候选召回
+      // ② Candidate recall
       let candidates: Repository[];
       if (repositories.length <= AIService.SELECTION_FULL_LIBRARY_LIMIT) {
-        // 小库：全量直送（LLM 上下文足够，召回阶段没有信息增益）
+        // Small library: pass all repositories directly (LLM context is sufficient; recall phase adds no value)
         candidates = [...repositories].sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0));
       } else {
         const scored = this.scoreRepositoriesByKeywords(repositories, query, aiTerms);
         candidates = scored.slice(0, AIService.SELECTION_CANDIDATE_LIMIT).map(item => item.repo);
         if (candidates.length < AIService.SELECTION_MIN_CANDIDATES) {
-          // 词法命中过少（如纯语义查询）：用 star 排序补足，保证 LLM 有足够候选
+          // Insufficient lexical matches (e.g. pure semantic query): backfill by star count to ensure sufficient candidates for the LLM
           const have = new Set(candidates.map(repo => repo.id));
           const pad = [...repositories]
             .sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0))
@@ -2225,18 +2229,18 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
       }
       if (candidates.length === 0) return [];
 
-      // ③ LLM 精选排序
+      // ③ LLM selection and reranking
       onPhase?.('selecting');
       const ranked = await this.selectRelevantRepositories(candidates, query, intent, signal);
       if (ranked === null) {
-        // 响应缺失或格式非法：按词法得分序兜底
+        // Missing response or invalid format: fall back to lexical score ranking
         onFallback?.('unparseable');
         logger.warn('ai', 'AI selection returned unparseable result, falling back to lexical ranking', { configId: this.config.id, durationMs: Date.now() - startTime });
         return this.performEnhancedBasicSearch(repositories, query, aiTerms)
           .slice(0, AIService.SELECTION_CANDIDATE_LIMIT);
       }
       if (ranked.length === 0) {
-        // 模型明确判定无相关仓库：尊重该判断返回空态，但让调用方知道原因
+        // Model explicitly determined no relevant repositories: respect decision and return empty state while notifying caller
         onFallback?.('ai_empty');
         logger.info('ai', 'AI selection found no relevant repositories', { configId: this.config.id, durationMs: Date.now() - startTime });
         return [];
@@ -2251,7 +2255,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
       });
       return ranked;
     } catch (error) {
-      // 用户主动取消：不产出兜底结果，向上传播交由调用方处理
+      // User aborted request: do not produce fallback results; propagate upward for caller handling
       if (signal?.aborted || isAbortError(error)) throw error;
       onFallback?.('ai_failed');
       logger.warn('ai', 'AI selection failed, falling back to lexical ranking', {
@@ -2267,9 +2271,9 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
   }
 
   /**
-   * 把候选仓库摘要交给 LLM，选出与查询真正相关的仓库并按相关性排序。
-   * 返回 null 表示响应缺失/无法解析（调用方走词法兜底）；空数组是合法结果
-   * （模型判断没有仓库能满足查询意图）。
+   * Passes candidate repository summaries to the LLM to select truly relevant repositories and rank by relevance.
+   * Returning null indicates a missing/unparseable response (caller falls back to lexical ranking);
+   * an empty array is a valid result (model determined no repositories satisfy query intent).
    */
   private async selectRelevantRepositories(
     candidates: Repository[],
@@ -2296,9 +2300,9 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
       system,
       user,
       temperature: 0.1,
-      // 推理 token 与输出共享预算（openai reasoning 模型、gemini 2.5 思考模型）：
-      // 小预算被推理耗尽时 content 为空、精选会静默退化，故复用重排序的 4096
-      // 预算；普通模型 800 足够容纳 ≤20 个 ID 的 JSON 数组。
+      // Reasoning tokens share budget with output (OpenAI reasoning models, Gemini 2.5 thinking models):
+      // small budgets get consumed by reasoning resulting in empty content and silent degradation;
+      // reuse the 4096 budget from reranking; standard models use 800 tokens, which easily fits ≤20 IDs in a JSON array.
       maxTokens: (this.config.reasoningEffort || this.getApiType() === 'gemini')
         ? AIService.RERANKING_MAX_TOKENS
         : AIService.SELECTION_MAX_TOKENS,
@@ -2311,18 +2315,18 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
   }
 
   /**
-   * 词法加权打分（候选召回与失败兜底共用）。查询词用高权重；AI 扩展词是弱
-   * 信号，只用于召回与加分，权重约为查询词的六成。
+   * Lexical weighted scoring (shared between candidate recall and failure fallback).
+   * Query terms receive high weights; AI expansion terms are weaker signals used only for recall and bonus points (~60% of query term weight).
    */
   private scoreRepositoriesByKeywords(repositories: Repository[], query: string, aiTerms: string[]): Array<{ repo: Repository; score: number }> {
     const normalizedQuery = query.toLowerCase();
     const queryWords = normalizedQuery.split(/\s+/).filter(word => word.length > 0);
-    // 去重并剔除与任一查询词相同的扩展词：避免同一命中被查询词与扩展词
-    // 重复计分（按词级剔除，而非仅完整查询串）
+    // Deduplicate and filter out expansion terms identical to any query word:
+    // avoids double-counting the same hit across query words and expansion terms (filtered word-by-word, not just exact query string)
     const querySet = new Set([normalizedQuery, ...queryWords]);
-    // 中文查询没有空格分词，整串子串在英文元数据上几乎必然零命中（AI 失败
-    // 兜底时会得到空结果）：把 CJK 连续段切成 bigram 作为弱信号词参与召回
-    // 与计分。仅用于 AI 搜索的词法路径；输入框的 performBasicTextSearch 不受影响。
+    // Chinese queries lack whitespace word segmentation; entire substrings against English metadata almost always yield zero matches
+    // (leading to empty results during AI failure fallback): segment continuous CJK runs into bigrams as weak-signal terms for recall
+    // and scoring. Used only in AI search's lexical path; performBasicTextSearch in the search input remains unaffected.
     const cjkTerms = AIService.extractCjkBigrams(normalizedQuery).filter(bigram => !querySet.has(bigram));
     const terms = [
       ...new Set([
@@ -2349,7 +2353,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         license: normalizeLicense(repo.license).toLowerCase(),
       };
 
-      // 完全无命中（查询词与扩展词均未命中）的仓库不进入候选
+      // Exclude repositories with zero matches (neither query words nor expansion terms matched)
       const hasMatch = queryWords.some(word => {
         return Object.values(searchableFields).some(fieldValue => {
           return fieldValue.includes(word);
@@ -2388,7 +2392,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
         if (searchableFields.license.includes(word)) score += 0.2;
       });
 
-      // AI 扩展词：较弱权重的同类命中
+      // AI expansion terms: lower-weighted matches across fields
       terms.forEach(term => {
         if (searchableFields.name.includes(term)) score += 0.25;
         if (searchableFields.fullName.includes(term)) score += 0.2;
@@ -2418,7 +2422,7 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
     return scoredRepos;
   }
 
-  /** 词法得分排序兜底：只保留得分 > 0 的仓库，按得分从高到低。 */
+  /** Lexical score fallback ranking: retains only repositories with score > 0, ordered descending. */
   private performEnhancedBasicSearch(repositories: Repository[], query: string, aiTerms: string[] = []): Repository[] {
     return this.scoreRepositoriesByKeywords(repositories, query, aiTerms)
       .filter(item => item.score > 0)
@@ -2426,9 +2430,9 @@ ${repoInfo}${outputLanguageDirective ? `\n\n${outputLanguageDirective}` : ''}
   }
 
   /**
-   * 把文本里的 CJK 连续段切成 bigram（"星标仓库" → 星标 / 标仓 / 仓库），
-   * 去重并限量。中文没有空格分词，整串子串匹配对英文元数据几乎必然失效，
-   * bigram 是无依赖词典时的最低成本召回手段。
+   * Segments continuous CJK runs in text into bigrams (e.g. "星标仓库" -> 星标 / 标仓 / 仓库),
+   * deduplicated and capped. Because Chinese lacks space segmentation, full substring matching against English metadata
+   * almost always fails; bigrams are the lowest-cost recall mechanism without external dictionary dependencies.
    */
   private static extractCjkBigrams(text: string): string[] {
     const cjkRuns = text.match(/[\u3400-\u4dbf\u4e00-\u9fff]+/g) || [];

@@ -25,9 +25,9 @@ vi.mock('../../../services/githubApi', () => ({
 }));
 
 const createStoreState = () => ({
-  // useWatchedSourcesSync 的全部订阅：githubToken / language /
-  // setReleaseSourceRepositories 三个单值 selector + getState() 里的
-  // releaseSourceSettings。窄订阅不触碰其余 Release 时间线状态。
+  // All subscriptions of useWatchedSourcesSync: githubToken / language /
+  // setReleaseSourceRepositories single-value selectors + releaseSourceSettings
+  // in getState(). Narrow subscription does not touch other release timeline state.
   releaseSourceSettings: {
     enabledSourceIds: ['watch-custom-release'],
     watchCustomReleaseRepos: [
@@ -36,7 +36,7 @@ const createStoreState = () => ({
     customReleaseRepos: [],
   },
   githubToken: 'github-token' as string | null,
-  language: 'zh' as const,
+  language: 'en' as const,
   setReleaseSourceRepositories: mocks.setReleaseSourceRepositories,
 });
 
@@ -107,13 +107,13 @@ describe('useWatchedSourcesSync', () => {
     expect(previouslyHidden.release_hidden).toBe(true);
     const fresh = repos.find((repo: { full_name: string }) => repo.full_name === 'owner/fresh');
     expect(fresh.release_hidden).toBeUndefined();
-    expect(mocks.toast).toHaveBeenCalledWith('已同步 2 个 Watch 仓库。', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('Synced 2 Watch repositories.', 'success');
     expect(result.current.isSyncingWatchedSources).toBe(false);
   });
 
   it('reads release_hidden from the latest state after the request resolves', async () => {
-    // 模拟同步期间用户在设置面板切换隐藏状态：await 挂起时改 store，
-    // 完成后写入的 sourceRepos 必须保留切换后的值而非调用时的旧快照。
+    // Simulate user toggling hidden state in settings panel during sync: modify store while await is suspended;
+    // sourceRepos written upon completion must keep the toggled value rather than the stale snapshot from invocation.
     let resolveWatched!: (repos: unknown[]) => void;
     mocks.getAllWatchedRepositories.mockImplementation(() => new Promise((resolve) => {
       resolveWatched = resolve;
@@ -155,7 +155,7 @@ describe('useWatchedSourcesSync', () => {
 
     const repos = mocks.setReleaseSourceRepositories.mock.calls[0][1];
     expect(repos[0].release_hidden).toBeUndefined();
-    expect(mocks.toast).toHaveBeenCalledWith('已同步 1 个 Watch 仓库。', 'success');
+    expect(mocks.toast).toHaveBeenCalledWith('Synced 1 Watch repositories.', 'success');
   });
 
   it('toasts a failure without writing the store when the api rejects', async () => {
@@ -164,7 +164,7 @@ describe('useWatchedSourcesSync', () => {
     await act(async () => { await result.current.syncWatchedSources(); });
 
     expect(mocks.setReleaseSourceRepositories).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith('同步 Watch 仓库失败，请检查网络或 Token 权限。', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('Failed to sync Watch repositories. Check network or token permissions.', 'error');
     expect(result.current.isSyncingWatchedSources).toBe(false);
   });
 });

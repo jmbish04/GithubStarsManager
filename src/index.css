@@ -444,9 +444,9 @@ textarea::-webkit-resizer {
   }
 }
 
-/* ---- 窗口级原生滚动条（仅作用于 document 滚动容器，不影响各组件 opt-in 滚动条类） ---- */
+/* ---- Window-level native scrollbar (applies only to the document scroll container, without affecting component opt-in scrollbar classes) ---- */
 
-/* 固定窗口滚动槽并裁掉页面级横向溢出，避免 portal 下拉打开时 viewport 横向晃动。 */
+/* Fixes the window scroll gutter and clips page-level horizontal overflow to prevent viewport jitter when portal dropdowns open. */
 html {
   overflow-x: hidden;
   overflow-y: scroll;
@@ -473,7 +473,7 @@ html:has(body[data-scroll-locked]) {
   overflow: hidden !important;
 }
 
-/* 窗口滚动条颜色由 --ui-line-strong 等 token 统一驱动（见文件底部 Linear 段落）。 */
+/* Window scrollbar color is driven uniformly by tokens like --ui-line-strong (see Linear section at the bottom of the file). */
 
 
 
@@ -999,7 +999,7 @@ html::-webkit-scrollbar-thumb:hover { background: var(--ui-text-faint); border: 
   border-radius: var(--ui-radius-sm);
 }
 
-/* Release 资产行的方形平台徽章：容器为 muted 底，用 card 底 + 边框做出层次 */
+/* Square platform badge for release asset rows: muted container with card background + border for depth */
 .asset-platform-badge {
   display: inline-flex;
   align-items: center;
@@ -1017,7 +1017,7 @@ html::-webkit-scrollbar-thumb:hover { background: var(--ui-text-faint); border: 
   color: var(--ui-success);
 }
 
-/* 展开态使用柔和浅色表面：资产列表容器比卡片更浅（light 下接近白色） */
+/* Expanded state uses a soft light surface: asset list container is lighter than the card (near white in light mode) */
 .release-card.is-expanded {
   background: hsl(var(--muted));
   border-color: hsl(var(--ring) / 0.5);
@@ -1029,8 +1029,8 @@ html.dark .release-card.is-expanded {
   background-color: hsl(var(--card));
 }
 
-/* 折叠容器：延迟切换 visibility，既保住 grid-rows 折叠/展开动画，
-   又让折叠内容离开 Tab 焦点序与无障碍树（与 hidden 属性的可达性效果一致） */
+/* Collapsible container: delays visibility toggle to preserve grid-rows collapse/expand animation
+   while removing collapsed content from Tab focus order and accessibility tree (matching the accessibility behavior of the hidden attribute) */
 .collapse-hidden {
   visibility: hidden;
   transition: visibility 0s linear 300ms;

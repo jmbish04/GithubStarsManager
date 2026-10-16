@@ -1,8 +1,9 @@
 /**
- * 仓库卡片可见字段（开发守则 §14）。
+ * Repository card visible fields (Development Guidelines §14).
  *
- * 只保存"哪些字段显示"这一份声明式数据；卡片渲染时按它决定是否渲染对应片段，
- * 不涉及任何 HTML / JS / React 组件的注入。
+ * Stores only the declarative data specifying which fields to display; when rendering
+ * the card, this determines whether corresponding elements are rendered, without
+ * involving any injection of HTML / JS / React components.
  */
 
 export type RepositoryCardFieldId =
@@ -24,7 +25,7 @@ export const REPOSITORY_CARD_FIELD_IDS: readonly RepositoryCardFieldId[] = [
 
 export type RepositoryCardFields = Record<RepositoryCardFieldId, boolean>;
 
-/** 默认全开：升级上来的用户看到的东西不该变。 */
+/** Enabled by default: upgraded users should see no changes to existing display. */
 export const DEFAULT_REPOSITORY_CARD_FIELDS: RepositoryCardFields = {
   description: true,
   tags: true,

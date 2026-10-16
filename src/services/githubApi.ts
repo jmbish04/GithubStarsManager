@@ -65,7 +65,7 @@ export interface RepositoryFileRead {
   content: string;
 }
 
-/** 仓库问答 search_issues 工具使用的 Issue 搜索结果（正文已截断以限制体积）。 */
+/** Issue search result used by repository chat search_issues tool (body truncated to restrict size). */
 export interface RepositoryIssueSearchRead {
   number: number;
   title: string;
@@ -77,14 +77,14 @@ export interface RepositoryIssueSearchRead {
   labels: string[];
 }
 
-/** Issue 评论（供疑难排查场景补充解决方案摘录）。 */
+/** Issue comment (used to supply solution excerpts in troubleshooting scenarios). */
 export interface RepositoryIssueCommentRead {
   user: string;
   createdAt: string;
   body: string;
 }
 
-/** 仓库 issue 列表端点的原始条目（PR 条目带 isPullRequest 标记，调用方自行过滤）。 */
+/** Raw item from repository issue list endpoint (PR items carry isPullRequest flag, callers filter as needed). */
 export interface GitHubIssueListRead {
   number: number;
   title: string;
@@ -97,7 +97,7 @@ export interface GitHubIssueListRead {
   isPullRequest: boolean;
 }
 
-/** 周刊频道补全用的仓库详情最小字段集（兼容 Repository 的子集形状）。 */
+/** Minimal repository details field set used for weekly channel enrichment (compatible subset of Repository). */
 export interface GitHubRepoDetailRead {
   id: number;
   name: string;
@@ -114,7 +114,7 @@ export interface GitHubRepoDetailRead {
   topics: string[];
   owner: { login: string; avatar_url: string };
   license: string | null;
-  /** GitHub 原生状态字段：Repository Health 的客观事实来源（详情路径免费携带）。 */
+  /** Native GitHub status fields: objective source of truth for Repository Health (carried free on detail paths). */
   archived?: boolean;
   disabled?: boolean;
   fork?: boolean;
@@ -130,15 +130,15 @@ interface GitHubStarredItem {
 }
 
 /**
- * 把 GitHub 返回的 license 值统一为 SPDX id 字符串或 null。
- * 接受 GitHub 原始对象 `{ key, spdx_id, name, url }`、已规范化的字符串、null。
- * 优先取 spdx_id（如 "MIT"），无则回退 key（如 "Other"）。
+ * Unify license values returned by GitHub into an SPDX ID string or null.
+ * Accepts raw GitHub object `{ key, spdx_id, name, url }`, normalized string, or null.
+ * Prioritizes spdx_id (e.g. "MIT"), falling back to key (e.g. "Other").
  */
 function toLicenseSpdxId(license: unknown): string | null {
   if (license == null) return null;
   if (typeof license === 'string') return license.trim() || null;
   if (typeof license === 'object') {
-    // 运行时校验：malformed 备份/第三方源可能把 spdx_id/key 写成非字符串
+    // Runtime check: malformed backup or third-party source may provide non-string spdx_id/key
     const l = license as { spdx_id?: unknown; key?: unknown };
     const spdx = typeof l.spdx_id === 'string' ? l.spdx_id.trim() : '';
     const key = typeof l.key === 'string' ? l.key.trim() : '';
@@ -155,18 +155,18 @@ interface GitHubRateLimitResponse {
 }
 
 /**
- * 把(通常是 RSS `content:encoded` 里的 README 渲染 HTML)文本解码为纯文本。
+ * Decode text (typically README rendered HTML in RSS `content:encoded`) to plain text.
  *
- * 必须用 DOMParser 而不是给 detached 节点赋 `innerHTML`:后者在解析时浏览器
- * 仍会立即发起 `<img>`/`<picture><source>` 的资源请求——GitHub Trending RSS
- * 的 description 正是趋势仓库 README 的渲染 HTML,其中的相对路径图片在桌面端
- * 会按 `file://…/dist/` 文档根解析,每次刷新趋势都产生一波必然
- * `ERR_FILE_NOT_FOUND` 的请求。
+ * DOMParser must be used instead of assigning `innerHTML` to a detached node: the browser
+ * still immediately fires resource requests for `<img>`/`<picture><source>` upon parsing—GitHub Trending RSS
+ * descriptions are the rendered HTML of trending repository READMEs, and their relative image paths
+ * resolve against the `file://…/dist/` document root in desktop environments, generating guaranteed
+ * `ERR_FILE_NOT_FOUND` requests on each trending refresh.
  *
- * DOMParser 生成的文档没有 browsing context(base URL 是 `about:blank`),
- * 相对资源 URL 无法解析成可请求地址;已在 Electron 44/Chromium 152 实测,
- * 解析阶段对绝对 URL 的 img/source/iframe 同样零请求。移除资源承载元素后
- * 再取文本作为跨引擎兜底,不依赖各引擎对惰性文档的取图时机。
+ * Documents created by DOMParser lack a browsing context (base URL is `about:blank`),
+ * so relative asset URLs cannot resolve to requestable addresses; verified on Electron 44 / Chromium 152
+ * that parsing also generates zero requests for absolute img/source/iframe URLs. Removing resource-bearing elements
+ * before extracting text serves as a cross-engine fallback independent of when engines load images from inert documents.
  */
 function decodeRssHtmlToText(html: string): string {
   if (!html) return '';
@@ -181,7 +181,7 @@ function decodeRssHtmlToText(html: string): string {
   }
 }
 
-/** 把 REST issue 条目归一化为 GitHubIssueListRead（labels 对象数组展开为 name）。 */
+/** Normalize a REST issue item into GitHubIssueListRead (unwinds labels object array into names). */
 function mapRestIssueListItem(item: Record<string, unknown>): GitHubIssueListRead {
   const labels = Array.isArray(item.labels)
     ? item.labels.map((label) => {
@@ -202,7 +202,7 @@ function mapRestIssueListItem(item: Record<string, unknown>): GitHubIssueListRea
   };
 }
 
-/** 把 REST /repos/{owner}/{repo} 响应归一化为 GitHubRepoDetailRead。 */
+/** Normalize a REST /repos/{owner}/{repo} response into GitHubRepoDetailRead. */
 function mapRestRepoDetail(data: Record<string, unknown>): GitHubRepoDetailRead {
   const owner = (data.owner as { login?: unknown; avatar_url?: unknown } | undefined) ?? {};
   return {
@@ -233,7 +233,7 @@ function mapRestRepoDetail(data: Record<string, unknown>): GitHubRepoDetailRead 
   };
 }
 
-/** 把 GraphQL Repository 节点归一化为 GitHubRepoDetailRead。 */
+/** Normalize a GraphQL Repository node into GitHubRepoDetailRead. */
 function mapGraphqlRepoDetail(node: Record<string, unknown>): GitHubRepoDetailRead {
   const owner = (node.owner as { login?: unknown; avatarUrl?: unknown } | undefined) ?? {};
   const primaryLanguage = node.primaryLanguage as { name?: unknown } | null | undefined;
@@ -347,26 +347,27 @@ export interface GistUpdateInput {
 export interface ReleaseFetchOptions {
   includePreRelease?: boolean;
   /**
-   * 开启后，对已同步仓库额外检测“每仓最新一条 Release”的资产指纹是否变化，
-   * 并把“资产已变化但 id 已存在”的条目放入 updatedReleases，供调用方按 id 合并更新。
-   * 不产生额外网络请求：最新一条 Release 由增量分支第一页（per_page=10）即可获得。
+   * When enabled, additionally checks whether the asset fingerprint for the latest release
+   * of each synced repository has changed, placing entries where "assets changed but ID exists"
+   * into updatedReleases so callers can merge and update them by ID.
+   * Does not incur extra network requests: the latest release is obtained from page 1 of the incremental fetch (per_page=10).
    */
   refreshExistingAssets?: boolean;
 }
 
 export interface MultipleReleasesResult {
-  /** 新增（本地不存在的 id）的 Release */
+  /** Newly added releases (IDs not existing locally) */
   releases: Release[];
   /**
-   * 已同步仓库“最新一条”Release（仅当 refreshExistingAssets 开启时收集）。
-   * 用于调用方与本地存储做资产指纹比对，指纹变化则合并更新资产并重置为未读。
+   * Latest release for synchronized repositories (collected only when refreshExistingAssets is enabled).
+   * Used by callers to compare asset fingerprints against local storage; if the fingerprint changed, assets are merged and updated, and marked unread.
    */
   latestReleases?: Release[];
   failedRepos: { repoId: number; full_name: string; error: string }[];
 }
 
 
-/** GitHub 搜索的裸布尔操作符：不可信关键词中一律丢弃，防止改变查询语义。 */
+/** Bare Boolean operators in GitHub search: discarded from untrusted keywords to prevent altering query semantics. */
 const SEARCH_BOOLEAN_OPERATORS = new Set(['or', 'and', 'not']);
 
 export class GitHubApiService {
@@ -381,9 +382,9 @@ export class GitHubApiService {
   }
 
   /**
-   * 设置后端代理地址。设置后所有请求（makeRequest / getGistFileRaw）将
-   * 通过服务器的 /api/proxy/github/* 路由转发，从而走用户配置的代理。
-   * 传 null 恢复直连模式。
+   * Set the backend proxy URL. When set, all requests (makeRequest / getGistFileRaw)
+   * will be forwarded through the server's /api/proxy/github/* route, thus using the user's configured proxy.
+   * Pass null to restore direct connection mode.
    */
   setBackendUrl(url: string | null): void {
     this.backendUrl = url;
@@ -431,20 +432,20 @@ export class GitHubApiService {
       }
     }
 
-    // GitHub 的 gist 等端点偶发 502/503/504（网关瞬时故障），这里对 5xx 做指数退避重试，
-    // 退避策略与 backendAdapter.fetchWithRetry 保持一致（1s/2s/4s，最多重试 3 次）。
+    // GitHub endpoints like gists occasionally return 502/503/504 (transient gateway failures); apply exponential backoff retry on 5xx here,
+    // matching the backoff strategy in backendAdapter.fetchWithRetry (1s/2s/4s, up to 3 retries).
     const maxRetries = 3;
     let response: Response | undefined;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const viaProxy = this.backendUrl != null;
       try {
         if (this.backendUrl) {
-          // 通过后端代理路由：POST {backendUrl}/proxy/github/{endpoint}?query
-          // 服务端负责加鉴权头 + 读取代理配置 + 转发，所以客户端不再传 Authorization。
+          // Route via backend proxy: POST {backendUrl}/proxy/github/{endpoint}?query
+          // The server handles adding auth headers, reading proxy config, and forwarding, so the client does not send Authorization.
           const proxyUrl = `${this.backendUrl}/proxy/github${endpoint}`;
           const proxyBody: Record<string, unknown> = { method };
           const requestHeaders = fetchOptions.headers as Record<string, string> | undefined;
-          // 转发必要头（如 starred repos 需要 star+json，POST/PATCH 需要 JSON Content-Type）
+          // Forward required headers (e.g. starred repos require star+json, POST/PATCH require JSON Content-Type)
           const acceptHeader = requestHeaders?.Accept || requestHeaders?.accept;
           const contentTypeHeader = requestHeaders?.['Content-Type'] || requestHeaders?.['content-type'];
           const proxyHeaders: Record<string, string> = {};
@@ -473,8 +474,8 @@ export class GitHubApiService {
         }
       } catch (fetchError) {
         const durationMs = Date.now() - startTime;
-        // 网络错误（连接断开、DNS 超时、socket hang-up 等）视为可重试的瞬时故障，
-        // 仅在最后一次尝试时抛出；之前的尝试会继续走指数退避重试。
+        // Network errors (disconnect, DNS timeout, socket hang-up, etc.) are treated as retryable transient failures,
+        // thrown only on the final attempt; previous attempts continue with exponential backoff.
         if (attempt === maxRetries || signal?.aborted) {
           logger.error('githubApi', 'API request network error', { method, endpoint, durationMs, attempt: attempt + 1, maxRetries: maxRetries + 1, error: fetchError instanceof Error ? fetchError.message : String(fetchError) });
           throw fetchError;
@@ -538,14 +539,14 @@ export class GitHubApiService {
         }
       }
 
-      // 5xx 视为可重试的瞬时故障；其余 4xx 直接抛出（重试无意义）。
+      // 5xx errors are treated as retryable transient failures; other 4xx errors are thrown directly (retrying is futile).
       const isRetryable = response.status >= 500 && response.status <= 599;
       if (!isRetryable || attempt === maxRetries) {
         logger.warn('githubApi', 'API request failed', { method, endpoint, status: response.status, durationMs });
         throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
       }
 
-      // 重试前若请求已被取消，则不再等待，直接以当前失败状态抛出。
+      // If the request was aborted before retry, do not wait; throw immediately with current failure state.
       if (signal?.aborted) {
         logger.warn('githubApi', 'API request aborted before retry', { method, endpoint, status: response.status });
         throw new Error('Aborted');
@@ -567,7 +568,7 @@ export class GitHubApiService {
       });
     }
 
-    // 循环正常退出时 response 一定已赋值（最后一次成功 break 或在循环内抛出）。
+    // When the loop exits normally, response is guaranteed to be assigned (broke on final success or threw in loop).
     const finalResponse = response!;
 
     if (logger.isDebugMode()) {
@@ -600,14 +601,14 @@ export class GitHubApiService {
 
     const data = finalResponse.status === 204 ? null : await finalResponse.json();
 
-    // 如果是starred repositories的响应，需要处理特殊格式
+    // If it's a starred repositories response, handle special format
     if (endpoint.includes('/user/starred') && Array.isArray(data)) {
       return data.map((item: GitHubStarredItem) => {
-        // 如果使用了star+json格式，数据结构会不同
+        // If star+json format was used, data structure is different
         if (item.starred_at && item.repo) {
           return {
             ...item.repo,
-            // 归一化 GitHub 的 license 值（对象/字符串/null）为 SPDX id 字符串或 null
+            // Normalize GitHub's license value (object/string/null) to SPDX ID string or null
             license: toLicenseSpdxId(item.repo.license),
             starred_at: item.starred_at
           };
@@ -660,16 +661,16 @@ export class GitHubApiService {
   }
 
   private mergeGistMetadata(existing: Gist | undefined, incoming: Gist, starred?: boolean): Gist {
-    // 列表 API 不返回文件内容，深度合并文件以保留已加载过的 content；
-    // starred 仅信任显式传入或接口新值，不再回退到缓存，避免取消收藏后状态陈旧。
+    // The list API does not return file content; deep merge files to preserve previously loaded content;
+    // starred only trusts explicitly passed or fresh API values, not falling back to cache, avoiding stale state after unstarring.
     const mergedFiles: Record<string, GistFile> = { ...incoming.files };
     if (existing?.files) {
       for (const [filename, file] of Object.entries(mergedFiles)) {
         const existingFile = existing.files[filename];
         if (existingFile) {
-          // 优先保留已加载过的完整内容：
-          // - incoming.content 不存在（列表 API 不返回 content）
-          // - incoming 标记为截断，而 existing 已有完整内容
+          // Prioritize retaining previously loaded complete content:
+          // - incoming.content does not exist (list API does not return content)
+          // - incoming is marked truncated, while existing already has complete content
           const incomingIncomplete = file.content === undefined || (file.truncated && existingFile.content !== undefined && !existingFile.truncated);
           if (incomingIncomplete && existingFile.content !== undefined) {
             mergedFiles[filename] = { ...file, content: existingFile.content, truncated: false };
@@ -750,8 +751,8 @@ export class GitHubApiService {
   }
 
   /**
-   * 获取 gist 用于 AI 分析。正常走详情 API；若详情 API 返回 5xx（如某些 gist 稳定 502），
-   * 则降级用缓存元数据 + raw_url 拉取文件内容，确保分析不中断。
+   * Fetch gist for AI analysis. Normally uses detail API; if detail API returns 5xx (e.g. certain gists consistently 502),
+   * fall back to cached metadata + raw_url to fetch file contents, ensuring analysis continues uninterrupted.
    */
   async getGistForAnalysis(gistId: string, existing?: Gist, signal?: AbortSignal): Promise<Gist> {
     try {
@@ -761,7 +762,7 @@ export class GitHubApiService {
       const isServerFailure = /5\d{2}/.test(msg);
       if (!isServerFailure || !existing) throw err;
 
-      // 降级：用 existing 的元数据，从 raw_url 逐个拉取文件内容
+      // Fallback: use existing metadata, fetching file contents individually from raw_url
       const files = { ...existing.files };
       const entries = Object.entries(files);
       await Promise.all(entries.map(async ([filename, file]) => {
@@ -769,17 +770,17 @@ export class GitHubApiService {
         try {
           const content = await this.getGistFileRaw(file.raw_url, signal);
           files[filename] = { ...file, content, truncated: false };
-        } catch { /* 单文件失败不影响其他文件 */ }
+        } catch { /* Single-file failure does not affect other files */ }
       }));
       return { ...existing, files };
     }
   }
 
   /**
-   * 拉取 gist 单个文件的原始内容。
-   * 用于 GitHub gist 详情 API 返回 truncated:true（文件 >1MB，content 被省略）时的回退取数。
-   * raw_url 指向 gist.githubusercontent.com，不能复用 makeRequest（它会在前面拼 GITHUB_API_BASE）。
-   * 当 backendUrl 已设置时通过服务端代理路由（走用户配置的代理），否则直连。
+   * Fetch raw content for a single gist file.
+   * Used as fallback retrieval when GitHub gist details API returns truncated:true (file >1MB, content omitted).
+   * raw_url points to gist.githubusercontent.com and cannot reuse makeRequest (which prepends GITHUB_API_BASE).
+   * Routed via server proxy (using user-configured proxy) when backendUrl is set; otherwise direct.
    */
   async getGistFileRaw(rawUrl: string, signal?: AbortSignal): Promise<string> {
     if (this.backendUrl) {
@@ -791,7 +792,7 @@ export class GitHubApiService {
         body: JSON.stringify({ url: rawUrl }),
       });
       if (!response.ok) {
-        // 尝试从 JSON 错误体提取消息
+        // Attempt to extract message from JSON error body
         let detail = response.statusText;
         try { const data = await response.json(); detail = (data as { error?: string }).error || detail; } catch { /* ignore */ }
         throw new Error(`GitHub raw proxy error: ${response.status} ${detail}`);
@@ -889,9 +890,9 @@ export class GitHubApiService {
   }
 
   async getWatchedRepositories(page = 1, perPage = 100): Promise<Repository[]> {
-    // GitHub 对 watched repos 同样返回原始 license 对象，这里统一归一化为 SPDX id / null，
-    // 与 /user/starred 路径保持一致，避免下游 normalizeLicense 拿到对象时崩溃。
-    // 空响应体（204）会被 makeRequest 归一化为 null，这里按空列表处理，避免 .map 抛错拖垮同步。
+    // GitHub also returns raw license objects for watched repos, normalized here to SPDX ID / null,
+    // consistent with /user/starred to prevent downstream normalizeLicense from crashing on objects.
+    // Empty response bodies (204) are normalized to null by makeRequest, treated here as an empty list to avoid .map throwing and breaking sync.
     const repos = await this.makeRequest<Repository[] | null>(`/user/subscriptions?page=${page}&per_page=${perPage}`);
     return (repos ?? []).map((repo) => ({ ...repo, license: toLicenseSpdxId(repo.license) }));
   }
@@ -918,7 +919,7 @@ export class GitHubApiService {
 
   private decodeContentResponse(response: GitHubContentResponse): string {
     if (response.encoding === 'base64' && response.content) {
-      // 使用 TextDecoder 正确处理 UTF-8 编码，避免中文乱码
+      // Use TextDecoder to properly handle UTF-8 encoding and prevent character corruption
       const binaryString = atob(response.content.replace(/\s/g, ''));
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
@@ -1209,9 +1210,9 @@ export class GitHubApiService {
   }
 
   /**
-   * 按关键词搜索仓库 Issue（open + closed，best-match 排序）。
-   * 供仓库问答的 search_issues 工具使用：search API 有独立限速（认证后
-   * 30 次/分钟），调用方每轮最多发起一次。
+   * Search repository issues by keywords (open + closed, sorted by best-match).
+   * Used by the repository chat search_issues tool: the search API has an independent rate limit
+   * (30 requests/minute after authentication), so callers invoke it at most once per turn.
    */
   async searchRepositoryIssues(
     owner: string,
@@ -1220,10 +1221,10 @@ export class GitHubApiService {
     options: { perPage?: number; signal?: AbortSignal } = {},
   ): Promise<RepositoryIssueSearchRead[]> {
     const perPage = Math.min(20, Math.max(1, options.perPage ?? 8));
-    // 关键词来自模型与用户问题（不可信输入）：按空白分词后只保留"纯文本"词元。
-    // 丢弃含冒号（任何位置的 key:value 限定符）、括号（分组限定符）与 -/+ 前缀
-    // （一元操作符）的词元，以及裸布尔操作符，防止 `repo:other/repo`、`is:pr`、
-    // `OR (repo:x/y)`、`-repo:owner/repo` 之类改变固定的仓库范围或混入 PR。
+    // Keywords come from the model and user questions (untrusted input): tokenize by whitespace and keep only "plain text" tokens.
+    // Discard tokens with colons (key:value qualifiers anywhere), parentheses (grouping qualifiers), and -/+ prefixes
+    // (unary operators), as well as bare Boolean operators, preventing `repo:other/repo`, `is:pr`,
+    // `OR (repo:x/y)`, `-repo:owner/repo`, etc., from altering the fixed repository scope or leaking PRs.
     const sanitizedKeywords = keywords
       .flatMap((keyword) => keyword.split(/\s+/))
       .filter((token) => {
@@ -1231,8 +1232,8 @@ export class GitHubApiService {
         if (/^[-+]/.test(token)) return false;
         return !SEARCH_BOOLEAN_OPERATORS.has(token.toLowerCase());
       });
-    // 无纯文本关键词时不发起搜索：仅含 repo/is:issue 的裸查询会命中仓库内
-    // 任意 Issue，返回与问题无关的证据。
+    // Do not issue search without plain text keywords: bare queries with only repo/is:issue would match
+    // any issue in the repo, returning evidence irrelevant to the question.
     if (sanitizedKeywords.length === 0) return [];
     const query = [`repo:${owner}/${repo}`, 'is:issue', ...sanitizedKeywords]
       .filter(Boolean)
@@ -1257,7 +1258,7 @@ export class GitHubApiService {
         title: typeof item.title === 'string' ? item.title : '',
         state,
         html_url: typeof item.html_url === 'string' ? item.html_url : '',
-        // 搜索结果正文在这里截断，保证响应体积可控；摘要层还有更细的上限。
+        // Truncate search result body here to keep response payload manageable; the digest layer enforces tighter limits.
         body: typeof item.body === 'string' ? item.body.slice(0, 8_000) : '',
         comments: typeof item.comments === 'number' ? item.comments : 0,
         updated_at: typeof item.updated_at === 'string' ? item.updated_at : '',
@@ -1266,7 +1267,7 @@ export class GitHubApiService {
     }).filter((issue) => issue.number > 0);
   }
 
-  /** 抓取单条 Issue 的评论（时间正序），供疑难排查场景补充解决方案。 */
+  /** Fetch comments for a single issue (chronological order) to supplement solutions for troubleshooting scenarios. */
   async getRepositoryIssueComments(
     owner: string,
     repo: string,
@@ -1287,8 +1288,8 @@ export class GitHubApiService {
   }
 
   /**
-   * 分页列出仓库 issues（state=all 含已关闭，按 updated 排序可配合 since 做
-   * 增量同步；PR 条目以 isPullRequest 标记，由调用方过滤）。
+   * Paginate repository issues (state=all includes closed issues; sorted by updated for use with since
+   * in incremental sync; PR entries are marked with isPullRequest and filtered by the caller).
    */
   async listRepositoryIssues(
     owner: string,
@@ -1319,7 +1320,7 @@ export class GitHubApiService {
     return (Array.isArray(response) ? response : []).map(mapRestIssueListItem).filter((issue) => issue.number > 0);
   }
 
-  /** 抓取单条 issue 完整正文（周刊"查看原贴"缓存缺失时的兜底路径）。 */
+  /** Fetch full body of a single issue (fallback path when weekly "view original post" cache is missing). */
   async getRepositoryIssue(owner: string, repo: string, issueNumber: number, signal?: AbortSignal): Promise<GitHubIssueListRead> {
     const item = await this.makeRequest<Record<string, unknown>>(
       `/repos/${owner}/${repo}/issues/${issueNumber}`,
@@ -1329,7 +1330,7 @@ export class GitHubApiService {
     return mapRestIssueListItem(item);
   }
 
-  /** 抓取仓库详情（周刊频道 REST 逐仓补全路径）。 */
+  /** Fetch repository details (weekly channel REST fallback per-repository completion path). */
   async getRepositoryDetails(owner: string, repo: string, signal?: AbortSignal): Promise<GitHubRepoDetailRead> {
     const data = await this.makeRequest<Record<string, unknown>>(
       `/repos/${owner}/${repo}`,
@@ -1340,9 +1341,9 @@ export class GitHubApiService {
   }
 
   /**
-   * 批量抓取仓库详情（GraphQL alias 批处理，默认 100 个/请求，每批间隔 150ms）。
-   * 返回 Map 以调用方传入的 full_name 小写为键；仓库不存在/不可访问时值为 null。
-   * 整批请求失败（网络/代理不支持/鉴权）时抛错，由调用方决定是否回退 REST 逐仓补全。
+   * Batch fetch repository details (GraphQL alias batching, default 100/request, 150ms interval per batch).
+   * Returns a Map keyed by lowercase full_name passed by caller; value is null if repo does not exist or is inaccessible.
+   * Throws if the entire batch request fails (network/proxy unsupported/auth), letting caller decide whether to fall back to REST per-repo completion.
    */
   async graphqlFetchRepositories(
     fullNames: string[],
@@ -1430,9 +1431,9 @@ export class GitHubApiService {
 
             let page = 1;
             releases = [];
-            // 资产刷新：收集“每仓最新一条、且符合预发布过滤的 Release”。
-            // 当 includePreRelease=false 且前几页全是预发布时，需继续翻页找最新正式版，
-            // 不能只看 page=1 就停（否则正式版资产变化会被漏掉）。
+            // Asset refresh: collect "the latest release per repo that matches pre-release filtering".
+            // When includePreRelease=false and initial pages are all pre-releases, continue paginating for the latest official release;
+            // stopping at page=1 would miss changes to official release assets.
             let collectedLatest = false;
             while (true) {
               const { releases: batch, hasMore } = await this.getRepositoryReleasesPage(owner, name, page, 10);
@@ -1456,8 +1457,8 @@ export class GitHubApiService {
 
               releases.push(...fresh);
 
-              // 未收集到符合过滤条件的最新 Release 时，即使已触达水印也继续翻页，
-              // 直到找到候选或耗尽分页（避免前 10 条全是预发布时漏掉正式版）。
+              // If the latest release matching filters hasn't been collected yet, keep paginating even after reaching the watermark
+              // until a candidate is found or pages are exhausted (avoids missing official releases when the first 10 entries are pre-releases).
               const needMoreForLatest = refreshExistingAssets && !collectedLatest && hasMore;
               if (needMoreForLatest) {
                 page++;
@@ -1518,7 +1519,7 @@ export class GitHubApiService {
     return { releases: sortedReleases, failedRepos };
   }
 
-  // 新增：获取仓库的增量releases（基于时间戳）
+  // Fetch incremental releases for repository (timestamp-based)
   async getIncrementalRepositoryReleases(
     owner: string,
     repo: string,
@@ -1548,7 +1549,7 @@ export class GitHubApiService {
         },
       }));
 
-      // 如果提供了since时间戳，只返回更新的releases
+      // If a since timestamp is provided, return only newer releases
       if (since) {
         const sinceDate = new Date(since);
         return mappedReleases.filter(release =>
@@ -1637,7 +1638,7 @@ export class GitHubApiService {
 
   async searchTrending(perPage = 10, timeRange: 'daily' | 'weekly' | 'monthly' = 'weekly'): Promise<SubscriptionRepo[]> {
     const startTime = Date.now();
-    // 使用 GitHubTrendingRSS API
+    // Use GitHubTrendingRSS API
     const rssUrl = `https://mshibanami.github.io/GitHubTrendingRSS/${timeRange}/all.xml`;
 
     try {
@@ -1659,23 +1660,23 @@ export class GitHubApiService {
         const item = items[i];
         const title = item.querySelector('title')?.textContent || '';
         const link = item.querySelector('link')?.textContent || '';
-        // description 元素是 README 渲染内容，不是仓库描述；
-        // 仅用于下方提取 stars/forks 标记，绝不写入 repo.description
+        // The description element contains rendered README content, not the repository description;
+        // only used below to extract stars/forks indicators, never written to repo.description
         const descriptionEl = item.querySelector('description');
         let readmeText = descriptionEl?.textContent || '';
-        // 解码 HTML 实体（禁止走 innerHTML：detached 节点赋值仍会解析并立即
-        // 发起 <img>/<source> 资源请求，趋势仓库 README 的相对路径图片在桌面端
-        // 会按 file:// 文档根解析，每次刷新趋势都产生一波 file 404）
+        // Decode HTML entities (avoid innerHTML: detached node assignment still parses and immediately
+        // triggers <img>/<source> asset requests; relative images in trending repo READMEs resolve against
+        // the file:// document root in desktop environments, causing a barrage of file 404s on each trending refresh)
         readmeText = decodeRssHtmlToText(readmeText) || readmeText;
-        // 清理多余空白
+        // Clean up excess whitespace
         readmeText = readmeText.replace(/\s+/g, ' ').trim();
 
-        // 解析 link 获取 owner/repo 格式
+        // Parse link to extract owner/repo format
         const match = link.match(/github\.com\/([^/]+)\/([^/?#]+)/);
         const owner = match?.[1] || '';
         const repoName = match?.[2] || title;
 
-        // 从 RSS 文本中提取 stars 和 forks（旧版 feed 格式如 "⭐ 1,234 | 🍴 456"）
+        // Extract stars and forks from RSS text (legacy feed format like "⭐ 1,234 | 🍴 456")
         const starsMatch = readmeText.match(/⭐\s*([\d,]+)/);
         const forksMatch = readmeText.match(/🍴\s*([\d,]+)/);
         const stars = starsMatch ? parseInt(starsMatch[1].replace(/,/g, '')) : 0;
@@ -1701,8 +1702,8 @@ export class GitHubApiService {
         });
       }
 
-      // stars/forks 缺失，或描述未补全（描述仅来自 GitHub API，RSS 不提供）时，
-      // 从 GitHub API 获取；不能让描述补全依赖 stars/forks 是否为零
+      // When stars/forks are missing or description is incomplete (description only comes from GitHub API, not provided by RSS),
+      // fetch from GitHub API; description completion must not depend on whether stars/forks are zero
       const reposNeedUpdate = repos.filter(r => r.stargazers_count === 0 || r.forks_count === 0 || r.description === null);
       if (reposNeedUpdate.length > 0) {
         await Promise.all(reposNeedUpdate.map(async (r) => {
@@ -1718,12 +1719,12 @@ export class GitHubApiService {
             r.stargazers_count = data.stargazers_count ?? r.stargazers_count;
             r.forks_count = data.forks_count ?? r.forks_count;
             r.language = data.language;
-            // 描述以 GitHub API 为准；null（未填写描述）保持 null，由 UI 显示「暂无描述」
+            // Description uses GitHub API as source of truth; null (no description provided) remains null, displayed as "No description" in UI
             r.description = data.description;
           } catch (e) {
             logger.warn('githubApi', `Failed to fetch repo details for ${r.full_name}`, e);
           }
-          // 避免 GitHub API 限流
+          // Avoid GitHub API rate limiting
           await new Promise(resolve => setTimeout(resolve, 100));
         }));
       }
@@ -1868,8 +1869,8 @@ export class GitHubApiService {
         const title = item.querySelector('title')?.textContent || '';
         const link = item.querySelector('link')?.textContent || '';
 
-        // RSS 的 description 元素是 README 渲染内容，不是仓库描述；
-        // 仅用于下方提取 stars/forks 标记，绝不写入 repo.description
+        // The RSS description element contains rendered README content, not the repository description;
+        // only used below to extract stars/forks indicators, never written to repo.description
         const descriptionEl = item.querySelector('description');
         let readmeText = descriptionEl?.textContent || '';
         // Decode HTML entities and strip HTML tags (DOMParser, see decodeRssHtmlToText)
@@ -1940,8 +1941,8 @@ export class GitHubApiService {
             r.created_at = data.created_at ?? r.created_at;
             r.updated_at = data.updated_at ?? r.updated_at;
             r.pushed_at = data.pushed_at ?? r.pushed_at;
-            // 仓库描述一律以 GitHub API 为准；null（仓库未填写描述）保持 null，
-            // 由 UI 显示「暂无描述」，不允许回退到 RSS 携带的 README 内容
+            // Repository description strictly uses GitHub API as source of truth; null (no description provided) remains null,
+            // displayed as "No description" in UI, never falling back to RSS README content
             r.description = data.description;
           } catch (e) {
             logger.warn('githubApi', `Failed to fetch repo details for ${r.full_name}`, e);
@@ -2287,8 +2288,8 @@ export const createGitHubOAuthUrl = (clientId: string, redirectUri: string): str
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    // `gist` scope 是读写用户 gist（含 secret/私有 gist）所必需的，
-    // 否则只能列出公共 gist，且无法创建/编辑/删除 gist。
+    // The `gist` scope is required to read and write user gists (including secret/private gists);
+    // otherwise only public gists can be listed, and creating/editing/deleting gists is not permitted.
     scope: 'read:user user:email repo gist',
     state: Math.random().toString(36).substring(7),
   });

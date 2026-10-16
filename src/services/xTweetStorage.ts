@@ -1,57 +1,57 @@
 /**
- * X 推文频道持久化层（独立 IndexedDB，仿 weeklyIssuesStorage）。
+ * Persistence layer for X tweet channels (independent IndexedDB, patterned after weeklyIssuesStorage).
  *
- * 发现页 discoveryRepos 是会话级数据不持久化，但推文与仓库详情的获取成本高
- * （每次刷新要跨 RSSHub 实例抓取多位博主的时间线并批量补全仓库详情），
- * 所以落在这里跨会话复用，refreshChannel 只做增量同步。
+ * Discovery page discoveryRepos are session-level data and not persisted, but tweets and repository details are expensive to fetch
+ * (each refresh requires fetching timelines of multiple creators across RSSHub instances and batch-filling repository details),
+ * so they are stored here to reuse across sessions, allowing refreshChannel to perform incremental syncs only.
  */
 
 import type { GitHubRepoDetailRead } from './githubApi';
 
-/** 关注博主的推文（正文缓存供"查看原贴"离线渲染） */
+/** Tweets from followed creators (body cached for offline rendering of "view original post") */
 export interface XStoredTweet {
   tweetId: string;
   handle: string;
   displayName: string;
-  /** 推文正文（RSS 输出的 HTML 片段） */
+  /** Tweet body (HTML snippet output by RSS) */
   content: string;
   htmlUrl: string;
   createdAt: string;
-  /** 推文中提取到的仓库 full_name（小写键，对应 repos store） */
+  /** Repository full_name extracted from the tweet (lowercased key, corresponding to repos store) */
   repoFullNames: string[];
 }
 
 /**
- * 推文涉及的 GitHub 仓库（按 full_name 小写去重，一仓库一条）。
- * detail 为 null 且 lastFetchedAt 非空表示仓库不可用（删除/私有），到期重试。
+ * GitHub repositories referenced in tweets (deduplicated by lowercased full_name, one entry per repository).
+ * A null detail with non-empty lastFetchedAt indicates the repository is unavailable (deleted/private); retry upon expiration.
  */
 export interface XStoredRepo {
   fullName: string;
   detail: GitHubRepoDetailRead | null;
   lastFetchedAt: string;
-  /** 来源推文 = 发布时间最新的推文 */
+  /** Source tweet = tweet with the latest publication timestamp */
   sourceTweetId: string;
   tweetCreatedAt: string;
 }
 
-/** 单博主的 GraphQL 翻页游标：cursor 为下一页请求参数（null = 尚未翻过页） */
+/** GraphQL pagination cursor for a single creator: cursor is the request parameter for the next page (null = has not paginated yet) */
 export interface XTweetPageState {
   cursor: string | null;
-  /** 已翻到时间线尽头（无 bottom cursor） */
+  /** Reached the end of the timeline (no bottom cursor) */
   exhausted: boolean;
 }
 
 export interface XTweetSyncMeta {
   lastSyncedAt: string | null;
-  /** 生成水位时的关注列表签名（规范化 handle 排序拼接）；列表变化则水位失效 */
+  /** Follows list signature when the watermark was generated (normalized handles sorted and concatenated); watermark invalidates on list changes */
   followsSignature: string;
-  /** 鉴权指纹（不同 Cookie 切换时清理推文与仓库缓存） */
+  /** Auth fingerprint (clears tweet and repository caches when switching between different cookies) */
   authFingerprint?: string;
-  /** 鉴权路径的分页游标（跨会话保留，"加载更多"接着上次的位置继续拉） */
+  /** Pagination cursors for auth path (preserved across sessions; "load more" continues from the last position) */
   pages: Record<string, XTweetPageState>;
-  /** 已解析的博主用户 ID（handle → rest_id，鉴权 GraphQL 路径复用） */
+  /** Resolved creator user IDs (handle -> rest_id, reused by auth GraphQL path) */
   userIds: Record<string, string>;
-  /** 上次从线上 bundle 提取的 GraphQL queryId（防 queryId 轮换的缓存） */
+  /** GraphQL queryId extracted from online bundles (cached to protect against queryId rotations) */
   queryIds: Record<string, string>;
 }
 
@@ -122,7 +122,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   return Promise.race([promise, timeoutPromise]);
 };
 
-/** 写事务：execute 同步发起所有写请求，事务 complete 即成功。 */
+/** Write transaction: execute synchronously dispatches all write requests; completion of the transaction indicates success. */
 const runWriteTx = async (
   storeName: string,
   timeoutMs: number,
@@ -137,7 +137,7 @@ const runWriteTx = async (
         try {
           tx.abort();
         } catch {
-          // 事务可能已自行结束
+          // Transaction may have already finished on its own
         }
         reject(new Error('xTweetStorage timeout'));
       }, timeoutMs);
@@ -163,7 +163,7 @@ const runWriteTx = async (
   }
 };
 
-/** 读事务：单个请求取值（记录不存在时 resolve undefined）。 */
+/** Read transaction: retrieves a single record (resolves undefined if record does not exist). */
 const runGetTx = async <T>(
   storeName: string,
   timeoutMs: number,
@@ -191,7 +191,7 @@ const runGetTx = async <T>(
   }
 };
 
-/** 游标遍历：visit 逐条消费（键值对），遍历完成即结束。 */
+/** Cursor traversal: visit consumes each key-value pair; finishes when traversal completes. */
 const runCursorTx = async (
   storeName: string,
   timeoutMs: number,
@@ -206,7 +206,7 @@ const runCursorTx = async (
         try {
           tx.abort();
         } catch {
-          // 事务可能已自行结束
+          // Transaction may have already finished on its own
         }
         reject(new Error('xTweetStorage timeout'));
       }, timeoutMs);
@@ -240,7 +240,7 @@ const runCursorTx = async (
 };
 
 export const xTweetStorage = {
-  /** 批量 upsert 推文（键为 tweetId）。写失败不抛出（不影响同步流程）。 */
+  /** Batch upsert tweets (keyed by tweetId). Does not throw on write failure (does not block sync flow). */
   async saveTweets(tweets: XStoredTweet[]): Promise<void> {
     if (tweets.length === 0) return;
     try {
@@ -253,8 +253,8 @@ export const xTweetStorage = {
   },
 
   /**
-   * 读取失败向上抛出（不返回半量快照）：调用方会把它当作权威内存状态，
-   * 缺失的键会让已知推文被当作新推文重建，进而用空详情覆盖已落盘数据。
+   * Throws read failures upward (does not return partial snapshots): callers treat this as authoritative in-memory state;
+   * missing keys would cause known tweets to be recreated as new tweets, overwriting persisted data with empty details.
    */
   async getAllTweets(): Promise<Map<string, XStoredTweet>> {
     const result = new Map<string, XStoredTweet>();
@@ -266,7 +266,7 @@ export const xTweetStorage = {
     return result;
   },
 
-  /** 批量 upsert 仓库（键为 full_name 小写）。写失败不抛出（不影响同步流程）。 */
+  /** Batch upsert repositories (keyed by lowercased full_name). Does not throw on write failure (does not block sync flow). */
   async saveRepos(repos: XStoredRepo[]): Promise<void> {
     if (repos.length === 0) return;
     try {
@@ -278,7 +278,7 @@ export const xTweetStorage = {
     }
   },
 
-  /** 读取失败向上抛出（同 getAllTweets：不返回半量快照）。 */
+  /** Throws read failures upward (same as getAllTweets: does not return partial snapshots). */
   async getAllRepos(): Promise<Map<string, XStoredRepo>> {
     const result = new Map<string, XStoredRepo>();
     if (!canUseIndexedDB()) return result;
@@ -290,9 +290,9 @@ export const xTweetStorage = {
   },
 
   async getSyncMeta(): Promise<XTweetSyncMeta> {
-    // 无 IndexedDB 环境视作记录不存在，返回全新默认值（独立嵌套对象，
-    // 避免浅拷贝共享 DEFAULT_META.pages/userIds/queryIds 造成跨调用污染）；
-    // 真实读取失败向上抛出，避免调用方误判游标。
+    // Non-IndexedDB environment is treated as non-existent record, returning a fresh default value (independent nested objects
+    // to prevent shallow-copy sharing of DEFAULT_META.pages/userIds/queryIds from causing cross-call pollution);
+    // actual read failures throw upward to avoid callers misjudging cursors.
     if (!canUseIndexedDB()) return createDefaultMeta();
     const meta = await withTimeout(runGetTx<XTweetSyncMeta>(META_STORE, 5000, 'sync'), 6000);
     if (meta === undefined) return createDefaultMeta();
@@ -310,9 +310,9 @@ export const xTweetStorage = {
   },
 
   /**
-   * 同步轮次的原子落盘：tweets + repos + meta（水位/取尽标记）在同一个跨
-   * store 读写事务中写入，任一失败整体回滚并抛出——调用方据此不推进内存
-   * 游标，下轮同步会重新拉取该批推文，避免水位已推进但数据未落盘的缺口。
+   * Atomic persistence for sync batches: tweets + repos + meta (watermark/exhausted flags)
+   * are written in a single cross-store readwrite transaction. If any write fails, the entire transaction rolls back and throws—callers
+   * will not advance the in-memory cursor, and the next sync will re-fetch this batch of tweets, preventing gaps where watermarks advance without data persistence.
    */
   async saveSyncBatch(payload: {
     tweets: XStoredTweet[];
@@ -328,7 +328,7 @@ export const xTweetStorage = {
           try {
             tx.abort();
           } catch {
-            // 事务可能已自行结束
+            // Transaction may have already finished on its own
           }
           reject(new Error('xTweetStorage timeout'));
         }, 15_000);
@@ -359,9 +359,9 @@ export const xTweetStorage = {
   },
 
   /**
-   * 清空全部推文数据（设置页"删除发现页缓存/删除全部数据"调用）。
-   * 错误向上抛出（调用方据此决定是否提示成功）；先清 meta：即使后续
-   * store 清理失败，同步水位已移除，下次同步退化为全量重扫可自愈。
+   * Clear all tweet data (called by "delete discovery cache/delete all data" in settings).
+   * Throws errors upward (so callers can determine whether to notify success); clears meta first so that even if subsequent
+   * store cleanups fail, the sync watermark is removed and the next sync self-heals by falling back to a full rescan.
    */
   async clearAll(): Promise<void> {
     if (!canUseIndexedDB()) return;

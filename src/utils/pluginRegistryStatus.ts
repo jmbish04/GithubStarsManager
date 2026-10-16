@@ -9,7 +9,7 @@ export type PluginRegistryStatus =
   | 'not-in-registry';
 
 export interface PluginPermissionDiff {
-  /** 目标版本要求、而现在没有授予的权限——这是必须重新征求用户同意的那部分。 */
+  /** Permissions required by the target version that are not currently granted — these require re-prompting for user consent. */
   added: string[];
   removed: string[];
 }
@@ -20,9 +20,9 @@ export interface PluginRegistryAssessment {
   status: PluginRegistryStatus;
   latestVersion: string | null;
   permissionDiff: PluginPermissionDiff;
-  /** 撤销/拉黑时的原因。 */
+  /** Reason when revoked or blocked. */
   reason: string | null;
-  /** 目标版本的数据用途说明（审核时写下的那句话）。 */
+  /** Data usage description of the target version (written during review). */
   dataUsage: string | null;
   removedAction: PluginRemovalEntry['action'] | null;
 }
@@ -30,7 +30,7 @@ export interface PluginRegistryAssessment {
 export interface InstalledPluginForRegistry {
   id: string;
   version: string;
-  /** 当前生效的授权；缺失时退回 manifest 声明的权限。 */
+  /** Currently effective permissions; falls back to manifest-declared permissions if missing. */
   grantedPermissions?: string[];
   declaredPermissions?: string[];
 }
@@ -42,7 +42,7 @@ const compareNumericIdentifiers = (left: string, right: string): number => {
   return a === b ? 0 : (a > b ? 1 : -1);
 };
 
-/** 语义化版本比较；无法解析时返回 NaN，调用者须单独处理。 */
+/** Semver comparison; returns NaN when unparseable, callers must handle separately. */
 export const comparePluginVersions = (left: string, right: string): number => {
   const parse = (value: string) => {
     const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(String(value).trim());
@@ -106,15 +106,16 @@ const findRemoval = (removed: PluginRemovalEntry[], pluginId: string, version: s
 );
 
 /**
- * 在撤销/拉黑表里找匹配 (pluginId, version) 的记录；多条命中时 revoke 优先、
- * 日期新的优先。市场弹窗与已安装插件对照共用这一份实现。
+ * Finds matching (pluginId, version) records in the revoked/blocked table.
+ * When multiple records match, revoke takes priority, followed by newer dates.
+ * Shared between the marketplace modal and installed plugin comparisons.
  */
 export const findPluginRemoval = findRemoval;
 
-/** 客户端支持的 Plugin API 版本；注册表里声明别的版本的条目一律不采用。 */
+/** Plugin API versions supported by the client; registry entries declaring any other version are ignored. */
 export const SUPPORTED_API_VERSIONS = new Set(['1']);
 
-/** 取"客户端支持的最高版本"——不是注册表里的最新版本。 */
+/** Selects the highest version supported by the client — not necessarily the newest version in the registry. */
 export const pickInstallableEntry = (versions: PluginRegistryEntry[]): PluginRegistryEntry | null => {
   const compatible = versions
     .filter((entry) => SUPPORTED_API_VERSIONS.has(entry.apiVersion) && !Number.isNaN(comparePluginVersions(entry.version, entry.version)))
@@ -123,10 +124,10 @@ export const pickInstallableEntry = (versions: PluginRegistryEntry[]): PluginReg
 };
 
 /**
- * 把已安装插件与注册表对照，得出每个插件的状态。
+ * Compares installed plugins against the registry to determine each plugin's status.
  *
- * 只做判断，不触发任何动作：撤销/拉黑只是提示与依据，停用与否由用户点。权限差异算的是
- * **目标版本相对"当前已授予"** 多出来的那部分——那正是需要重新征求同意的部分。
+ * Pure evaluation without triggering actions: revoke/block status serves as notification and rationale; disabling is up to the user.
+ * Permission diff computes permissions in the target version beyond what is currently granted — the exact portion requiring re-consent.
  */
 export const assessInstalledPlugins = (
   installed: InstalledPluginForRegistry[],

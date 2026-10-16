@@ -4,10 +4,10 @@ import { useAppStore } from '../../../store/useAppStore';
 import { resolvePluginAccountTag } from '../../../plugins/pluginAccountTag';
 
 /**
- * 当前 GitHub 身份的账号标签（null 表示尚未解析完成）。
+ * Account tag for the current GitHub identity (null indicates resolution is in progress).
  *
- * 弹窗在标签就绪前不渲染插件页面：页面首帧的 `plugin-page:init` 就能拿到
- * 账号标签，从而在绘制任何本地缓存之前完成账号校验（缓存按账号隔离）。
+ * Modals defer rendering the plugin page until the tag is ready: the initial frame's `plugin-page:init`
+ * receives the account tag, completing account validation before drawing any local cache (caches are isolated per account).
  */
 export function usePluginAccountTag(): string | null {
   const githubToken = useAppStore(useShallow((state) => state.githubToken));

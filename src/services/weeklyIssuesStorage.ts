@@ -1,14 +1,14 @@
 /**
- * 阮一峰周刊频道持久化层（独立 IndexedDB，仿 discoveryAnalysisStorage）。
+ * Persistence layer for the Ruan Yifeng Weekly channel (independent IndexedDB, patterned after discoveryAnalysisStorage).
  *
- * 发现频道的 discoveryRepos 是会话级数据不持久化，但周刊数据集的构建成本高
- * （首次全量同步要遍历 ruanyf/weekly 的上万个 issue 并批量补全仓库详情），
- * 所以落在这里跨会话复用，refreshChannel 只做增量同步。
+ * Channel discoveryRepos are session-level data and not persisted, but the weekly dataset is expensive to construct
+ * (the initial full sync traverses tens of thousands of issues in ruanyf/weekly and batch-fills repo details),
+ * so it is stored here to reuse across sessions, allowing refreshChannel to perform incremental syncs only.
  */
 
 import type { GitHubRepoDetailRead } from './githubApi';
 
-/** 命中"开源"标题且正文含仓库链接的投稿 issue（正文缓存供"查看原贴"离线渲染）。 */
+/** Submission issue matching an "open source" title with repo links in its body (cached for offline rendering of "view original post"). */
 export interface WeeklyStoredIssue {
   number: number;
   title: string;
@@ -18,20 +18,20 @@ export interface WeeklyStoredIssue {
   createdAt: string;
   updatedAt: string;
   htmlUrl: string;
-  /** 正文中提取到的仓库 full_name（小写键，对应 repos store） */
+  /** Repository full_name extracted from the body (lowercased key, corresponding to the repos store) */
   repoFullNames: string[];
 }
 
 /**
- * 投稿涉及的 GitHub 仓库（按 full_name 小写去重，一仓库一条）。
- * detail 为 null 且 lastFetchedAt 非空表示仓库不可用（删除/私有），到期重试。
+ * GitHub repository referenced in submissions (deduplicated by lowercased full_name, one entry per repository).
+ * A null detail with non-empty lastFetchedAt indicates the repository is unavailable (deleted/private); retry upon expiration.
  */
 export interface WeeklyStoredRepo {
-  /** 展示用 full_name（来自投稿链接或 API 返回的 canonical 大小写） */
+  /** Display full_name (from the submission link or the canonical casing returned by the API) */
   fullName: string;
   detail: GitHubRepoDetailRead | null;
   lastFetchedAt: string;
-  /** 原贴 = 投稿时间最新的 issue */
+  /** Original post = the issue with the latest submission timestamp */
   sourceIssueNumber: number;
   issueLabels: string[];
   issueCreatedAt: string;
@@ -39,9 +39,9 @@ export interface WeeklyStoredRepo {
 
 export interface WeeklySyncMeta {
   lastSyncedAt: string | null;
-  /** 深度分页游标：全量（无 since）updated 倒序遍历已消费到的下一页（1 起） */
+  /** Deep pagination cursor: next page (1-based) consumed in full (no since) descending updated traversal */
   deepNextPage: number;
-  /** 全量历史是否已取尽（深度遍历遇到不足一页/空页） */
+  /** Whether the full history has been completely fetched (deep traversal encountered an incomplete or empty page) */
   historyComplete: boolean;
 }
 
@@ -90,9 +90,9 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
 };
 
 /**
- * 事务超时守卫：返回一次性 settle 函数。超时未结算时 abort 事务并 reject
- * （Promise.race 无法中止后台事务，必须显式 abort 释放锁）；
- * complete/error/abort 先到时清理定时器并只结算一次。
+ * Transaction timeout guard: returns a one-time settle function. When timeout occurs before settlement,
+ * abort the transaction and reject (Promise.race cannot abort background transactions; explicit abort is required to release locks);
+ * when complete/error/abort arrives first, clear the timer and settle only once.
  */
 const guardTx = (
   tx: IDBTransaction,
@@ -106,7 +106,7 @@ const guardTx = (
     try {
       tx.abort();
     } catch {
-      // 事务可能已自行结束
+      // Transaction may have already finished on its own
     }
     reject(new Error('weeklyIssuesStorage timeout'));
   }, timeoutMs);
@@ -118,7 +118,7 @@ const guardTx = (
   };
 };
 
-/** 写事务：execute 同步发起所有写请求，事务 complete 即成功。 */
+/** Write transaction: execute synchronously dispatches all write requests; completion of the transaction indicates success. */
 const runWriteTx = async (
   storeName: string,
   timeoutMs: number,
@@ -151,7 +151,7 @@ const runWriteTx = async (
   }
 };
 
-/** 读事务：单个请求取值（记录不存在时 resolve undefined）。 */
+/** Read transaction: retrieves a single record (resolves undefined if record does not exist). */
 const runGetTx = async <T>(
   storeName: string,
   timeoutMs: number,
@@ -176,7 +176,7 @@ const runGetTx = async <T>(
   }
 };
 
-/** 游标遍历：visit 逐条消费（键值对），遍历完成即结束。 */
+/** Cursor traversal: visit consumes each key-value pair; finishes when traversal completes. */
 const runCursorTx = async (
   storeName: string,
   timeoutMs: number,
@@ -213,7 +213,7 @@ const runCursorTx = async (
 };
 
 export const weeklyIssuesStorage = {
-  /** 批量 upsert issue（键为 issue number）。写失败不抛出（不影响同步流程）。 */
+  /** Batch upsert issues (keyed by issue number). Does not throw on write failure (does not block sync flow). */
   async saveIssues(issues: WeeklyStoredIssue[]): Promise<void> {
     if (issues.length === 0) return;
     try {
@@ -226,8 +226,8 @@ export const weeklyIssuesStorage = {
   },
 
   /**
-   * 读取失败向上抛出（不返回半量快照）：调用方会把它当作权威内存状态，
-   * 缺失的键会让已知条目被当作新条目重建，进而用空详情覆盖已落盘数据。
+   * Throws read failures upward (does not return partial snapshots): callers treat this as authoritative in-memory state;
+   * missing keys would cause known entries to be recreated as new entries, overwriting persisted data with empty details.
    */
   async getAllIssues(): Promise<Map<number, WeeklyStoredIssue>> {
     const result = new Map<number, WeeklyStoredIssue>();
@@ -250,7 +250,7 @@ export const weeklyIssuesStorage = {
     }
   },
 
-  /** 批量 upsert 仓库（键为 full_name 小写）。写失败不抛出（不影响同步流程）。 */
+  /** Batch upsert repositories (keyed by lowercased full_name). Does not throw on write failure (does not block sync flow). */
   async saveRepos(repos: WeeklyStoredRepo[]): Promise<void> {
     if (repos.length === 0) return;
     try {
@@ -262,7 +262,7 @@ export const weeklyIssuesStorage = {
     }
   },
 
-  /** 读取失败向上抛出（同 getAllIssues：不返回半量快照）。 */
+  /** Throws read failures upward (same as getAllIssues: does not return partial snapshots). */
   async getAllRepos(): Promise<Map<string, WeeklyStoredRepo>> {
     const result = new Map<string, WeeklyStoredRepo>();
     if (!canUseIndexedDB()) return result;
@@ -295,10 +295,9 @@ export const weeklyIssuesStorage = {
   },
 
   /**
-   * 遍历分页的原子落盘：issues + repos + meta（deepNextPage/historyComplete）
-   * 在同一个跨 store 读写事务中写入，任一失败整体回滚并抛出——调用方据此
-   * 不推进内存游标，下轮同步会重新拉取该页，避免 historyComplete 跳过未
-   * 持久化的数据。
+   * Atomic persistence for paginated traversal: issues + repos + meta (deepNextPage/historyComplete)
+   * are written in a single cross-store readwrite transaction. If any write fails, the entire transaction rolls back and throws—callers
+   * will not advance the in-memory cursor, and the next sync will re-fetch this page, preventing historyComplete from skipping unpersisted data.
    */
   async saveWalkPage(payload: {
     issues: WeeklyStoredIssue[];
@@ -337,9 +336,9 @@ export const weeklyIssuesStorage = {
   },
 
   /**
-   * 清空全部周刊数据（设置页"删除发现页缓存/删除全部数据"调用）。
-   * 错误向上抛出（调用方据此决定是否提示成功）；先清 meta：即使后续
-   * store 清理失败，同步水位已移除，下次同步退化为全量重扫可自愈。
+   * Clear all weekly data (called by "delete discovery cache/delete all data" in settings).
+   * Throws errors upward (so callers can determine whether to notify success); clears meta first so that even if subsequent
+   * store cleanups fail, the sync watermark is removed and the next sync self-heals by falling back to a full rescan.
    */
   async clearAll(): Promise<void> {
     if (!canUseIndexedDB()) return;

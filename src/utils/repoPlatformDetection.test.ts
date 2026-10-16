@@ -44,10 +44,10 @@ describe('inferPlatformsFromReleases', () => {
   it('counts each platform once per release and weights by release count', () => {
     const signals = inferPlatformsFromReleases([
       makeRelease(['app-arm64.dmg', 'app-x64.dmg', 'setup.exe']), // macos + windows
-      makeRelease(['app.tar.gz', 'app-linux.tar.gz'], '2025-12-01T00:00:00.000Z'), // linux only（.tar.gz 无 OS 词不计 macos）
+      makeRelease(['app.tar.gz', 'app-linux.tar.gz'], '2025-12-01T00:00:00.000Z'), // linux only (.tar.gz without OS token does not count as macos)
     ]);
     const byPlatform = Object.fromEntries(signals.map(s => [s.platform, s.weight]));
-    expect(byPlatform.macos).toBe(10); // 单个 release 内多个 dmg 只计一次
+    expect(byPlatform.macos).toBe(10); // Multiple dmgs in a single release count only once
     expect(byPlatform.windows).toBe(10);
     expect(byPlatform.linux).toBe(10);
     expect(signals.every(s => s.source === 'release-assets')).toBe(true);
@@ -58,7 +58,7 @@ describe('inferPlatformsFromReleases', () => {
     const newReleases = Array.from({ length: 10 }, (_, i) =>
       makeRelease(['app.dmg'], `2026-${String(i + 1).padStart(2, '0')}-01T00:00:00.000Z`));
     const signals = inferPlatformsFromReleases([oldRelease, ...newReleases]);
-    // 10 个新 release 都是 macos，最老的 windows release 被截断
+    // 10 new releases are all macos; the oldest windows release is truncated
     expect(signals).toHaveLength(1);
     expect(signals[0].platform).toBe('macos');
     expect(signals[0].weight).toBe(100);
@@ -106,7 +106,7 @@ describe('resolveRepositoryPlatforms', () => {
   });
 
   it('combines weak signals to cross the display threshold', () => {
-    // 语言(2) + 描述(2) = 4，恰好达到阈值
+    // language(2) + description(2) = 4, exactly meeting the threshold
     const platforms = resolveRepositoryPlatforms(
       makeRepo({ language: 'Kotlin', description: 'An Android toolkit' }),
       [],
@@ -139,7 +139,7 @@ describe('resolveRepositoryPlatforms', () => {
       releaseFor(repoB, ['setup.exe', 'app.apk']),
     ];
 
-    // A 的列表只来自 A 的资产；B 的 windows/android 不许串台
+    // Repo A's list comes only from A's assets; Repo B's windows/android must not bleed over
     expect(resolveRepositoryPlatforms(repoA, releases)).toEqual(['macos']);
     expect(resolveRepositoryPlatforms(repoB, releases)).toEqual(['windows', 'android']);
   });

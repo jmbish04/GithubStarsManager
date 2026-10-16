@@ -80,8 +80,8 @@ export const ReadmeModal: React.FC<ReadmeModalProps> = ({
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
 
-  // README 抓取（backend 优先 → GitHub 兜底）由共享 hook 承担；
-  // abort 实体在 hook（每次 fetch 前中止上一个，unmount 自动取消），关闭 modal 时调 cancelFetches。
+  // README fetching (backend first -> GitHub fallback) is handled by the shared hook;
+  // the abort entity lives in the hook (aborts previous before each fetch, auto-cancels on unmount); call cancelFetches when closing modal.
   const [repoOwner = '', repoName = ''] = repository?.full_name.split('/') ?? [];
   const {
     fetchReadmeContent: fetchReadmeContentFromAvailableSource,
@@ -196,7 +196,7 @@ export const ReadmeModal: React.FC<ReadmeModalProps> = ({
   const scrollRafRef = useRef<number | null>(null);
   const scrollFrameUsesRafRef = useRef(false);
 
-  // 进度条读取 scrollHeight/clientHeight 会强制布局，用 rAF 合帧避免滚动时反复重排。
+  // Reading scrollHeight/clientHeight for progress bar forces layout; use rAF to batch frames and avoid repeated reflows during scroll.
   const handleScroll = useCallback(() => {
     if (scrollRafRef.current !== null) return;
     const run = () => {
@@ -208,7 +208,7 @@ export const ReadmeModal: React.FC<ReadmeModalProps> = ({
       setScrollProgress(Math.min(100, Math.max(0, progress)));
       setShowBackToTop(scrollTop > 300);
     };
-    // 记录本次调度用的 API：取消时按同一 API 取消，避免环境变化后错配 id 类型。
+    // Record API used for this scheduling: cancel using the same API to avoid mismatched id types across environments.
     if (typeof window.requestAnimationFrame === 'function') {
       scrollFrameUsesRafRef.current = true;
       scrollRafRef.current = window.requestAnimationFrame(run);
@@ -384,7 +384,7 @@ export const ReadmeModal: React.FC<ReadmeModalProps> = ({
       }
       setLoading(false);
     } catch (err) {
-      // 被 hook abort（被新请求取代 / cancel）时静默返回，不动 loading 态
+      // Return silently when aborted by hook (superseded by new request / cancelled) without altering loading state
       if (isAbortError(err)) return;
       console.error('Failed to fetch README:', err);
       setReadmeContent('');

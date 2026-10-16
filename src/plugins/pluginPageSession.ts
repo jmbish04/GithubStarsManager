@@ -1,8 +1,9 @@
 import type { Repository } from '../types';
 
 /**
- * 弹窗动作打开的插件页面。会话挂在应用根上，不随仓库卡片或下拉菜单卸载。
- * repository 缺省时页面没有仓库上下文（例如从设置页打开）。
+ * Plugin page opened via modal action. The session is attached to the app root
+ * and does not unmount with repository cards or dropdown menus.
+ * When repository is omitted, the page has no repository context (e.g. opened from Settings).
  */
 export interface PluginPageSession {
   pluginId: string;

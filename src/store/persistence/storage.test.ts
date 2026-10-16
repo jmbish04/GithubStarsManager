@@ -25,8 +25,8 @@ import {
 } from './shards';
 import { normalizeTrendingSnapshots } from '../../utils/trendingSnapshots';
 
-// 提交点屏障：在真实存储提交入口（setStorageEntries）拦停写入，用于让并发
-// 测试确定性地与「写入 A 仍在提交中」重叠——setTimeout 等待无法保证这一点。
+// Commit point barrier: intercepts writes at real storage commit entry point (setStorageEntries)
+// so concurrent tests deterministically overlap with "write A is still committing"—setTimeout waiting cannot guarantee this.
 const commitGate = vi.hoisted(() => {
   let hold = false;
   let release: () => void = () => undefined;
@@ -64,7 +64,7 @@ vi.mock('../../services/indexedDbStorage', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/indexedDbStorage')>();
   return {
     ...actual,
-    // 真实签名是 (name, entries)——转发参数必须一一对应，否则会静默改写调用语义。
+    // The actual signature is (name, entries)—forwarding parameters must match 1:1, otherwise calling semantics are silently altered.
     setStorageEntries: (name: string, entries: ReadonlyArray<readonly [string, string]>) =>
       commitGate.wrap(() => actual.setStorageEntries(name, entries)),
   };
@@ -75,8 +75,8 @@ const KEY = 'github-stars-manager';
 const tick = (ms = 20): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 const buildState = (): Record<string, unknown> => ({
-  // 以 createInitialState 为底：partialize 会直读全部持久化字段（如
-  // state.gistSearchFilters.sortBy），手写的稀疏对象会让它抛错。
+  // Based on createInitialState: partialize directly reads all persisted fields (such as
+  // state.gistSearchFilters.sortBy); handwritten sparse objects will throw errors.
   ...(createInitialState() as unknown as Record<string, unknown>),
   theme: 'dark',
   language: 'zh',
@@ -86,7 +86,7 @@ const buildState = (): Record<string, unknown> => ({
   starredGists: [],
   releases: [{ id: 101 }],
   forks: [],
-  // 规整化后的工作区包含全部 18 个字段：键数量不同的工作区会被判脏守卫拦下
+  // Normalized workspace contains all 18 fields: workspaces with differing key counts are stopped by dirty checking guards
   accountWorkspaces: {
     '1': {
       repositories: [{ id: 1, name: 'repo-one' }],
@@ -109,7 +109,7 @@ const buildState = (): Record<string, unknown> => ({
       syncModeConfigured: false,
     },
   },
-  // 快照必须至少含一条 entry（空 entries 的快照会被规整化丢弃）
+  // Snapshots must contain at least one entry (snapshots with empty entries are dropped by normalization)
   trendingSnapshots: [
     {
       period: 'daily',
@@ -133,7 +133,7 @@ const readShardState = async (shard: Parameters<typeof shardKeyFor>[1]): Promise
   return JSON.parse(raw as string).state as Record<string, unknown>;
 };
 
-/** 把磁盘分片改写成缩进 JSON，用于检测「哪些分片被后续启动重写」。 */
+/** Rewrites on-disk shards as indented JSON, used to detect "which shards are rewritten on subsequent launches". */
 const markShardsOnDisk = async (): Promise<void> => {
   for (const shard of PERSISTENCE_SHARD_NAMES) {
     const rawJson = await readRaw(shardKeyFor(KEY, shard));
@@ -196,8 +196,8 @@ describe('persistence shard layout', () => {
   });
 
   it('covers every normalized workspace field with exactly one comparison list', () => {
-    // AccountWorkspace 新增字段时必须归入 REFERENCE 或 VALUE 列表之一，
-    // 否则该字段的内容变化会被判脏逻辑漏掉（漏写）。
+    // When a new field is added to AccountWorkspace, it must be included in either REFERENCE or VALUE list;
+    // otherwise content changes to that field will be missed by dirty checking (omitted write).
     const normalized = normalizeAccountWorkspaces({ '1': {} })['1'];
     const covered = new Set<string>([...WORKSPACE_REFERENCE_FIELDS, ...WORKSPACE_VALUE_FIELDS]);
     for (const field of Object.keys(normalized)) {
@@ -229,8 +229,8 @@ describe('persistence shard dirty detection', () => {
   });
 
   it('ignores hydration-normalized accountWorkspaces with equal content and detects real changes', () => {
-    // 穿过真实的 normalizeAccountWorkspaces：规整化不得因重建数组引用而把
-    // 未变更的工作区判为已变更（否则每次启动都会全量重写该分片）。
+    // Passing through real normalizeAccountWorkspaces: normalization must not mark an unchanged
+    // workspace as changed by recreating array references (otherwise every startup would rewrite the shard).
     const state = buildState();
     const baseline = viewsOf(state);
     const normalized = normalizeAccountWorkspaces(state.accountWorkspaces);
@@ -238,7 +238,7 @@ describe('persistence shard dirty detection', () => {
     const untouched = findDirtyShards(viewsOf({ ...state, accountWorkspaces: normalized }), baseline);
     expect(untouched).toEqual([]);
 
-    // 真实变更（logout 快照替换了重数组引用）必须判脏
+    // Real changes (logout snapshot replacing heavy array references) must be marked dirty
     const changedWorkspaces = {
       '1': {
         ...(normalized as unknown as Record<string, Record<string, unknown>>)['1'],
@@ -254,14 +254,14 @@ describe('persistence shard dirty detection', () => {
     const snapshots = state.trendingSnapshots as unknown as Array<Record<string, unknown>>;
     expect(normalizeTrendingSnapshots(snapshots as never)).toBe(snapshots as never);
 
-    // 内容真正过期/非法时仍然重建
+    // When content is truly expired or invalid, it is still reconstructed
     const stale = [{ ...snapshots[0], capturedAt: '2000-01-01T00:00:00.000Z' }];
     expect(normalizeTrendingSnapshots(stale)).toEqual([]);
   });
 
   it('compares core shard fields by content because partialize rebuilds small objects', () => {
-    // 真实 partialize 每次都会重建 searchFilters/proxyConfig/派生数组等 core 字段；
-    // core 按内容判脏才能让「无变化的写入」真正跳过。
+    // Real partialize reconstructs core fields like searchFilters/proxyConfig/derived arrays every time;
+    // comparing core by value is essential to allow "unchanged writes" to actually be skipped.
     const state = buildState();
     const first = appPersistenceOptions.partialize!(state as never);
     const second = appPersistenceOptions.partialize!(state as never);
@@ -280,14 +280,14 @@ describe('sharded persist storage', () => {
     await indexedDBStorage.setItem(KEY, JSON.stringify(legacyValue));
 
     const hydrated = await debouncedPersistStorage.getItem(KEY);
-    // legacy 快照经 JSON 往返（Set→对象、undefined 丢弃），期望侧做同样归一化
+    // Legacy snapshot underwent JSON round-trip (Set -> object, undefined dropped); expected side uses same normalization
     expect(hydrated).toEqual(JSON.parse(JSON.stringify(legacyValue)));
 
     const nextValue: StorageValue<unknown> = { state: buildState(), version: 16 };
     debouncedPersistStorage.setItem(KEY, nextValue);
     await flushPendingPersistSnapshot();
 
-    // 全部分片 + meta 已提交
+    // All shards + meta have been committed
     const meta = await readMeta();
     expect(meta?.version).toBe(16);
     expect(meta?.shards).toEqual([...PERSISTENCE_SHARD_NAMES]);
@@ -297,17 +297,17 @@ describe('sharded persist storage', () => {
     expect(coreShard.theme).toBe('dark');
     expect(coreShard.lastSync).toBe('2026-01-01T00:00:00.000Z');
 
-    // 旧单键快照在完整迁移提交后退役
+    // Legacy single-key snapshot is retired after full migration commit
     expect(await readRaw(KEY)).toBeNull();
 
-    // 重新水合得到完整状态（无感升级）
+    // Re-hydration yields complete state (seamless upgrade)
     const rehydrated = await debouncedPersistStorage.getItem(KEY);
     expect(rehydrated?.version).toBe(16);
     expect(rehydrated?.state).toEqual(JSON.parse(JSON.stringify(nextValue.state)));
   });
 
   it('skips the write entirely when two real partialize calls produce equal content', async () => {
-    // 生产路径中 partialize 每次都重建小对象，只有 core 按内容判脏才能跳过。
+    // In production path, partialize reconstructs small objects every time; only checking core by value can skip it.
     const state = buildState();
     debouncedPersistStorage.setItem(KEY, { state: appPersistenceOptions.partialize!(state as never) as Record<string, unknown>, version: 16 });
     await flushPendingPersistSnapshot();
@@ -325,14 +325,14 @@ describe('sharded persist storage', () => {
     const repositoriesShardBefore = await readRaw(shardKeyFor(KEY, 'repositories'));
     const gistsShardBefore = await readRaw(shardKeyFor(KEY, 'gists'));
 
-    // 展开保留重数据字段引用，模拟真实 partialize 行为
+    // Spread preserves heavy data field references, simulating real partialize behavior
     const nextState = { ...state, language: 'en' };
     debouncedPersistStorage.setItem(KEY, { state: nextState, version: 16 });
     await flushPendingPersistSnapshot();
 
     const coreShard = await readShardState('core');
     expect(coreShard.language).toBe('en');
-    // 重数据字段引用未变：分片内容保持原样
+    // Heavy data field references unchanged: shard content remains identical
     expect(await readRaw(shardKeyFor(KEY, 'repositories'))).toBe(repositoriesShardBefore);
     expect(await readRaw(shardKeyFor(KEY, 'gists'))).toBe(gistsShardBefore);
   });
@@ -354,8 +354,8 @@ describe('sharded persist storage', () => {
   });
 
   it('does not rewrite heavy shards on a plain boot after data has converged', async () => {
-    // 契约：水合 → merge → partialize 的启动序列不得重写任何重数据分片
-    //（accountWorkspaces/trendingSnapshots 的规整化引用保留 + lastSync 归 core）。
+    // Contract: hydration -> merge -> partialize startup sequence must not rewrite any heavy data shards
+    // (accountWorkspaces/trendingSnapshots retain references via normalization + lastSync belongs to core).
     const seedState = appPersistenceOptions.partialize!(buildState() as never);
     debouncedPersistStorage.setItem(KEY, { state: seedState as Record<string, unknown>, version: 16 });
     await flushPendingPersistSnapshot();
@@ -370,8 +370,8 @@ describe('sharded persist storage', () => {
   });
 
   it('serializes overlapping idle/flush writes so the dirty baseline never trails the disk', async () => {
-    // 回归：写入 A 提交期间（版本已过期），写入 B 若以过期基准判脏会跳过写盘，
-    // 把 A 的旧值留在磁盘上且缓存不自知。
+    // Regression: during write A commit (version expired), if write B checks dirty against expired baseline it would skip write,
+    // leaving old value of A on disk with cache unaware.
     const state = buildState();
     debouncedPersistStorage.setItem(KEY, { state, version: 16 });
     await flushPendingPersistSnapshot();
@@ -381,9 +381,9 @@ describe('sharded persist storage', () => {
     commitGate.arm();
     debouncedPersistStorage.setItem(KEY, { state: stateLight, version: 16 });
     const flushInFlight = flushPendingPersistSnapshot();
-    await commitGate.waitReached(); // 写入 A 已完成判脏，在真实提交点被确定性拦停
+    await commitGate.waitReached(); // Write A finished dirty checking, deterministically intercepted at real commit point
     debouncedPersistStorage.setItem(KEY, { state: stateDark, version: 16 });
-    const flushAfterDark = flushPendingPersistSnapshot(); // B 排队在 A 之后
+    const flushAfterDark = flushPendingPersistSnapshot(); // B queues after A
     commitGate.release();
     await flushInFlight;
     await flushAfterDark;
@@ -398,16 +398,16 @@ describe('sharded persist storage', () => {
     commitGate.arm();
     debouncedPersistStorage.setItem(KEY, { state, version: 16 });
     const inFlightWrite = flushPendingPersistSnapshot();
-    await commitGate.waitReached(); // 写入 A 已完成判脏，在真实提交点被确定性拦停
+    await commitGate.waitReached(); // Write A finished dirty checking, deterministically intercepted at real commit point
     debouncedPersistStorage.removeItem(KEY);
     const nextState = { ...state, language: 'en' };
     debouncedPersistStorage.setItem(KEY, { state: nextState, version: 16 });
-    const flushAfterClear = flushPendingPersistSnapshot(); // 排队在删除之后
+    const flushAfterClear = flushPendingPersistSnapshot(); // Queues after deletion
     commitGate.release();
     await inFlightWrite;
     await flushAfterClear;
 
-    // 删除后的首个写入必须全量重建：meta 与全部分片一致，不存在缺失分片
+    // First write after deletion must fully rebuild: meta matches all shards, no missing shards
     const rehydrated = await debouncedPersistStorage.getItem(KEY);
     expect(rehydrated?.state).toMatchObject({ theme: 'dark', language: 'en' });
     expect(await readMeta()).not.toBeNull();
@@ -418,7 +418,7 @@ describe('sharded persist storage', () => {
   });
 
   it('merges persisted shards with the legacy snapshot when some shards are missing, then converges', async () => {
-    // 模拟迁移中途崩溃：meta + 部分分片已提交，旧单键快照仍在
+    // Simulate mid-migration crash: meta + partial shards committed, legacy single-key snapshot still exists
     const legacyState = { ...buildState(), gists: [{ id: 'legacy-gist' }], theme: 'light' };
     await indexedDBStorage.setItem(KEY, JSON.stringify({ state: legacyState, version: 16 }));
     await setStorageEntries(KEY, [
@@ -427,10 +427,10 @@ describe('sharded persist storage', () => {
     ]);
 
     const hydrated = await debouncedPersistStorage.getItem(KEY);
-    // 存在的分片内容（更新）覆盖旧快照，缺失分片回退旧快照
+    // Present shard contents (newer) overwrite legacy snapshot, missing shards fall back to legacy snapshot
     expect(hydrated?.state).toMatchObject({ theme: 'dark', language: 'zh', gists: [{ id: 'legacy-gist' }] });
 
-    // 下一次写入强制提交全部分片并退役旧键（收敛迁移）
+    // Next write forcibly commits all shards and retires legacy key (converged migration)
     debouncedPersistStorage.setItem(KEY, { state: buildState(), version: 16 });
     await flushPendingPersistSnapshot();
 
@@ -441,7 +441,7 @@ describe('sharded persist storage', () => {
   });
 
   it('assembles a full shard set and retires a leftover legacy key on read', async () => {
-    // 模拟提交成功但清理前崩溃：分片齐全 + 旧键残留
+    // Simulate successful commit but crash before cleanup: shards complete + legacy key remains
     const value: StorageValue<unknown> = { state: buildState(), version: 16 };
     debouncedPersistStorage.setItem(KEY, value);
     await flushPendingPersistSnapshot();
@@ -465,8 +465,8 @@ describe('sharded persist storage', () => {
   });
 
   it('treats an incomplete or duplicated shard list as an invalid meta and keeps the legacy snapshot', async () => {
-    // H2 回归：格式合法但只列出部分分片的 meta 不得绕过恢复路径，
-    // 也不得退役唯一可兜底的 legacy 单键快照。
+    // H2 regression: meta with valid format but listing only partial shards must not bypass recovery path,
+    // nor retire the only fallback legacy single-key snapshot.
     const legacyValue: StorageValue<unknown> = {
       state: { theme: 'light', repositories: [{ id: 1 }], gists: [{ id: 'keep' }] },
       version: 16,
@@ -495,7 +495,7 @@ describe('sharded persist storage', () => {
     const hydrated = await debouncedPersistStorage.getItem(KEY);
     expect(hydrated?.state).toMatchObject({ theme: 'dark', repositories: [{ id: 7 }] });
 
-    // 打捞后的首次写入以空基准全量重建（含 meta 自愈）
+    // First write after salvaging fully rebuilds from empty baseline (including self-healing meta)
     debouncedPersistStorage.setItem(KEY, { state: buildState(), version: 16 });
     await flushPendingPersistSnapshot();
     expect(await readMeta()).not.toBeNull();
@@ -526,16 +526,16 @@ describe('sharded persist storage', () => {
   });
 
   it('keeps the fallback authority marker while localStorage still holds shard keys', async () => {
-    // 回归（CodeRabbit r4165367360）：IDB 批量写成功后无条件清除权威标记的做法，
-    // 在「兜底写入 + 兜底期 IDB 旧键删除失败」组合下，会让旧 IDB 分片在下次水合
-    // 遮蔽 localStorage 里的新值——用户偏好静默回退，且判脏基准已按新值更新、
-    // 永不自愈。
+    // Regression (CodeRabbit r4165367360): unconditionally clearing the authority marker after successful IDB batch write
+    // causes an issue under the combination of "fallback write + IDB legacy key delete failure during fallback":
+    // the old IDB shard would mask the new value in localStorage on next hydration—silently rolling back user preferences,
+    // and because the dirty baseline was already updated with the new value, it never self-heals.
     const state = buildState();
     debouncedPersistStorage.setItem(KEY, { state, version: 16 });
     await flushPendingPersistSnapshot();
 
-    // 兜底插曲：仅 core 经兜底路径写入 localStorage；模拟兜底期间的 IDB 删除
-    // 失败（IDB 刚出过故障，这并不罕见），旧 core 留在 IndexedDB
+    // Fallback episode: only core is written to localStorage via fallback path; simulate IDB delete failure
+    // during fallback (not uncommon right after an IDB failure); old core remains in IndexedDB
     const fallbackCore = JSON.stringify({ format: 1, version: 16, state: { theme: 'light', language: 'en' } });
     const originalDelete = IDBObjectStore.prototype.delete;
     IDBObjectStore.prototype.delete = function () { throw new Error('simulated delete failure'); };
@@ -545,16 +545,16 @@ describe('sharded persist storage', () => {
       IDBObjectStore.prototype.delete = originalDelete;
     }
     expect(window.localStorage.getItem(`${KEY}#fallback`)).not.toBeNull();
-    expect(await readRaw(shardKeyFor(KEY, 'core'))).not.toBeNull(); // 旧 IDB core 未被删掉
+    expect(await readRaw(shardKeyFor(KEY, 'core'))).not.toBeNull(); // Old IDB core was not deleted
 
-    // 之后一批不含 core 的写入经 IndexedDB 成功：LS 仍持有较新的 core → 标记必须保留
+    // Subsequent batch of writes not containing core succeeds via IndexedDB: LS still holds newer core -> marker must be kept
     await setStorageEntries(KEY, [
       [shardKeyFor(KEY, 'releases'), JSON.stringify({ format: 1, version: 16, state: { releases: [{ id: 202 }] } })],
       [metaKeyFor(KEY), JSON.stringify({ format: 1, version: 16, shards: [...PERSISTENCE_SHARD_NAMES], savedAt: 't2' })],
     ]);
     expect(window.localStorage.getItem(`${KEY}#fallback`)).not.toBeNull();
 
-    // 水合读到 localStorage 里的新 core，而不是 IndexedDB 里的旧 core
+    // Hydration reads newer core in localStorage, rather than older core in IndexedDB
     const hydrated = await debouncedPersistStorage.getItem(KEY);
     expect(hydrated?.state).toMatchObject({
       theme: 'light',
@@ -563,8 +563,8 @@ describe('sharded persist storage', () => {
       gists: [{ id: 'gist-1' }],
     });
 
-    // 自愈：当批写入覆盖 core 且经 IDB 成功后，LS 镜像被清、不再有派生键残留，
-    // 标记这才清除；之后的读取回到 IDB 优先
+    // Self-healing: once a batch write overwrites core and succeeds via IDB, LS mirror is cleared and no derived keys remain;
+    // only then is the marker cleared; subsequent reads return to IDB priority
     const healedCore = JSON.stringify({ format: 1, version: 16, state: { theme: 'dark', language: 'zh' } });
     await setStorageEntries(KEY, [[shardKeyFor(KEY, 'core'), healedCore]]);
     expect(window.localStorage.getItem(`${KEY}#fallback`)).toBeNull();
@@ -572,8 +572,8 @@ describe('sharded persist storage', () => {
   });
 
   it('refuses to write after a shard read failure so real data cannot be overwritten', async () => {
-    // F2r2 回归：读取失败（区别于「键不存在」）后的水合结果不完整，
-    // 后续写入必须被拒绝，否则会用默认值覆盖磁盘上的真实分片。
+    // F2r2 regression: hydration results are incomplete after a read failure (distinct from "key does not exist");
+    // subsequent writes must be rejected, otherwise real shards on disk would be overwritten with default values.
     const state = buildState();
     debouncedPersistStorage.setItem(KEY, { state, version: 16 });
     await flushPendingPersistSnapshot();
@@ -592,11 +592,11 @@ describe('sharded persist storage', () => {
     debouncedPersistStorage.setItem(KEY, { state: { ...state, language: 'en' }, version: 16 });
     await flushPendingPersistSnapshot();
 
-    // 写入被拒绝：磁盘保持原样
+    // Write rejected: disk remains untouched
     expect((await readMeta())?.savedAt).toBe(savedAtBefore);
     expect(await readRaw(shardKeyFor(KEY, 'gists'))).toBe(gistsBefore);
 
-    // 读取恢复后写入重新可用
+    // Writes become available again after read recovers
     const recovered = await debouncedPersistStorage.getItem(KEY);
     expect(recovered?.state).toMatchObject({ theme: 'dark' });
     debouncedPersistStorage.setItem(KEY, { state: { ...state, language: 'en' }, version: 16 });
@@ -621,13 +621,13 @@ describe('sharded persist storage', () => {
   });
 
   it('removeItem resolves only after the on-disk removal has completed', async () => {
-    // 「清空所有数据」后 2 秒 reload：removeItem 必须可 await（zustand v4 的
-    // clearStorage 不回传 Promise），否则 reload 可能早于删除提交，数据复活。
+    // Reload 2 seconds after "clear all data": removeItem must be awaitable (zustand v4
+    // clearStorage does not return a Promise), otherwise reload could happen before delete commit, resurrecting data.
     debouncedPersistStorage.setItem(KEY, { state: buildState(), version: 16 });
     await flushPendingPersistSnapshot();
     expect(await readMeta()).not.toBeNull();
 
-    // 不 sleep：返回的 Promise 本身应覆盖整条串行链（排队写入 → 清盘 → 簿记重置）
+    // No sleep: returned Promise itself must cover the entire serial chain (queued writes -> wipe disk -> bookkeeping reset)
     await expect(debouncedPersistStorage.removeItem(KEY)).resolves.toBeUndefined();
 
     expect(await readRaw(KEY)).toBeNull();
@@ -636,9 +636,9 @@ describe('sharded persist storage', () => {
   });
 
   it('removePersistedSnapshot rejects when the on-disk removal fails, without poisoning the write chain', async () => {
-    // 回归（CodeRabbit r4165367349）：删除失败必须如实传给调用方（清空数据流
-    // 据此跳过状态重置与 reload，而不是把残留快照当作已删除）；同时共享写链
-    // 不 reject、簿记仍重置，后续写入全量重建、状态恢复一致。
+    // Regression (CodeRabbit r4165367349): delete failure must be faithfully propagated to callers (clear data flow
+    // skips state reset and reload accordingly, instead of treating leftover snapshots as deleted); simultaneously,
+    // shared write chain does not reject and bookkeeping still resets, so subsequent writes fully rebuild and restore consistency.
     debouncedPersistStorage.setItem(KEY, { state: buildState(), version: 16 });
     await flushPendingPersistSnapshot();
     expect(await readMeta()).not.toBeNull();
@@ -651,10 +651,10 @@ describe('sharded persist storage', () => {
       IDBObjectStore.prototype.delete = originalDelete;
     }
 
-    // 磁盘上的旧数据未被删除（失败如实暴露，而不是被当作成功）
+    // Old data on disk was not deleted (failure faithfully exposed rather than treated as success)
     expect(await readMeta()).not.toBeNull();
 
-    // 链未被毒化、簿记已重置：后续写入全量重建，重新水合得到一致状态
+    // Chain not poisoned, bookkeeping reset: subsequent writes fully rebuild, rehydration yields consistent state
     const nextState = { ...buildState(), language: 'en' };
     debouncedPersistStorage.setItem(KEY, { state: nextState, version: 16 });
     await flushPendingPersistSnapshot();
@@ -664,25 +664,25 @@ describe('sharded persist storage', () => {
   });
 });
 
-describe('idle 大分片写入节流', () => {
-  // 大分片按上次成功写入的序列化体积判定（阈值 SHARD_SIZE_WARN_BYTES = 5MB），
-  // 用 5MB+ 的字符串构造 releases 分片。
+describe('idle large shard write throttling', () => {
+  // Large shards are determined by serialized size of last successful write (threshold SHARD_SIZE_WARN_BYTES = 5MB);
+  // construct a releases shard with a 5MB+ string.
   const bigBlob = (ch: string): string => ch.repeat(5 * 1024 * 1024 + 1024);
   const bigReleases = [{ id: 1, blob: bigBlob('x') }];
 
-  // 用真实计时器验证节流时序：经 __setPersistTimingsForTest 注入更小的
-  // 防抖/冷却时长。此前用 fake timers 跳 60s，fake-indexeddb 的事务推进依赖
-  // 真实 macrotask，两者交错在慢速 CI 上出现「冷却到期写入尚未提交就读盘」
-  // 的不稳定（本地快环境难以复现）；真实计时器下不存在两套时钟互踩。
-  // 注入值需满足 冷却间隔 > 防抖 + 单次等待窗口，冷却才有约束意义。
+  // Verify throttling timing with real timers: inject smaller debounce/cooldown durations via __setPersistTimingsForTest.
+  // Previously fake timers skipped 60s, but fake-indexeddb transaction progression relies on real macrotasks;
+  // their interleaving caused CI flakiness where "cooldown expired and disk read before write committed" (hard to repro locally);
+  // under real timers there is no clash between two clocks.
+  // Injected values must satisfy: cooldown interval > debounce + single wait window, for cooldown to be meaningful.
   const DEBOUNCE_MS = 5;
   const INTERVAL_MS = 300;
-  /** 轮询磁盘直到 check 成立；按实际经过时间截止（默认 5s），两次检查之间短暂真实等待——迭代数上限在极慢环境下可能先于防抖耗尽。 */
+  /** Polls disk until check passes; bounded by elapsed time (default 5s), with brief real waits between checks—iteration count cap can exhaust prematurely on very slow environments. */
   const settleUntil = async (check: () => Promise<boolean>, message: string, deadlineMs = 5000): Promise<void> => {
     const deadline = Date.now() + deadlineMs;
     for (;;) {
       if (await check()) return;
-      if (Date.now() >= deadline) throw new Error(`${message}（等待超时，实际状态未满足）`);
+      if (Date.now() >= deadline) throw new Error(`${message} (wait timed out, actual state not satisfied)`);
       await realWait(5);
     }
   };
@@ -702,21 +702,21 @@ describe('idle 大分片写入节流', () => {
     __setPersistTimingsForTest({ debounceMs: 1000, idleTimeoutMs: 3000, largeShardIdleMinIntervalMs: 60_000 });
   });
 
-  it('冷却期内的多次 idle 写入合并为一次最终写，落盘为最新值', async () => {
+  it('coalesces multiple idle writes during cooldown into one final write with latest value on disk', async () => {
     const baseState = { ...buildState(), releases: bigReleases };
     debouncedPersistStorage.setItem(KEY, { state: baseState, version: 16 });
-    await flushPendingPersistSnapshot(); // 首次写入建立基准（releases 序列化体积 > 5MB）
+    await flushPendingPersistSnapshot(); // Initial write establishes baseline (releases serialized size > 5MB)
     const savedAtAfterFirst = (await readMeta())?.savedAt;
 
-    // 冷却期内第 1 次写入：releases 引用变化 → 被推迟，磁盘保持基准内容。
-    // 负向断言必须等防抖派发确实发生（防抖 5ms + 空闲回调上限 10ms + 余量），
-    // 否则断言可能在派发前通过、即使节流被移除也检测不到。
+    // First write in cooldown: releases reference changed -> deferred, disk keeps baseline content.
+    // Negative assertion must wait for debounce dispatch to occur (debounce 5ms + idle callback cap 10ms + margin),
+    // otherwise assertion might pass before dispatch, missing regressions even if throttling were removed.
     const releasesV2 = [{ id: 2, blob: bigBlob('y') }];
     debouncedPersistStorage.setItem(KEY, { state: { ...baseState, releases: releasesV2 }, version: 16 });
     await realWait(60);
     expect(await diskReleasesEquals(bigReleases)).toBe(true);
 
-    // 冷却期内第 2 次写入：与第 1 次合并，定时器重新对齐到冷却期末
+    // Second write in cooldown: merged with first write, timer re-aligned to end of cooldown
     const releasesV3 = [{ id: 3, blob: bigBlob('z') }];
     debouncedPersistStorage.setItem(KEY, {
       state: { ...baseState, releases: releasesV3, theme: 'light' },
@@ -725,119 +725,119 @@ describe('idle 大分片写入节流', () => {
     await realWait(60);
     expect(await diskReleasesEquals(bigReleases)).toBe(true);
 
-    // 冷却到期（距上次成功写入 300ms）：定时器触发一次最终写，内容为最新值
-    await settleUntil(() => diskReleasesEquals(releasesV3), '冷却到期后应落盘最新值 v3');
+    // Cooldown expired (300ms after last successful write): timer triggers a final write with latest value
+    await settleUntil(() => diskReleasesEquals(releasesV3), 'cooldown expiration should persist latest v3 value to disk');
     expect((await readShardState('core')).theme).toBe('light');
     expect((await readMeta())?.savedAt).not.toBe(savedAtAfterFirst);
   });
 
-  it('冷却期外的 idle 写入不再等待，到点立即落盘', async () => {
+  it('does not delay idle writes outside cooldown, persisting to disk immediately when ready', async () => {
     const baseState = { ...buildState(), releases: bigReleases };
     debouncedPersistStorage.setItem(KEY, { state: baseState, version: 16 });
     await flushPendingPersistSnapshot();
 
-    // 距上次写入超过冷却间隔：防抖+idle 到点后直接写入，无额外推迟
+    // Exceeded cooldown interval since last write: debounce + idle writes directly upon timer expiry without extra delay
     await realWait(INTERVAL_MS + 150);
     const releasesV2 = [{ id: 2, blob: bigBlob('y') }];
     debouncedPersistStorage.setItem(KEY, { state: { ...baseState, releases: releasesV2 }, version: 16 });
-    await settleUntil(() => diskReleasesEquals(releasesV2), '冷却期外写入应立即落盘 v2');
+    await settleUntil(() => diskReleasesEquals(releasesV2), 'write outside cooldown should immediately persist v2 to disk');
   });
 
-  it('flush 等非 idle 来源绕过节流，冷却期内也立即写入', async () => {
+  it('bypasses throttling for non-idle sources like flush, persisting immediately even during cooldown', async () => {
     const baseState = { ...buildState(), releases: bigReleases };
     debouncedPersistStorage.setItem(KEY, { state: baseState, version: 16 });
     await flushPendingPersistSnapshot();
 
-    // 刚写完大分片（冷却期内）：flush（pagehide/visibilitychange 路径）必须立即落盘
+    // Immediately after writing large shard (in cooldown): flush (pagehide/visibilitychange path) must persist immediately
     const releasesV2 = [{ id: 2, blob: bigBlob('y') }];
     debouncedPersistStorage.setItem(KEY, { state: { ...baseState, releases: releasesV2 }, version: 16 });
     await flushPendingPersistSnapshot();
-    await settleUntil(() => diskReleasesEquals(releasesV2), 'flush 应绕过冷却立即落盘 v2');
+    await settleUntil(() => diskReleasesEquals(releasesV2), 'flush should bypass cooldown and immediately persist v2 to disk');
   });
 
-  it('大分片冷却期内，仅小分片变化仍立即写入', async () => {
+  it('immediately persists when only small shards change during large shard cooldown', async () => {
     const baseState = { ...buildState(), releases: bigReleases };
     debouncedPersistStorage.setItem(KEY, { state: baseState, version: 16 });
     await flushPendingPersistSnapshot();
 
-    // releases 引用未变（仅 core 的 theme 变化）：不落入大分片冷却，防抖后立即写入
+    // releases reference unchanged (only core theme changed): does not enter large shard cooldown, persists immediately after debounce
     debouncedPersistStorage.setItem(KEY, { state: { ...baseState, theme: 'light' }, version: 16 });
-    await settleUntil(async () => (await readShardState('core')).theme === 'light', '仅小分片变化应立即落盘');
+    await settleUntil(async () => (await readShardState('core')).theme === 'light', 'small shard only change should persist immediately');
     expect((await readShardState('releases')).releases).toEqual(bigReleases);
   });
 
-  it('大分片冷却不阻塞同时变化的其他脏分片：core 立即落盘，releases 到期后落盘', async () => {
+  it('does not block concurrent dirty shards during large shard cooldown: core persists immediately, releases persists after expiry', async () => {
     const baseState = { ...buildState(), releases: bigReleases };
     debouncedPersistStorage.setItem(KEY, { state: baseState, version: 16 });
-    await flushPendingPersistSnapshot(); // 基准 = v1
+    await flushPendingPersistSnapshot(); // Baseline = v1
 
-    // releases（大分片，冷却中）与 core 同时变化：core 立即写，releases 推迟
+    // releases (large shard, in cooldown) and core change simultaneously: core writes immediately, releases is deferred
     const releasesV2 = [{ id: 2, blob: bigBlob('y') }];
     debouncedPersistStorage.setItem(KEY, {
       state: { ...baseState, releases: releasesV2, theme: 'light' },
       version: 16,
     });
-    await settleUntil(async () => (await readShardState('core')).theme === 'light', 'core 变更不应被大分片冷却拖住');
-    expect(await diskReleasesEquals(bigReleases)).toBe(true); // 冷却期内 releases 未落盘
+    await settleUntil(async () => (await readShardState('core')).theme === 'light', 'core change should not be held back by large shard cooldown');
+    expect(await diskReleasesEquals(bigReleases)).toBe(true); // releases not persisted during cooldown
 
-    await settleUntil(() => diskReleasesEquals(releasesV2), '冷却到期后 releases 应落盘 v2');
+    await settleUntil(() => diskReleasesEquals(releasesV2), 'releases should persist v2 after cooldown expires');
   });
 
-  it('在途大分片提交后，已入队的下一笔大分片写入按冷却推迟执行', async () => {
-    // 派发 v3 时冷却相对旧基准（v1）已过期，但派发与执行之间 v2 才提交——
-    // 写入执行时须按最新提交时间复查冷却，否则两次大分片写入间隔不足冷却期。
+  it('defers queued subsequent large shard writes according to cooldown after an in-flight large shard commits', async () => {
+    // When dispatching v3, cooldown relative to old baseline (v1) already expired, but v2 only commits between dispatch and execution—
+    // write execution must re-check cooldown against latest commit time, otherwise interval between two large shard writes is shorter than cooldown.
     const baseState = { ...buildState(), releases: bigReleases };
     debouncedPersistStorage.setItem(KEY, { state: baseState, version: 16 });
-    await flushPendingPersistSnapshot(); // 基准 = v1（提交于 T0）
-    await realWait(INTERVAL_MS + 150); // 冷却相对 T0 已过期
+    await flushPendingPersistSnapshot(); // Baseline = v1 (committed at T0)
+    await realWait(INTERVAL_MS + 150); // Cooldown relative to T0 has expired
 
     try {
       commitGate.arm();
       const releasesV2 = [{ id: 2, blob: bigBlob('y') }];
       debouncedPersistStorage.setItem(KEY, { state: { ...baseState, releases: releasesV2 }, version: 16 });
-      const flushing = flushPendingPersistSnapshot(); // v2 写入开始并在提交点挂停（在途）
+      const flushing = flushPendingPersistSnapshot(); // v2 write begins and halts at commit gate (in flight)
       await commitGate.waitReached();
 
-      // 派发 v3：按旧基准（v1）看冷却已过期 → 立即入队，排在在途 v2 之后
+      // Dispatch v3: cooldown expired relative to old baseline (v1) -> queued immediately behind in-flight v2
       const releasesV3 = [{ id: 3, blob: bigBlob('z') }];
       debouncedPersistStorage.setItem(KEY, { state: { ...baseState, releases: releasesV3 }, version: 16 });
       await realWait(60);
 
-      commitGate.release(); // v2 提交（lastShardWriteAt 更新为此刻）
+      commitGate.release(); // v2 commits (lastShardWriteAt updated to current time)
       await flushing;
-      // v3 写入执行时复查冷却：距 v2 提交不足冷却期 → 推迟而非立即写
+      // v3 write execution re-checks cooldown: interval since v2 commit is less than cooldown -> deferred instead of immediate write
       await realWait(60);
       expect(await diskReleasesEquals(releasesV2)).toBe(true);
 
-      await settleUntil(() => diskReleasesEquals(releasesV3), '冷却到期后 v3 应落盘');
+      await settleUntil(() => diskReleasesEquals(releasesV3), 'v3 should persist to disk after cooldown expires');
     } finally {
       commitGate.reset();
     }
   });
 
-  it('在途写入未提交时把状态改回旧值，恢复更新不能被丢弃', async () => {
-    // commitGate 挂停提交入口制造确定性的在途窗口：v2 写入已到达
-    // setStorageEntries 但未提交，lastWrittenShards 仍是 v1 旧基准——此时
-    // 把状态改回旧基准，派发口按旧基准判脏为空，不能据此丢弃该更新。
+  it('does not drop restored updates when state is changed back to old value before in-flight write commits', async () => {
+    // commitGate intercepts commit entrance creating deterministic in-flight window: v2 write arrived at
+    // setStorageEntries but uncommitted; lastWrittenShards is still v1 old baseline—when state is changed
+    // back to old baseline, dispatch evaluates dirty as empty against old baseline and must not discard this update.
     const baseState = { ...buildState(), releases: bigReleases };
     debouncedPersistStorage.setItem(KEY, { state: baseState, version: 16 });
-    await flushPendingPersistSnapshot(); // 基准 = v1
+    await flushPendingPersistSnapshot(); // Baseline = v1
 
     try {
       commitGate.arm();
       const releasesV2 = [{ id: 2, blob: bigBlob('y') }];
       debouncedPersistStorage.setItem(KEY, { state: { ...baseState, releases: releasesV2 }, version: 16 });
-      const flushing = flushPendingPersistSnapshot(); // v2 写入开始并在提交点挂停
-      await commitGate.waitReached(); // v2 已在途、未提交
-      debouncedPersistStorage.setItem(KEY, { state: baseState, version: 16 }); // 改回旧基准
-      // 在闸门仍挂停时等防抖(5ms)+空闲回调(10ms)派发确实发生：此时按旧基准
-      // 判脏为空。提前 release 会让 v2 先提交、判脏变非空，测试失去判别力。
+      const flushing = flushPendingPersistSnapshot(); // v2 write starts and halts at commit point
+      await commitGate.waitReached(); // v2 in-flight, uncommitted
+      debouncedPersistStorage.setItem(KEY, { state: baseState, version: 16 }); // Change back to old baseline
+      // While gate is held, wait for debounce (5ms) + idle callback (10ms) dispatch to occur: evaluated
+      // dirty is empty against old baseline. Releasing early would commit v2 first and make dirty non-empty, invalidating test.
       await realWait(60);
-      commitGate.release(); // 放行 v2 提交
+      commitGate.release(); // Release v2 commit
       await flushing;
-      await settleUntil(() => diskReleasesEquals(bigReleases), '恢复旧值的更新不应被在途写入丢弃');
+      await settleUntil(() => diskReleasesEquals(bigReleases), 'update restoring old value should not be discarded by in-flight write');
     } finally {
-      commitGate.reset(); // 失败路径也不让挂停状态泄漏到后续用例
+      commitGate.reset(); // Error path resets so gate state does not leak to subsequent test cases
     }
   });
 });
@@ -852,10 +852,10 @@ describe('indexedDbStorage batch helpers', () => {
   });
 
   it('rolls back the whole fallback batch when any key write fails', async () => {
-    // Node ≥24 的原生 localStorage 经 vitest 拷入后每次访问可能返回新包装对象，
-    // vi.spyOn 拦截不可靠；整体替换为可控 fake 保证模块与测试看到同一实例。
-    // 批次内的 fallback-a 预置旧值：回滚必须恢复旧值而不是删除
-    //（meta 仍引用该分片键，删除会被水合误判为分片缺失）。
+    // Under Node >= 24 native localStorage imported via vitest can return a new wrapper object on every access,
+    // making vi.spyOn unreliable; replacing completely with a controllable fake guarantees module and test see the exact same instance.
+    // Pre-populate fallback-a in the batch with an old value: rollback must restore the old value rather than deleting it
+    // (meta still references this shard key, and deletion would be misidentified as a missing shard during hydration).
     const backing = new Map<string, string>([
       ['fallback-a', 'old-committed-core'],
       ['fallback-c', 'previous'],
@@ -879,7 +879,7 @@ describe('indexedDbStorage batch helpers', () => {
     Object.defineProperty(window, 'localStorage', { configurable: true, value: failingStorage });
     try {
       await expect(writeEntriesToFallbackStorage(KEY, [['fallback-a', '1'], ['fallback-b', '2']])).rejects.toThrow();
-      // 已覆盖的键恢复旧值；本批新增的键回滚删除；批次外的键不受影响
+      // Overwritten keys restore previous values; keys newly added in this batch are rolled back and deleted; keys outside batch are unaffected
       expect(backing.get('fallback-a')).toBe('old-committed-core');
       expect(backing.has('fallback-b')).toBe(false);
       expect(backing.get('fallback-c')).toBe('previous');
@@ -893,8 +893,8 @@ describe('indexedDbStorage batch helpers', () => {
   });
 
   it('marks localStorage as the authority after a fallback write so stale IDB values cannot shadow it', async () => {
-    // F1 回归（CodeRabbit 线程 r4164377998）：IDB 批量写失败而回退写入成功后，
-    // 旧的 IndexedDB 分片/meta 必须失效，否则重启水合会静默回滚到旧状态。
+    // F1 regression (CodeRabbit thread r4164377998): after an IDB batch write fails but fallback write succeeds,
+    // stale IndexedDB shards/meta must be invalidated, otherwise restart hydration will silently roll back to stale state.
     await setStorageEntries(KEY, [[`${KEY}#shard:core`, 'OLD-FROM-IDB'], [metaKeyFor(KEY), '{"format":1}']]);
 
     const originalPut = IDBObjectStore.prototype.put;
@@ -905,23 +905,23 @@ describe('indexedDbStorage batch helpers', () => {
       IDBObjectStore.prototype.put = originalPut;
     }
 
-    // 严格读必须拿到回退写入的新值（而非旧 IDB 值）
+    // Strict read must return the new value from fallback write (rather than stale IDB value)
     expect(await readStrict(`${KEY}#shard:core`)).toBe('NEW-FROM-FALLBACK');
-    // localStorage 权威标记已置位
+    // localStorage authority marker is set
     expect(window.localStorage.getItem(`${KEY}#fallback`)).not.toBeNull();
 
-    // IDB 恢复后的下一次成功写入清除权威标记并回写 IDB
+    // The next successful write after IDB recovers clears authority marker and writes back to IDB
     await setStorageEntries(KEY, [[`${KEY}#shard:core`, 'NEWER-FROM-IDB']]);
     expect(await readStrict(`${KEY}#shard:core`)).toBe('NEWER-FROM-IDB');
   });
 
   it('falls back to localStorage for batch-read keys missing from IndexedDB even without the authority marker', async () => {
-    // 极端角落（如兜底标记自身写入失败）：IDB 无此键但 localStorage 有值且无标记，
-    // 批量严格读必须与单键严格读一致地回退 localStorage，而不是判成分片缺失。
+    // Extreme edge case (e.g. fallback marker itself fails to write): IDB lacks this key but localStorage has value and no marker;
+    // batch strict read must fall back to localStorage consistently with single-key strict read, rather than judging shard missing.
     window.localStorage.setItem(`${KEY}#shard:core`, 'LS-ONLY');
     try {
       expect(await getStorageEntriesStrict(KEY, [`${KEY}#shard:core`])).toEqual(['LS-ONLY']);
-      // 对照：IDB 有该键时值以 IDB 为准（LS 镜像不会被误用）
+      // Comparison: when IDB has the key, IDB value takes precedence (LS mirror will not be mistakenly used)
       await setStorageEntries(KEY, [[`${KEY}#shard:core`, 'IDB-VALUE']]);
       expect(await getStorageEntriesStrict(KEY, [`${KEY}#shard:core`])).toEqual(['IDB-VALUE']);
     } finally {
@@ -942,7 +942,7 @@ describe('indexedDbStorage batch helpers', () => {
     window.localStorage.setItem('migrate-me', '{"legacy":true}');
     try {
       expect(await indexedDBStorage.getItem('migrate-me')).toBe('{"legacy":true}');
-      // 读取即迁移：快照进入 IndexedDB，localStorage 镜像被清除
+      // Read-as-migrate: snapshot enters IndexedDB, localStorage mirror is cleared
       expect(window.localStorage.getItem('migrate-me')).toBeNull();
       expect(await readRaw('migrate-me')).toBe('{"legacy":true}');
     } finally {

@@ -1,45 +1,45 @@
 /**
- * License 过滤与归一化工具。
+ * License filtering and normalization utilities.
  *
- * 仓库元数据中 license 存为 SPDX id 字符串（如 "MIT"、"Apache-2.0"）或 null。
- * GitHub 对未声明 / 无法识别许可证的仓库返回 `{ key: 'Other', spdx_id: 'NOASSERTION' }`，
- * 我们存 spdx_id 即 `'NOASSERTION'`。为让过滤面板提供一个「无/未声明」聚合项，
- * 统一把这些情形归一化为 {@link NO_LICENSE_SENTINEL}。
+ * Repository metadata stores licenses as SPDX ID strings (e.g. "MIT", "Apache-2.0") or null.
+ * GitHub returns `{ key: 'Other', spdx_id: 'NOASSERTION' }` for undeclared or unrecognized repository licenses,
+ * which we store as spdx_id `'NOASSERTION'`. To provide a "None / Undeclared" aggregate item in the filter panel,
+ * all such representations are unified into {@link NO_LICENSE_SENTINEL}.
  *
- * 本模块同时被前端 UI、过滤求值、MCP 等多处复用；服务端 MCP 因无法 import src/ 树，
- * 在 server/src/mcp/repoSearch.ts 内保留一份相同实现，改这里时请一并同步。
+ * Reused across front-end UI, filter evaluations, MCP, and elsewhere. Since server-side MCP cannot import the `src/` tree,
+ * a duplicate implementation is kept in `server/src/mcp/repoSearch.ts`; update both when making changes here.
  */
 
-/** 「无 license」聚合哨兵：用于过滤器把 null / NOASSERTION / Other 等归并为一项。 */
+/** "No license" aggregation sentinel: used by filters to group null / NOASSERTION / Other into a single item. */
 export const NO_LICENSE_SENTINEL = '__NO_LICENSE__';
 
 /**
- * 视作「无/未声明 license」的值集合（大小写不敏感比对，覆盖常见 GitHub/SPDX 写法）。
- * - `''` 空串
- * - `'noassertion'` GitHub「无 SPDX 断言」的 spdx_id（NOASSERTION）
- * - `'other'` GitHub license.key（Other，无 SPDX 时）
- * - `'none'` SPDX「无 license」（NONE）
- * - `'no-license'` 兜底串
+ * Set of values treated as "No / Undeclared license" (case-insensitive comparison covering common GitHub/SPDX notations).
+ * - `''` empty string
+ * - `'noassertion'` GitHub spdx_id for "no assertion" (NOASSERTION)
+ * - `'other'` GitHub license.key (Other, when no SPDX is present)
+ * - `'none'` SPDX "no license" (NONE)
+ * - `'no-license'` fallback string
  */
 const NOASSERTION_KEYS = new Set(['', 'noassertion', 'other', 'none', 'no-license']);
 
 /**
- * 把仓库的 license 值归一化为「SPDX id」或「无 license 哨兵」。
- * 比对大小写不敏感，以收敛历史备份/第三方源写入的小写变体（如 'other'、'none'）。
+ * Normalizes a repository license value to an SPDX ID or the no-license sentinel.
+ * Case-insensitive comparison handles lowercase variants written by legacy backups or third-party sources (e.g. 'other', 'none').
  *
- * 防御：`v` 可能并非字符串——历史持久化数据、第三方备份导入，或尚未走 {@link toLicenseSpdxId}
- * 的 GitHub 原始对象 `{ key, spdx_id, name, url }` 都可能携带非字符串 license。此处不再假设字符串：
- * 对象形态先还原为 `spdx_id ?? key`（再字符串比对），其余非字符串一律按「无 license」归并，
- * 避免对对象/数字调用 `.toLowerCase()` 导致客户端渲染崩溃。
- * @param v 原始 license 值（SPDX id / GitHub 对象 / 数字 / null / undefined / 空串）
- * @returns 归一化后的字符串；无 license 时返回 {@link NO_LICENSE_SENTINEL}
+ * Defensive: `v` may not be a string — legacy persisted data, third-party backup imports, or raw GitHub objects
+ * `{ key, spdx_id, name, url }` not yet processed by {@link toLicenseSpdxId} can carry non-string licenses.
+ * Objects are resolved to `spdx_id ?? key` before string matching; all other non-strings collapse to "no license",
+ * preventing `.toLowerCase()` calls on objects or numbers from crashing client-side rendering.
+ * @param v Raw license value (SPDX ID / GitHub object / number / null / undefined / empty string)
+ * @returns Normalized string; returns {@link NO_LICENSE_SENTINEL} when there is no license
  */
 export function normalizeLicense(v: unknown): string {
   if (v == null || v === '') return NO_LICENSE_SENTINEL;
   if (typeof v === 'object') {
-    // GitHub license 对象：优先 spdx_id（如 'MIT'），回退 key（如 'Other'）。
-    // 注意 trimmed-first + `||`：若 spdx_id 为空白串（≠ null），不可用 `??` 否则会保留空串
-    // 并错误归入「无 license」，应回退到非空 key。
+    // GitHub license object: prefer spdx_id (e.g. 'MIT'), fall back to key (e.g. 'Other').
+    // Note: trimmed-first + `||`: if spdx_id is a whitespace string (≠ null), `??` would retain the empty string
+    // and erroneously classify as "no license"; it should fall back to a non-empty key.
     const l = v as { spdx_id?: unknown; key?: unknown };
     const spdx = typeof l.spdx_id === 'string' ? l.spdx_id.trim() : '';
     const key = typeof l.key === 'string' ? l.key.trim() : '';
@@ -47,8 +47,8 @@ export function normalizeLicense(v: unknown): string {
     if (!resolved) return NO_LICENSE_SENTINEL;
     return NOASSERTION_KEYS.has(resolved.toLowerCase()) ? NO_LICENSE_SENTINEL : resolved;
   }
-  if (typeof v !== 'string') return NO_LICENSE_SENTINEL; // 数字等为非合法 license
-  // 直接字符串路径也需 trim：避免 " Other " / " NOASSERTION " 等空白变体逃过哨兵归并
+  if (typeof v !== 'string') return NO_LICENSE_SENTINEL; // Numbers etc. are invalid licenses
+  // Scalar string paths must also be trimmed: prevents whitespace variants like " Other " / " NOASSERTION " from evading sentinel aggregation
   const normalized = v.trim();
   return !normalized || NOASSERTION_KEYS.has(normalized.toLowerCase())
     ? NO_LICENSE_SENTINEL

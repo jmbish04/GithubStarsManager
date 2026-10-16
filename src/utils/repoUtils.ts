@@ -2,12 +2,12 @@ import { Repository, Category } from '../types';
 import { getAICategory, getDefaultCategory } from './categoryUtils';
 
 /**
- * 判断仓库是否被用户自定义编辑过
- * 逻辑与编辑页面一致：描述、标签、分类任一被修改即视为已编辑
- * 注意：分类锁定不算编辑
+ * Determines whether a repository has been customized by the user.
+ * Matches edit page logic: modification of description, tags, or category is treated as edited.
+ * Note: Category lock does not count as edited.
  */
 export function isRepoCustomized(repo: Repository, allCategories: Category[]): boolean {
-  // 描述：有自定义描述标记（包括明确清空），且内容与AI/原始不同
+  // Description: has custom description flag (including explicit clear) and content differs from AI/original
   const hasCustomDesc = repo.custom_description !== undefined;
   const repoDesc = (repo.description || '').trim();
   const aiDesc = (repo.ai_summary || '').trim();
@@ -15,7 +15,7 @@ export function isRepoCustomized(repo: Repository, allCategories: Category[]): b
   const isDescEdited = hasCustomDesc &&
     (customDesc === '' || (customDesc !== repoDesc && customDesc !== aiDesc));
 
-  // 标签：有自定义标签标记（包括明确清空），且内容与AI/Topics不同
+  // Tags: has custom tags flag (including explicit clear) and content differs from AI/Topics
   const hasCustomTags = repo.custom_tags !== undefined;
   const aiTags = repo.ai_tags || [];
   const topics = repo.topics || [];
@@ -26,7 +26,7 @@ export function isRepoCustomized(repo: Repository, allCategories: Category[]): b
       JSON.stringify([...customTags].sort()) !== JSON.stringify([...topics].sort())
     ));
 
-  // 分类：有自定义分类标记（包括明确清空），且与AI/默认不一致
+  // Category: has custom category flag (including explicit clear) and differs from AI/default
   const aiCat = getAICategory(repo, allCategories);
   const defaultCat = getDefaultCategory(repo, allCategories);
   const customCat = repo.custom_category;

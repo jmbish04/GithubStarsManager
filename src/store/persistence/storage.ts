@@ -49,36 +49,36 @@ let latestPersistValue: StorageValue<unknown> | null = null;
 let persistWriteVersion = 0;
 let persistFlushListenersRegistered = false;
 
-// 分片持久化的会话内簿记：
-// - lastWrittenShards 记录每个分片上次成功写入的字段引用，作为判脏基准；
-// - committedShards 记录本会话已成功提交过的分片，用于判定 legacy 旧快照可以退役；
-// - legacySnapshotHydrated 表示本次会话从旧版单键快照（或部分分片+旧快照兜底）水合，
-//   下一次写入将强制提交全部分片，以便一次性完成迁移并退役旧键；
-// - hydratedIncomplete 表示最近一次水合存在读取失败（IDB 故障/超时）。此时水合
-//   结果不完整，绝不能写盘——否则会把磁盘上仍然完好的真实分片用默认值覆盖。
-// 已知权衡（多标签页/多窗口）：判脏基准是各标签页自己水合时的快照，互相不感知；
-// 一个标签页清盘后另一标签页的部分写入可能产生「meta 全量声明 + 部分分片缺失」，
-// 读取端会走合并/best-effort 降级路径。与旧单键方案的整快照 LWW 相比，撕裂窗口
-// 更小但存在；跨标签页仲裁（BroadcastChannel/版本号）留作后续跟进。
+// In-session bookkeeping for sharded persistence:
+// - lastWrittenShards tracks the field references of each shard from the last successful write as the dirty-check baseline;
+// - committedShards tracks shards successfully committed in this session, used to determine when the legacy single-key snapshot can be retired;
+// - legacySnapshotHydrated indicates this session hydrated from an old single-key snapshot (or partial shards + legacy snapshot fallback);
+//   the next write will force-commit all shards to complete migration in one shot and retire the old key;
+// - hydratedIncomplete indicates the latest hydration had read failures (IDB failure/timeout). At this point the hydration
+//   result is incomplete, and disk writes must be refused—otherwise default values would overwrite still-intact shards on disk.
+// Known trade-offs (multi-tab/multi-window): The dirty-check baseline is the snapshot each tab hydrated with, unaware of other tabs;
+// when one tab clears data and another tab performs a partial write, it could produce "meta declares all shards + some shards missing",
+// which the reader handles via merged/best-effort fallback paths. Compared to the old single-key full snapshot LWW, the tearing window
+// is smaller but still exists; cross-tab arbitration (BroadcastChannel/versioning) is left as a follow-up.
 type ShardViews = Record<PersistenceShardName, Record<string, unknown>>;
 let lastWrittenShards: ShardViews | null = null;
 const committedShards = new Set<PersistenceShardName>();
 let legacySnapshotHydrated = false;
 let hydratedIncomplete = false;
 
-// 空闲期大分片写入节流：
-// - SHARD_SIZE_WARN_BYTES：大分片判定阈值（与「Large state shard serialized」日志共用），
-//   按该分片上次成功写入的序列化体积判定；
-// - LARGE_SHARD_IDLE_WRITE_MIN_INTERVAL_MS：同一大分片两次 idle 写入之间的最小间隔。
-// 大分片的全量 stringify/写入开销显著（实测 140MB 分片单次 stringify 130-540ms），
-// 空闲期被反复触发会造成持续主线程开销，故对含大分片的 idle 写入设置最小间隔。
-// 节流只推迟不丢弃：冷却期内的 idle 写入请求把最新待写值保留在
-// latestPersistValue/persistWriteVersion，冷却到期后合并为一次最终写入；
-// flush（pagehide/visibilitychange）等非 idle 来源绕过节流立即写入。
+// Idle large shard write throttling:
+// - SHARD_SIZE_WARN_BYTES: Threshold for classifying a shard as large (shared with "Large state shard serialized" warning),
+//   based on the serialized size from the shard's last successful write;
+// - LARGE_SHARD_IDLE_WRITE_MIN_INTERVAL_MS: Minimum interval between two idle writes of the same large shard.
+// Full stringify/write overhead for large shards is substantial (benchmarked 130-540ms for a single 140MB shard stringify).
+// Repeatedly triggering this during idle periods causes ongoing main-thread overhead, so a minimum interval is enforced for idle writes touching large shards.
+// Throttling only defers without dropping: idle write requests during cooldown retain the latest pending values in
+// latestPersistValue/persistWriteVersion and coalesce into a single final write once cooldown expires;
+// non-idle flush sources (pagehide/visibilitychange) bypass throttling and write immediately.
 const SHARD_SIZE_WARN_BYTES = 5 * 1024 * 1024;
-// 时序参数为 let：默认值即生产行为；测试经 __setPersistTimingsForTest 注入
-// 更小的值，用真实计时器确定性地验证节流时序（fake timers 与 fake-indexeddb
-// 的 macrotask 交错在慢环境 CI 上不稳定）。
+// Timing parameters are mutable: default values represent production behavior; tests inject
+// smaller values via __setPersistTimingsForTest to deterministically verify throttling timings with real timers (fake timers
+// interleaved with fake-indexeddb macrotasks are unstable in slow CI environments).
 let largeShardIdleWriteMinIntervalMs = 60_000;
 let persistDebounceMs = 1000;
 let idleCallbackTimeoutMs = 3000;
@@ -87,8 +87,8 @@ const lastShardWriteAt = new Map<PersistenceShardName, number>();
 let deferredLargeShardWriteTimerId: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * 仅供测试注入更小的时序参数（写入防抖 / 空闲回调上限 / 大分片 idle 写入最小
- * 间隔）。不改变任何语义，只缩短等待；用例结束后应恢复默认值。
+ * Test-only hook to inject smaller timing parameters (write debounce / idle callback timeout / large shard idle write
+ * min interval). Does not change semantics, only shortens waits; tests must restore defaults when done.
  */
 export function __setPersistTimingsForTest(timings: {
   debounceMs?: number;
@@ -140,11 +140,11 @@ const parseShardPayload = (raw: string | null): { state: Record<string, unknown>
 };
 
 /**
- * meta 是分片布局的目录，必须视为不可信输入：
- * - 分片名必须是已知分片，且集合与 PERSISTENCE_SHARD_NAMES 完全一致（无缺失、
- *   无重复、无未知项）。不完整的 meta 会让字段静默消失并被当作「分片齐全」，
- *   进而过早退役唯一的兜底（legacy 单键快照）。
- * - meta 本身读取失败（IDB 故障/超时）由调用方区分处理。
+ * meta is the catalog of the sharded layout and must be treated as untrusted input:
+ * - Shard names must be known shards, and the set must exactly match PERSISTENCE_SHARD_NAMES (no missing,
+ *   no duplicate, no unknown entries). An incomplete meta would cause fields to silently disappear while being treated
+ *   as "all shards present", prematurely retiring the only fallback (legacy single-key snapshot).
+ * - Read failures of meta itself (IDB failure/timeout) are distinguished and handled by callers.
  */
 const parseMeta = (raw: string | null): ShardMeta | null => {
   if (!raw) return null;
@@ -175,7 +175,7 @@ const readLegacySnapshot = async (
   }
 };
 
-/** meta 缺失/损坏时的打捞：按已知分片名直接读取仍可解析的分片载荷。 */
+/** Salvage when meta is missing/corrupted: read parseable shard payloads directly by known shard names. */
 const salvageOrphanedShards = async (name: string): Promise<{
   parts: Record<string, unknown> | null;
   version: number | null;
@@ -212,16 +212,16 @@ const salvageOrphanedShards = async (name: string): Promise<{
 };
 
 /**
- * 读取持久化快照。
+ * Reads the persisted snapshot.
  *
- * 读取顺序（保证升级无感、历史数据零丢失）：
- * 1. meta（精确分片集）+ 全部分片齐全 → 拼装新格式快照；
- * 2. meta 存在但部分分片缺失/损坏 → 存在的分片内容与旧版单键快照合并
- *    （分片提交时间晚于旧快照，是各字段的最新已知状态）；
- * 3. meta 缺失/损坏/不完整 → 回退旧版单键快照（v16 行为，升级首启即此路径）；
- * 4. legacy 也不存在 → 按已知分片名打捞孤儿分片（meta 被清/损坏但分片健在）；
- * 5. 任何「读取失败」（区别于「确定不存在」）都会置 hydratedIncomplete，
- *    之后拒绝写盘，防止用不完整的水合结果覆盖磁盘上的真实数据。
+ * Read precedence (guarantees seamless upgrade and zero historical data loss):
+ * 1. meta (exact shard set) + all shards present → assemble new format snapshot;
+ * 2. meta present but some shards missing/corrupted → merge existing shard contents with legacy single-key snapshot
+ *    (shards were committed later than the legacy snapshot, representing the latest known state for each field);
+ * 3. meta missing/corrupted/incomplete → fallback to legacy single-key snapshot (v16 behavior, used on first launch after upgrade);
+ * 4. legacy also missing → salvage orphaned shards by known shard names (meta cleared/corrupted but shards still intact);
+ * 5. Any "read failure" (as distinct from "confirmed non-existent") sets hydratedIncomplete,
+ *    subsequently refusing disk writes to prevent incomplete hydration results from overwriting real data on disk.
  */
 const readPersistedSnapshot = async (
   name: string,
@@ -242,14 +242,14 @@ const readPersistedSnapshot = async (
       return null;
     });
     if (legacy && legacy.state && typeof legacy.state === 'object') {
-      // meta 不可读但 legacy 单键快照可读：以 legacy 为准（完整快照，写全量安全）。
+      // meta unreadable but legacy single-key snapshot readable: rely on legacy (complete snapshot, safe for full write).
       legacySnapshotHydrated = true;
       lastWrittenShards = buildShardViews(legacy.state as Record<string, unknown>);
       hydratedIncomplete = false;
       return legacy;
     }
 
-    // legacy 不存在：打捞孤儿分片（meta 键丢失/损坏但分片仍可读）。
+    // legacy does not exist: salvage orphaned shards (meta key lost/corrupted but shards readable).
     const salvage = await salvageOrphanedShards(name);
     if (salvage.readFailed) readFailed = true;
     if (salvage.parts) {
@@ -258,13 +258,13 @@ const readPersistedSnapshot = async (
         'Persistence meta missing but shards are readable; recovering from orphaned shards',
         new Error('meta missing'),
       );
-      // 基准留空：下次写入全量重建（含 meta 自愈）；打捞内容会随全量写入写回。
+      // Leave baseline empty: next write rebuilds everything (including self-healing meta); salvaged content will be written back.
       lastWrittenShards = null;
       hydratedIncomplete = false;
       return { state: salvage.parts, version: salvage.version ?? 0 };
     }
     if (readFailed || salvage.foundButUnreadable) {
-      // 磁盘上存在持久化数据但当前不可读：拒绝以空状态水合（随后的写入会覆盖真实数据）。
+      // Persisted data exists on disk but is currently unreadable: refuse to hydrate with empty state (subsequent writes would overwrite real data).
       hydratedIncomplete = true;
       logger.errorFromError(
         'store.persist',
@@ -303,7 +303,7 @@ const readPersistedSnapshot = async (
 
   if (missing.length === 0 && !readFailed) {
     lastWrittenShards = views;
-    // 分片齐全且读取成功：旧版单键快照已完成使命，确认仍存在时才退役（幂等、廉价）。
+    // All shards present and read successfully: legacy single-key snapshot has served its purpose; retire only when confirmed present (idempotent, cheap).
     if (await hasLegacySnapshot(name)) {
       void Promise.resolve(removeLegacySnapshot(name)).catch(() => undefined);
     }
@@ -326,7 +326,7 @@ const readPersistedSnapshot = async (
     return null;
   });
   if (!legacy || !legacy.state || typeof legacy.state !== 'object') {
-    // 无旧快照可兜底（极端：分片被外部清除），尽力返回可读分片，缺失字段按空处理。
+    // No legacy snapshot available for fallback (extreme case: shards cleared externally); return readable shards best-effort, treating missing fields as empty.
     logger.errorFromError(
       'store.persist',
       'Persistence shards missing and no legacy snapshot available; hydrating best-effort',
@@ -337,7 +337,7 @@ const readPersistedSnapshot = async (
     return { state: parts, version: meta.version };
   }
 
-  // 以旧快照为底、存在的分片覆盖：每个字段都取最新已知状态，避免回退到整体旧数据。
+  // Use legacy snapshot as base and overlay existing shards: each field takes the latest known state, avoiding full reversion to stale data.
   const legacyState = legacy.state as Record<string, unknown>;
   const legacyViews = buildShardViews(legacyState);
   const mergedState: Record<string, unknown> = { ...legacyState, ...parts };
@@ -363,8 +363,8 @@ const writeShardedSnapshot = async (
   }
 
   if (hydratedIncomplete) {
-    // 最近一次水合存在读取失败：水合结果不完整，写盘会用默认值覆盖磁盘上
-    // 仍然完好的真实分片。拒绝写入直到下一次完整读取成功。
+    // Last hydration suffered read failure: hydration result is incomplete, and writing to disk would overwrite
+    // still-intact shards with default values. Refuse writes until the next successful complete read.
     logger.errorFromError(
       'store.persist',
       'Skipping persist write: last hydration was incomplete; refusing to overwrite',
@@ -374,12 +374,12 @@ const writeShardedSnapshot = async (
     return;
   }
 
-  // 载荷中的 version 必须是 persist 版本号（水合时驱动 migrate），
-  // writeVersion 仅用于丢弃过期的写入调度。
+  // The version in payload must be the persist version (which drives migrate on hydration);
+  // writeVersion is only used to discard stale write schedules.
   const persistVersion = typeof value.version === 'number' ? value.version : 0;
   const state = (value.state ?? {}) as Record<string, unknown>;
   const views = buildShardViews(state);
-  // 从旧版快照水合的会话：首次写入强制提交全部分片，完成迁移后即可退役旧键。
+  // For sessions hydrated from a legacy snapshot: force-commit all shards on first write, after which the legacy key can be retired.
   let dirty = legacySnapshotHydrated
     ? [...PERSISTENCE_SHARD_NAMES]
     : findDirtyShards(views, lastWrittenShards);
@@ -388,9 +388,9 @@ const writeShardedSnapshot = async (
     dirty = dirty.filter((shard) => allowed.has(shard));
   }
   if (source === 'idle') {
-    // 写入真正执行时按最新提交时间复查冷却：派发与执行之间可能有在途写入
-    // 提交（大分片冷却因此尚未结束）。被跳过的分片交还冷却到期后的派发
-    // （届时读取模块级最新值），数据不会丢。
+    // Re-check cooldown against latest commit time when write actually executes: in-flight writes might have
+    // committed between dispatch and execution (so large shard cooldown hasn't elapsed). Skipped shards are deferred
+    // to post-cooldown dispatch (reading latest module-level values at that time); no data is lost.
     let stillCoolingMs = 0;
     dirty = dirty.filter((shard) => {
       const remaining = cooldownRemainingMsFor(shard);
@@ -403,10 +403,10 @@ const writeShardedSnapshot = async (
 
   const entries: Array<readonly [string, string]> = [];
   const serializedBytes = new Map<PersistenceShardName, number>();
-  // serialized.length 是 UTF-16 码元数；含 CJK/emoji 等多字节字符时 UTF-8 字节数
-  // 更大（至多 3 倍），而 UTF-8 字节数恒 ≥ 码元数。故码元数已达阈值可直接判定；
-  // 低于阈值才用 TextEncoder 精确计字节数（此时上界为 3×阈值，开销有界）——
-  // 避免为 140MB 级分片整串转码一份字节副本。
+  // serialized.length is the UTF-16 code unit count; with CJK/emoji and other multi-byte characters, UTF-8 byte count
+  // is larger (up to 3x), while UTF-8 byte count is always >= code unit count. Thus if code unit count already reaches the threshold,
+  // we can conclude immediately; only below threshold do we use TextEncoder for exact byte count (upper bound 3x threshold, bounded cost)—
+  // avoiding creating a full byte copy for ~140MB shards.
   const byteLengthOf = (serialized: string): number => {
     if (serialized.length >= SHARD_SIZE_WARN_BYTES) return serialized.length;
     return new TextEncoder().encode(serialized).length;
@@ -455,7 +455,7 @@ const writeShardedSnapshot = async (
   try {
     await setStorageEntries(name, entries);
   } catch (error) {
-    // 提交失败（原子回滚）：旧快照原样保留，无数据丢失，等待下次变更重试。
+    // Commit failed (atomic rollback): previous snapshot preserved intact with zero data loss, retrying on next change.
     logger.errorFromError('store.persist', 'Sharded persist write failed; previous snapshot kept', error, {
       source,
       shards: dirty,
@@ -471,22 +471,22 @@ const writeShardedSnapshot = async (
     });
   }
 
-  // 即使本写入期间已有更新的调度（版本过期），磁盘上落盘的也是本批内容，
-  // 判脏缓存必须如实反映磁盘状态；更新的写入排在本批之后，会以该基准重新判脏。
+  // Even if a newer schedule occurred during this write (stale version), what landed on disk is this batch;
+  // the dirty cache must accurately reflect disk state. Newer writes queued behind this batch will re-evaluate against this baseline.
   const writeCompletedAt = Date.now();
   const nextCache: ShardViews = { ...(lastWrittenShards ?? emptyShardViews()) };
   for (const shard of dirty) {
     nextCache[shard] = views[shard];
     committedShards.add(shard);
-    // 记录该分片的序列化体积与提交时刻，作为空闲写入节流（dispatchIdleShardedWrite）的
-    // 判定基准；写入失败/被跳过的路径不会走到这里，冷却不会因失败写入而启动。
+    // Record serialized size and commit timestamp for this shard as the baseline for idle write throttling (dispatchIdleShardedWrite);
+    // failed/skipped write paths do not reach here, so cooldown is not triggered by failed writes.
     const bytes = serializedBytes.get(shard);
     if (bytes !== undefined) lastWrittenShardBytes.set(shard, bytes);
     lastShardWriteAt.set(shard, writeCompletedAt);
   }
   lastWrittenShards = nextCache;
 
-  // 全部分片至少成功提交一次后，旧版单键快照才可安全退役（保证可回退读取）。
+  // Only after all shards have been successfully committed at least once can the legacy single-key snapshot be safely retired (ensuring fallback availability).
   if (legacySnapshotHydrated && PERSISTENCE_SHARD_NAMES.every((shard) => committedShards.has(shard))) {
     legacySnapshotHydrated = false;
     logger.info('store.persist', 'Legacy single-key snapshot retired after sharded migration');
@@ -497,9 +497,9 @@ const writeShardedSnapshot = async (
 let writeChain: Promise<void> = Promise.resolve();
 
 /**
- * 串行化分片写入：判脏必须基于上一次已完成写入的缓存（lastWrittenShards）。
- * idle 写入与 flush 写入可能重叠，若并发执行，后写入者会以过期基准判脏而
- * 跳过写盘，把已撤销的状态留在磁盘上且缓存不自知。
+ * Serializes sharded writes: dirty checks must be based on the cache from the last completed write (lastWrittenShards).
+ * Idle writes and flush writes can overlap; if executed concurrently, later writes would evaluate against an outdated baseline
+ * and skip disk writes, leaving stale state on disk without the cache realizing it.
  */
 const enqueueShardedWrite = (
   name: string,
@@ -508,8 +508,8 @@ const enqueueShardedWrite = (
   source: 'idle' | 'flush',
   shardFilter?: ReadonlyArray<PersistenceShardName>,
 ): Promise<void> => {
-  // 链尾兜底 catch：writeChain 永不 reject，调用方（idle 的 void 调度、
-  // pagehide 的同步事件处理器）不会产生 unhandled rejection。
+  // Catch-all at chain tail: writeChain never rejects, so callers (void idle schedules,
+  // sync pagehide event handlers) will not encounter unhandled rejections.
   writeChain = writeChain
     .catch(() => undefined)
     .then(() => writeShardedSnapshot(name, value, writeVersion, source, shardFilter))
@@ -520,7 +520,7 @@ const enqueueShardedWrite = (
 };
 
 /**
- * 分片的大分片冷却剩余时间；非大分片或从未写入过返回 0（不冷却）。
+ * Remaining cooldown duration for a large shard; returns 0 if not a large shard or never written (no cooldown).
  */
 const cooldownRemainingMsFor = (shard: PersistenceShardName): number => {
   if ((lastWrittenShardBytes.get(shard) ?? 0) <= SHARD_SIZE_WARN_BYTES) return 0;
@@ -529,7 +529,7 @@ const cooldownRemainingMsFor = (shard: PersistenceShardName): number => {
   return Math.max(0, largeShardIdleWriteMinIntervalMs - (Date.now() - lastWriteAt));
 };
 
-/** 冷却到期后重新派发（读取模块级最新值，合并为一次最终写入）。 */
+/** Re-dispatch after cooldown expires (reads latest module-level values, coalescing into a single final write). */
 const armDeferredLargeShardWrite = (remainingMs: number): void => {
   if (remainingMs <= 0) return;
   if (deferredLargeShardWriteTimerId !== null) {
@@ -542,20 +542,20 @@ const armDeferredLargeShardWrite = (remainingMs: number): void => {
 };
 
 /**
- * idle 写入的统一派发口（含大分片节流）：
+ * Unified dispatch point for idle writes (including large shard throttling):
  *
- * - 先基于最新待写值计算脏分片。这只用于节流决策，权威判脏仍在
- *   writeShardedSnapshot 写入时进行；此处误判最多造成多等/少等一个冷却期，
- *   不影响落盘内容的正确性。
- * - 脏分片为空时也不能直接丢弃：写入链中可能仍有未提交的在途写入，
- *   lastWrittenShards 仍是旧基准——此时若最新值恰好等于旧基准（把状态改回
- *   旧值），按空脏早退会让该"恢复旧值"的更新被在途提交的新值覆盖丢失。
- *   照常入队，由写入链在提交时以最新基准重新判脏（确实无变化时自然跳过）。
- * - 冷却只推迟冷却中的大分片本身：脏分片按冷却分区，未冷却的（含 core 等
- *   小分片）立即入队写入，冷却中的大分片由定时器在冷却到期后重新派发。
- *   若整批推迟，小分片的变更也会被拖住最长一个冷却期，期间异常退出会丢数据。
- * - 冷却到期后重新走本函数，按最新状态重新判脏再写入——磁盘上落盘的
- *   一定是最新 scheduledVersion。
+ * - First computes dirty shards based on latest pending values. This is only used for throttling decisions; authoritative
+ *   dirty checks still occur during writeShardedSnapshot. Any misjudgment here at most causes waiting one extra/fewer cooldown cycle,
+ *   never compromising on-disk data correctness.
+ * - Cannot drop write even if dirty shards are empty: in-flight uncommitted writes may still exist in write chain,
+ *   so lastWrittenShards remains the old baseline—if the latest value happens to match the old baseline (reverting to
+ *   old value), an early return would allow the in-flight new value to overwrite and lose that revert.
+ *   Enqueue normally, and let the write chain re-evaluate against the latest baseline at commit time (naturally skipping if truly unchanged).
+ * - Cooldown only defers the cooling large shards: dirty shards are partitioned by cooldown; non-cooling shards (including small shards
+ *   like core) are enqueued immediately, while cooling large shards are re-dispatched via timer once cooldown expires.
+ *   If the entire batch were deferred, small shard changes would also be blocked for up to a full cooldown cycle, risking data loss on abnormal exit.
+ * - Re-enters this function when cooldown expires, re-evaluating dirty state against latest values before writing—guaranteeing that
+ *   what lands on disk is always the latest scheduledVersion.
  */
 const dispatchIdleShardedWrite = (): void => {
   if (latestPersistName === null || latestPersistValue === null) return;
@@ -569,9 +569,9 @@ const dispatchIdleShardedWrite = (): void => {
     return;
   }
 
-  // 冷却只推迟冷却中的大分片本身：脏分片按冷却分区，未冷却的（含 core 等
-  // 小分片）立即入队写入，冷却中的大分片由定时器在冷却到期后重新派发。
-  // 若整批推迟，小分片的变更也会被拖住最长一个冷却期，期间异常退出会丢数据。
+  // Cooldown only defers the cooling large shards: dirty shards are partitioned by cooldown; non-cooling shards (including small shards
+  // like core) are enqueued immediately, while cooling large shards are re-dispatched via timer once cooldown expires.
+  // If the entire batch were deferred, small shard changes would also be blocked for up to a full cooldown cycle, risking data loss on abnormal exit.
   let maxCoolingRemainingMs = 0;
   const eligible = dirty.filter((shard) => {
     const remaining = cooldownRemainingMsFor(shard);
@@ -613,17 +613,17 @@ const registerPersistFlushListeners = (): void => {
 };
 
 /**
- * 清空持久化快照（含 `${name}#` 派生键），返回覆盖整条串行链的 Promise：
- * 排队中的写入先完成、随后清盘、最后重置判脏簿记（含删除失败路径）。
- * 删除与写盘共用同一条串行链——若清盘即重置，in-flight 写入完成后会重新填充
- * 缓存，删除后的首个写入只补写脏分片，而 meta 仍列出全部分片，重启即缺失。
+ * Clears persisted snapshots (including `${name}#` derived keys), returning a Promise spanning the entire serial chain:
+ * Queued writes complete first, followed by storage clear, and finally resets dirty-check bookkeeping (including deletion failure paths).
+ * Deletion and persistence share the same serialization chain—if reset happened on clear dispatch, in-flight writes would repopulate
+ * the cache on completion, causing the first post-clear write to only rewrite dirty shards while meta still lists all shards, resulting in missing shards on restart.
  *
- * 失败语义：共享写链永不 reject（后续写入不被删除失败连坐），但返回给调用方
- * 的 Promise 在删除失败时如实 reject——「清空所有数据」流据此跳过状态重置与
- * reload，而不是把残留快照当作已删除导致数据在重启后复活。
+ * Failure semantics: The shared write chain never rejects (subsequent writes are not penalized by deletion failures), but the Promise
+ * returned to the caller rejects truthfully on deletion failure—the "clear all data" flow uses this to skip state reset and
+ * reload, rather than treating lingering snapshots as deleted and resurrecting data after restart.
  *
- * 注意：zustand v4 的 persist.clearStorage() 不回传 removeItem 的 Promise，
- * 需要等待删除真正落盘的调用方应直接调用并 await 本函数。
+ * Note: zustand v4's persist.clearStorage() does not propagate the removeItem Promise;
+ * callers needing to await true disk deletion should directly invoke and await this function.
  */
 const removePersistedSnapshot = (name: string): Promise<void> => {
   latestPersistName = null;
@@ -642,7 +642,7 @@ const removePersistedSnapshot = (name: string): Promise<void> => {
       committedShards.clear();
       legacySnapshotHydrated = false;
       hydratedIncomplete = false;
-      // 节流簿记一并重置：清盘后的首次写入不得被上一个会话的大分片冷却推迟
+      // Reset throttle bookkeeping as well: first write after clear must not be delayed by prior session's large shard cooldown
       lastWrittenShardBytes.clear();
       lastShardWriteAt.clear();
     });
@@ -662,8 +662,8 @@ const removePersistedSnapshot = (name: string): Promise<void> => {
 // (see dispatchIdleShardedWrite).
 const debouncedPersistStorage: PersistStorage<unknown> = {
   getItem: async (name) => {
-    // 每次水合重新评估读取完整性；读取失败会在 readPersistedSnapshot 内置位，
-    // 使后续写入被拒绝，直到出现一次完整读取。
+    // Re-evaluate read completeness on each hydration; read failures set hydratedIncomplete inside readPersistedSnapshot,
+    // causing subsequent writes to be rejected until a complete read succeeds.
     hydratedIncomplete = false;
     return await readPersistedSnapshot(name);
   },
@@ -678,8 +678,8 @@ const debouncedPersistStorage: PersistStorage<unknown> = {
       persistTimeoutId = null;
       persistIdleTaskId = scheduleIdleTask(() => {
         persistIdleTaskId = null;
-        // 派发口读取模块级最新值与版本号：冷却期内的多次写入在此合并，
-        // 由大分片节流决定立即写入或推迟到冷却期末（见 dispatchIdleShardedWrite）。
+        // Dispatch reads latest module-level values and version: multiple writes during cooldown coalesce here,
+        // with large shard throttling deciding whether to write immediately or defer until cooldown ends (see dispatchIdleShardedWrite).
         dispatchIdleShardedWrite();
       });
     }, persistDebounceMs);

@@ -52,9 +52,9 @@ function makeService(backendUrl: string | null = null): GitHubListsApiService {
   return api;
 }
 
-describe('GitHubListsApiService 后端代理回退直连', () => {
+describe('GitHubListsApiService backend proxy fallback to direct connection', () => {
   beforeEach(() => {
-    // 退避等待直接完成，避免测试被 1→2→4s 背压拖慢
+    // Complete backoff sleep immediately to avoid slowing tests with 1→2→4s delays
     vi.spyOn(GitHubListsApiService.prototype as unknown as { sleep: () => Promise<void> }, 'sleep').mockResolvedValue(undefined);
   });
 
@@ -63,7 +63,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     vi.restoreAllMocks();
   });
 
-  it('查询（getUserListSummaries）代理 502 后回退直连并成功', async () => {
+  it('query (getUserListSummaries) falls back to direct connection and succeeds after proxy 502', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { error: 'Bad Gateway', code: 'BAD_GATEWAY', details: 'getaddrinfo ENOTFOUND api.github.com' }, 'Bad Gateway'))
@@ -79,7 +79,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(String(calls[1][0])).toBe(DIRECT_URL);
   });
 
-  it('代理 400 GITHUB_TOKEN_NOT_CONFIGURED 后回退直连并成功（无需退避，mutation 确定未执行）', async () => {
+  it('falls back to direct connection and succeeds after proxy 400 GITHUB_TOKEN_NOT_CONFIGURED (no backoff needed, mutation definitely unexecuted)', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(400, { error: 'GitHub token not configured', code: 'GITHUB_TOKEN_NOT_CONFIGURED' }))
@@ -94,7 +94,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(String(calls[1][0])).toBe(DIRECT_URL);
   });
 
-  it('代理成功时保持代理，不发起直连', async () => {
+  it('stays on proxy when proxy succeeds, not initiating direct connection', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch).mockResolvedValueOnce(makeJsonResponse(200, SUCCESS_DATA));
 
@@ -106,7 +106,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(String(calls[0][0])).toBe(PROXY_URL);
   });
 
-  it('回退后同实例后续查询请求直接直连，不再撞击代理', async () => {
+  it('subsequent queries on same instance use direct connection directly after fallback, no longer hitting proxy', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { error: 'Bad Gateway', code: 'BAD_GATEWAY' }, 'Bad Gateway'))
@@ -122,17 +122,17 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(String(calls[2][0])).toBe(DIRECT_URL);
   });
 
-  it('代理返回 401 时抛权限错误，不触发回退直连', async () => {
+  it('throws permission error when proxy returns 401, not triggering direct fallback', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch).mockResolvedValueOnce(
       makeJsonResponse(401, { data: null, errors: [{ message: '401 Unauthorized' }] })
     );
 
-    await expect(api.createUserList('t')).rejects.toThrow(/缺少操作星标列表/);
+    await expect(api.createUserList('t')).rejects.toThrow(/lacks permission to manage star lists/);
     expect(vi.mocked(window.fetch).mock.calls).toHaveLength(1);
   });
 
-  it('5xx 错误文本含鉴权关键词时仍按瞬时错误走代理重试，而非误判权限不足', async () => {
+  it('retries via proxy as transient error when 5xx error text contains auth keywords, rather than misjudging insufficient permissions', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { data: null, errors: [{ message: 'Something went wrong while processing a permission-authorized request' }] }, 'Bad Gateway'))
@@ -143,12 +143,12 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(summaries).toHaveLength(1);
     const calls = vi.mocked(window.fetch).mock.calls;
     expect(calls).toHaveLength(2);
-    // 该 502 无后端 code/details（健康代理透明转发），不切直连，重试仍走代理
+    // This 502 has no backend code/details (transparently forwarded by healthy proxy); does not switch to direct, retries on proxy
     expect(String(calls[0][0])).toBe(PROXY_URL);
     expect(String(calls[1][0])).toBe(PROXY_URL);
   });
 
-  it('代理透传上游 GitHub 5xx（无 code/details）时不切直连，走代理重试', async () => {
+  it('retries on proxy without switching to direct when proxy transparently passes upstream GitHub 5xx (without code/details)', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { data: null, errors: [{ message: 'Something went wrong' }] }, 'Bad Gateway'))
@@ -163,7 +163,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(String(calls[1][0])).toBe(PROXY_URL);
   });
 
-  it('代理透传 GitHub 限流（403 x-ratelimit-remaining=0）时不切直连，走代理重试', async () => {
+  it('retries on proxy without switching to direct when proxy passes through GitHub rate limit (403 x-ratelimit-remaining=0)', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(403, { data: null, errors: [{ message: 'rate limit' }] }, 'Forbidden', { 'x-ratelimit-remaining': '0' }))
@@ -178,16 +178,16 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(String(calls[1][0])).toBe(PROXY_URL);
   });
 
-  it('mutation（createUserList）代理 502 未知结果时抛错，不自动重放直连', async () => {
+  it('throws on unknown mutation (createUserList) result after proxy 502, not auto-replaying direct connection', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { error: 'Bad Gateway', code: 'BAD_GATEWAY', details: 'getaddrinfo ENOTFOUND api.github.com' }, 'Bad Gateway'))
-      // 核对查询（viewer）失败时保留原始错误
+      // Preserve original error when verification query (viewer) fails
       .mockResolvedValue(makeJsonResponse(502, { data: null, errors: [{ message: 'Something went wrong' }] }, 'Bad Gateway'));
 
-    await expect(api.createUserList('t')).rejects.toThrow(/后端代理：BAD_GATEWAY/);
+    await expect(api.createUserList('t')).rejects.toThrow(/backend proxy: BAD_GATEWAY/);
     expect(String(vi.mocked(window.fetch).mock.calls[0][0])).toBe(PROXY_URL);
-    // 检测直连路径是否重放了 createUserList mutation（读 body 而非 String(c[1])）
+    // Verify direct path did not replay createUserList mutation (inspect body rather than String(c[1]))
     expect(
       vi.mocked(window.fetch).mock.calls.some(
         c => String(c[0]) === DIRECT_URL &&
@@ -196,7 +196,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     ).toBe(false);
   });
 
-  it('mutation（createUserList）代理网络失败后按名核对复用已有 list，不重复创建', async () => {
+  it('reuses existing list by name verification after proxy network failure on mutation (createUserList), not creating duplicate', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
@@ -209,13 +209,13 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(calls).toHaveLength(2);
     expect(String(calls[0][0])).toBe(PROXY_URL);
     expect(String(calls[1][0])).toBe(DIRECT_URL);
-    // 第二次是 viewer 核对查询，而非重放 createUserList mutation
+    // The second call is a viewer verification query, not replaying createUserList mutation
     const secondBody = String((calls[1][1] as RequestInit).body ?? '');
     expect(secondBody).toContain('viewer');
     expect(secondBody).not.toContain('createUserList');
   });
 
-  it('mutation（updateUserListsForItem）整集替换语义幂等，代理 502 后回退直连并成功', async () => {
+  it('falls back to direct connection and succeeds after proxy 502 for idempotent whole-set replacement mutation (updateUserListsForItem)', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { error: 'Bad Gateway', code: 'BAD_GATEWAY' }, 'Bad Gateway'))
@@ -235,7 +235,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
       return JSON.parse(String((calls[calls.length - 1][1] as RequestInit).body ?? '{}')).variables;
     }
 
-    it('省略 description 时变量表不含 description 键（重命名保留已有描述，不被显式 null 清空）', async () => {
+    it('omits description key from variables when description is omitted (renaming preserves existing description, not wiped by explicit null)', async () => {
       const api = makeService(null);
       vi.mocked(window.fetch).mockResolvedValueOnce(makeJsonResponse(200, UPDATE_LIST_DATA));
 
@@ -243,11 +243,11 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
 
       const variables = lastVariables();
       expect(variables).toEqual({ listId: 'L_1', name: 'Development Tools' });
-      // toEqual 会忽略值为 undefined 的键，这里显式断言键确实不存在
+      // toEqual ignores keys with undefined value; explicitly assert key does not exist here
       expect('description' in variables).toBe(false);
     });
 
-    it('显式传 null 时发送 description: null（保留清空描述的能力）', async () => {
+    it('sends description: null when explicitly passing null (preserves ability to clear description)', async () => {
       const api = makeService(null);
       vi.mocked(window.fetch).mockResolvedValueOnce(makeJsonResponse(200, UPDATE_LIST_DATA));
 
@@ -256,7 +256,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
       expect(lastVariables()).toEqual({ listId: 'L_1', name: 'Development Tools', description: null });
     });
 
-    it('显式传描述字符串时原样发送', async () => {
+    it('sends description string as-is when explicitly passed', async () => {
       const api = makeService(null);
       vi.mocked(window.fetch).mockResolvedValueOnce(makeJsonResponse(200, UPDATE_LIST_DATA));
 
@@ -265,18 +265,18 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
       expect(lastVariables()).toEqual({ listId: 'L_1', name: 'Development Tools', description: 'curated tools' });
     });
 
-    it('未知结果（内部超时）时抛错，不自动重放、不回退直连', async () => {
+    it('throws on unknown result (internal timeout), without auto-replaying or falling back to direct connection', async () => {
       const api = makeService(BACKEND_URL);
       vi.mocked(window.fetch).mockRejectedValueOnce(new DOMException('The operation was aborted.', 'AbortError'));
 
-      await expect(api.updateUserList('L_1', 'Development Tools')).rejects.toThrow(/请求超时/);
+      await expect(api.updateUserList('L_1', 'Development Tools')).rejects.toThrow(/request timed out/);
       const calls = vi.mocked(window.fetch).mock.calls;
       expect(calls).toHaveLength(1);
       expect(String(calls[0][0])).toBe(PROXY_URL);
     });
   });
 
-  it('代理请求内部超时（AbortError）后回退直连并成功', async () => {
+  it('falls back to direct connection and succeeds after proxy request internal timeout (AbortError)', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockRejectedValueOnce(new DOMException('The operation was aborted.', 'AbortError'))
@@ -291,15 +291,15 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(String(calls[1][0])).toBe(DIRECT_URL);
   });
 
-  it('mutation 内部超时（AbortError）未知结果时抛错，不自动重放', async () => {
+  it('throws on mutation internal timeout (AbortError) unknown result without auto-replaying', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockRejectedValueOnce(new DOMException('The operation was aborted.', 'AbortError'))
       .mockResolvedValueOnce(makeJsonResponse(200, SUCCESS_DATA));
 
-    await expect(api.createUserList('t')).rejects.toThrow(/请求超时/);
+    await expect(api.createUserList('t')).rejects.toThrow(/request timed out/);
     const calls = vi.mocked(window.fetch).mock.calls;
-    // mutation 超时后做了一次 viewer 核对查询（非重放），随后抛出原始超时错误
+    // After mutation timeout, ran one viewer verification query (not replay), then threw original timeout error
     expect(calls).toHaveLength(2);
     expect(String(calls[0][0])).toBe(PROXY_URL);
     const secondBody = String((calls[1][1] as RequestInit).body ?? '');
@@ -307,10 +307,10 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(secondBody).not.toContain('createUserList');
   });
 
-  it('调用方取消（父信号中止）时传播 AbortError，不重试不回退', async () => {
+  it('propagates AbortError on caller cancellation (parent signal aborted) without retrying or falling back', async () => {
     const api = makeService(BACKEND_URL);
     const controller = new AbortController();
-    // 模拟请求进行中调用方取消：先中止父信号，fetch 随即以 AbortError 失败
+    // Simulate caller cancellation during in-flight request: abort parent signal first, fetch then fails with AbortError
     vi.mocked(window.fetch).mockImplementationOnce(() => {
       controller.abort();
       return Promise.reject(new DOMException('The operation was aborted.', 'AbortError'));
@@ -320,7 +320,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(vi.mocked(window.fetch).mock.calls).toHaveLength(1);
   });
 
-  it('未配置后端时直接直连', async () => {
+  it('connects directly when backend is unconfigured', async () => {
     const api = makeService(null);
     vi.mocked(window.fetch).mockResolvedValueOnce(makeJsonResponse(200, SUCCESS_DATA));
 
@@ -330,7 +330,7 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     expect(String(vi.mocked(window.fetch).mock.calls[0][0])).toBe(DIRECT_URL);
   });
 
-  it('代理与直连都持续 5xx 时，查询重试耗尽后抛出', async () => {
+  it('throws after exhausting query retries when both proxy and direct connection return persistent 5xx', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { error: 'Bad Gateway', code: 'BAD_GATEWAY' }, 'Bad Gateway'))
@@ -339,30 +339,30 @@ describe('GitHubListsApiService 后端代理回退直连', () => {
     await expect(api.getUserListSummaries('cgy141514')).rejects.toThrow(/Something went wrong/);
   });
 
-  it('透传后端代理错误 code/details 到错误信息', async () => {
+  it('passes backend proxy error code/details through to error message', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { error: 'Bad Gateway', code: 'BAD_GATEWAY', details: 'getaddrinfo ENOTFOUND api.github.com' }, 'Bad Gateway'))
       .mockResolvedValue(makeJsonResponse(502, { error: 'Bad Gateway', code: 'BAD_GATEWAY', details: 'getaddrinfo ENOTFOUND api.github.com' }, 'Bad Gateway'));
 
-    await expect(api.createUserList('t')).rejects.toThrow(/后端代理：BAD_GATEWAY：getaddrinfo ENOTFOUND/);
+    await expect(api.createUserList('t')).rejects.toThrow(/backend proxy: BAD_GATEWAY: getaddrinfo ENOTFOUND/);
   });
 
-  it('5xx 的 errors 分支也透传 code/details 诊断', async () => {
+  it('passes code/details diagnostics through on 5xx errors branch as well', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { data: null, errors: [{ message: 'Something went wrong' }], code: 'BAD_GATEWAY', details: 'getaddrinfo ENOTFOUND' }, 'Bad Gateway'))
       .mockResolvedValue(makeJsonResponse(502, { data: null, errors: [{ message: 'Something went wrong' }], code: 'BAD_GATEWAY', details: 'getaddrinfo ENOTFOUND' }, 'Bad Gateway'));
 
-    await expect(api.createUserList('t')).rejects.toThrow(/Something went wrong.*后端代理：BAD_GATEWAY：getaddrinfo ENOTFOUND/);
+    await expect(api.createUserList('t')).rejects.toThrow(/Something went wrong.*backend proxy: BAD_GATEWAY: getaddrinfo ENOTFOUND/);
   });
 
-  it('5xx 仅有 details 无 code 时也透传诊断', async () => {
+  it('passes diagnostics through on 5xx with details only and no code', async () => {
     const api = makeService(BACKEND_URL);
     vi.mocked(window.fetch)
       .mockResolvedValueOnce(makeJsonResponse(502, { error: 'Bad Gateway', details: 'ECONNREFUSED' }, 'Bad Gateway'))
       .mockResolvedValue(makeJsonResponse(502, { error: 'Bad Gateway', details: 'ECONNREFUSED' }, 'Bad Gateway'));
 
-    await expect(api.createUserList('t')).rejects.toThrow(/后端代理：ECONNREFUSED/);
+    await expect(api.createUserList('t')).rejects.toThrow(/backend proxy: ECONNREFUSED/);
   });
 });

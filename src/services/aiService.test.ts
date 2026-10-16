@@ -64,7 +64,7 @@ function makeRepo(partial: Partial<Repository> & Pick<Repository, 'id' | 'name' 
   };
 }
 
-describe('AIService.searchRepositoriesWithSelection — 词法兜底', () => {
+describe('AIService.searchRepositoriesWithSelection — lexical fallback', () => {
   beforeEach(() => {
     // Force the AI request path to fail so we fall back to performEnhancedBasicSearch.
     (window.fetch as ReturnType<typeof vi.fn>).mockImplementation(() => {
@@ -147,19 +147,19 @@ describe('AIService.searchRepositoriesWithSelection — 词法兜底', () => {
     expect(results.map((r) => r.id)).toEqual([6]);
   });
 
-  it('扩展词与查询词相同时不重复计分（词级剔除）', async () => {
+  it('does not duplicate scoring when expanded terms match query terms (token-level deduplication)', async () => {
     const repo = makeRepo({ id: 20, name: 'markdown', full_name: 'acme/markdown' });
 
     const service = new AIService(makeConfig() as never, 'zh');
     const scored = service['scoreRepositoriesByKeywords']([repo], 'markdown editor', ['Markdown', 'acme']);
 
-    // 'Markdown' 等于查询词 'markdown'，剔除后不再对 name/fullName 重复计分；
-    // 'acme'（fullName 命中）仍正常计分：name 0.4 + fullName 0.35 + 扩展词 0.2 = 0.95
-    //（若词级剔除失效则为 1.4）
+    // 'Markdown' equals query term 'markdown', pruned so name/fullName are not scored twice;
+    // 'acme' (fullName hit) still scores normally: name 0.4 + fullName 0.35 + expansion term 0.2 = 0.95
+    // (would be 1.4 if token-level pruning failed)
     expect(scored[0].score).toBeCloseTo(0.95, 10);
   });
 
-  it('中文查询无 AI 扩展词时按 CJK bigram 召回，兜底不再整串零命中', async () => {
+  it('recalls via CJK bigrams when Chinese query has no AI expansion terms, preventing zero hits on full-string fallback', async () => {
     const repo = makeRepo({
       id: 30,
       name: 'stars-manager',
@@ -168,14 +168,14 @@ describe('AIService.searchRepositoriesWithSelection — 词法兜底', () => {
     });
 
     const service = new AIService(makeConfig() as never, 'zh');
-    // "星标仓库"无空格切不出词，整串也不在描述里；bigram "星标"/"仓库" 命中描述
+    // "星标仓库" has no space boundaries to tokenize and the full string is absent in the description; bigrams "星标"/"仓库" match the description
     const scored = service['scoreRepositoriesByKeywords']([repo], '星标仓库', []);
     expect(scored).toHaveLength(1);
     expect(scored[0].score).toBeGreaterThan(0);
   });
 });
 
-describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
+describe('AIService.searchRepositoriesWithSelection — LLM selection', () => {
   const fetchJson = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   const chatResponse = (content: string) => fetchJson({ choices: [{ message: { content } }] });
   const mockFetch = () => {
@@ -185,7 +185,7 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
   };
   const captureBody = async (init?: RequestInit) => JSON.parse(String(init?.body)) as Record<string, unknown>;
 
-  it('扩展查询后把候选摘要交给 LLM 精选，并按模型排序返回（携带意图说明）', async () => {
+  it('submits candidate summaries to LLM selection after query expansion and returns model ordering (with intent description)', async () => {
     const fetchMock = mockFetch();
     const requests: Array<Record<string, unknown>> = [];
     fetchMock.mockImplementationOnce(async (_url, init) => {
@@ -204,17 +204,17 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
     const results = await service.searchRepositoriesWithSelection([repoA, repoB], 'markdown 编辑器');
 
     expect(results.map((r) => r.id)).toEqual([880000002, 880000001]);
-    // 扩展请求要求模型复述意图；精选请求携带意图说明与候选摘要
+    // Expansion request asks model to restate intent; selection request includes intent description and candidate summaries
     expect(String((requests[0].messages as Array<{ content: string }>)[1].content)).toContain('"intent"');
     const selectionPrompt = String((requests[1].messages as Array<{ content: string }>)[1].content);
     expect(selectionPrompt).toContain('用户意图说明：找 markdown 编辑器');
     expect(selectionPrompt).toContain('共 2 个');
     expect(selectionPrompt).toContain('acme/quick-md');
-    // 普通模型的精选请求维持紧凑预算
+    // Selection request for standard models keeps a compact token budget
     expect(requests[1].max_tokens).toBe(800);
   });
 
-  it('模型把候选行号当作 ID 返回时按行号解析，重排结果不被静默丢弃', async () => {
+  it('resolves candidate line numbers as IDs when returned by model, preserving reranked results', async () => {
     const fetchMock = mockFetch();
     fetchMock.mockImplementationOnce(async () => chatResponse('{"intent":"","keywords":[],"synonyms":[]}'));
     fetchMock.mockImplementationOnce(async () => chatResponse('[2, 1]'));
@@ -228,7 +228,7 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
     expect(results.map((r) => r.id)).toEqual([730000002, 730000001]);
   });
 
-  it('模型明确返回空数组时呈现空结果，而不是回退到词法噪声', async () => {
+  it('presents empty results when model explicitly returns an empty array, instead of falling back to lexical noise', async () => {
     const fetchMock = mockFetch();
     fetchMock.mockImplementationOnce(async () => chatResponse('{"intent":"","keywords":["foo"],"synonyms":[]}'));
     fetchMock.mockImplementationOnce(async () => chatResponse('[]'));
@@ -241,7 +241,7 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
     expect(results).toEqual([]);
   });
 
-  it('大库先词法召回：候选按上限截断注入精选提示词', async () => {
+  it('performs lexical recall on large libraries: truncates candidates at limit before injecting into selection prompt', async () => {
     const fetchMock = mockFetch();
     const requests: Array<Record<string, unknown>> = [];
     fetchMock.mockImplementationOnce(async (_url, init) => {
@@ -265,7 +265,7 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
     expect(results.map((r) => r.id)).toEqual([900001]);
   });
 
-  it('调用方取消（abort）时不做词法兜底，取消异常向上传播', async () => {
+  it('does not perform lexical fallback when caller aborts, propagating cancellation error upward', async () => {
     const fetchMock = mockFetch();
     fetchMock.mockImplementationOnce(async () => {
       throw Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
@@ -275,13 +275,13 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
     const repoA = makeRepo({ id: 750000001, name: 'foo-tool', full_name: 'acme/foo-tool' });
 
     const service = new AIService(makeConfig() as never, 'zh');
-    // 取消 ≠ AI 失败：不能把词法兜底结果当作搜索结果返回
+    // Aborted !== AI failure: must not return lexical fallback results as search results
     await expect(
       service.searchRepositoriesWithSelection([repoA], 'foo', { signal: controller.signal }),
     ).rejects.toMatchObject({ name: 'AbortError' });
   });
 
-  it('推理模型的精选调用复用更大的 token 预算，避免推理耗尽预算后静默退化', async () => {
+  it('reuses larger token budget for reasoning models during selection to prevent silent degradation when reasoning exhausts budget', async () => {
     const fetchMock = mockFetch();
     const requests: Array<Record<string, unknown>> = [];
     fetchMock.mockImplementationOnce(async (_url, init) => {
@@ -297,12 +297,12 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
     const service = new AIService({ ...makeConfig(), reasoningEffort: 'high' } as never, 'zh');
     await service.searchRepositoriesWithSelection([repo], 'foo');
 
-    // 扩展请求给思考模型留足余量；精选请求复用重排序的 4096 预算（推理 token 共享预算）
+    // Expansion request leaves ample margin for thinking models; selection request reuses the 4096 reranking budget (reasoning tokens share budget)
     expect(requests[0].max_tokens).toBe(2000);
     expect(requests[1].max_tokens).toBe(4096);
   });
 
-  it('AI 请求失败时通过 onFallback 通知调用方，并回退词法得分序', async () => {
+  it('notifies caller via onFallback when AI request fails, falling back to lexical score order', async () => {
     const fetchMock = mockFetch();
     fetchMock.mockImplementationOnce(async () => {
       throw new TypeError('Failed to fetch');
@@ -314,12 +314,12 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
     const service = new AIService(makeConfig() as never, 'zh');
     const results = await service.searchRepositoriesWithSelection([repoA], 'foo', { onFallback });
 
-    // 端点抖动/配置问题时：回调说明原因，结果退到词法命中而非空
+    // On endpoint jitter / config issues: callback provides reason, results fall back to lexical hits instead of empty
     expect(onFallback).toHaveBeenCalledWith('ai_failed');
     expect(results.map((r) => r.id)).toEqual([770000001]);
   });
 
-  it('模型判定无相关仓库时保留空结果，并通过 onFallback 说明原因', async () => {
+  it('preserves empty results when model determines no relevant repositories exist, explaining reason via onFallback', async () => {
     const fetchMock = mockFetch();
     fetchMock.mockImplementationOnce(async () => chatResponse('{"intent":"","keywords":[],"synonyms":[]}'));
     fetchMock.mockImplementationOnce(async () => chatResponse('[]'));
@@ -334,7 +334,7 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
     expect(results).toEqual([]);
   });
 
-  it('模型返回的 ID 全部无法落位时按响应无效处理，回退词法而非空态', async () => {
+  it('treats response as invalid when none of the returned IDs can be resolved, falling back to lexical rather than empty state', async () => {
     const fetchMock = mockFetch();
     fetchMock.mockImplementationOnce(async () => chatResponse('{"intent":"","keywords":["foo"],"synonyms":[]}'));
     fetchMock.mockImplementationOnce(async () => chatResponse('[999999999, 888888888]'));
@@ -345,21 +345,21 @@ describe('AIService.searchRepositoriesWithSelection — LLM 精选', () => {
     const service = new AIService(makeConfig() as never, 'zh');
     const results = await service.searchRepositoriesWithSelection([repo], 'foo', { onFallback });
 
-    // 幻觉 ID ≠ 模型判空：不能把无效响应当成"无相关结果"呈现空态
+    // Hallucinated IDs !== model determined empty: must not treat invalid response as "no relevant results" empty state
     expect(onFallback).toHaveBeenCalledWith('unparseable');
     expect(results.map((r) => r.id)).toEqual([790000001]);
   });
 });
 
-describe('AIService.searchRepositoriesWithSemanticReranking — 行号兜底', () => {
+describe('AIService.searchRepositoriesWithSemanticReranking — line number fallback', () => {
   const fetchJson = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
   beforeEach(() => {
     (window.fetch as ReturnType<typeof vi.fn>).mockReset();
   });
 
-  it('模型把候选行号当作 ID 返回时按行号解析，重排结果不再被静默丢弃', async () => {
-    // 回归：旧的 repoById.get(id) 解析会把行号响应整份丢弃，重排静默失效
+  it('resolves line numbers as IDs when returned by model, ensuring reranked results are not silently dropped', async () => {
+    // Regression: old repoById.get(id) parsing dropped the entire line-number response, silently breaking reranking
     const repoA = makeRepo({ id: 730000001, name: 'alpha', full_name: 'acme/alpha', stargazers_count: 10 });
     const repoB = makeRepo({ id: 730000002, name: 'beta', full_name: 'acme/beta', stargazers_count: 5 });
     (window.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -372,7 +372,7 @@ describe('AIService.searchRepositoriesWithSemanticReranking — 行号兜底', (
     expect(results.map((r) => r.id)).toEqual([730000002, 730000001]);
   });
 
-  it('真实 ID 优先于行号解析，未被排到的仓库追加在末尾', async () => {
+  it('prioritizes real IDs over line numbers, appending unranked repositories at the end', async () => {
     const repoA = makeRepo({ id: 730000001, name: 'alpha', full_name: 'acme/alpha' });
     const repoB = makeRepo({ id: 730000002, name: 'beta', full_name: 'acme/beta' });
     const repoC = makeRepo({ id: 730000003, name: 'gamma', full_name: 'acme/gamma' });
@@ -383,13 +383,13 @@ describe('AIService.searchRepositoriesWithSemanticReranking — 行号兜底', (
     const service = new AIService(makeConfig() as never, 'zh');
     const results = await service.searchRepositoriesWithSemanticReranking([repoA, repoB, repoC], 'anything');
 
-    // 730000003 按真实 ID 命中；1 在候选范围内按行号解析为 repoA；repoB 未被排到，追加在末尾
+    // 730000003 matched by real ID; 1 within candidate bounds resolved by line number to repoA; repoB unranked, appended at the end
     expect(results.map((r) => r.id)).toEqual([730000003, 730000001, 730000002]);
   });
 });
 
-describe('AIRequestError / 限流辅助函数', () => {
-  it('构造错误并标记 isRateLimit', () => {
+describe('AIRequestError / rate limiting helpers', () => {
+  it('constructs error and marks isRateLimit', () => {
     const err = new AIRequestError('rate limited', 429, 5000);
     expect(err.status).toBe(429);
     expect(err.retryAfterMs).toBe(5000);
@@ -397,7 +397,7 @@ describe('AIRequestError / 限流辅助函数', () => {
     expect(err.name).toBe('AIRequestError');
   });
 
-  it('isRateLimitedError 识别 429 或限流信息', () => {
+  it('isRateLimitedError identifies 429 or rate limit messages', () => {
     expect(isRateLimitedError(new AIRequestError('x', 429))).toBe(true);
     expect(isRateLimitedError({ statusCode: 429 })).toBe(true);
     expect(isRateLimitedError(new Error('Too Many Requests'))).toBe(true);
@@ -405,7 +405,7 @@ describe('AIRequestError / 限流辅助函数', () => {
     expect(isRateLimitedError(null)).toBe(false);
   });
 
-  it('getRetryAfterMsFromError 取有效毫秒数', () => {
+  it('getRetryAfterMsFromError extracts valid milliseconds', () => {
     expect(getRetryAfterMsFromError(new AIRequestError('x', 429, 1234))).toBe(1234);
     expect(getRetryAfterMsFromError({})).toBeUndefined();
     expect(getRetryAfterMsFromError(undefined)).toBeUndefined();
@@ -414,7 +414,7 @@ describe('AIRequestError / 限流辅助函数', () => {
 
 
 describe('AIService.generateWithTools — native function calling', () => {
-  // generateWithTools / supportsChatToolCalls 均要求显式勾选 supportsToolCalls。
+  // Both generateWithTools and supportsChatToolCalls require explicitly toggling supportsToolCalls.
   const toolCallConfig = { ...makeConfig(), supportsToolCalls: true as const };
   const tools = [
     { name: 'read_documentation', description: 'Read docs', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } },
@@ -450,7 +450,7 @@ describe('AIService.generateWithTools — native function calling', () => {
     const sentMessages = requestBody.messages as Array<Record<string, unknown>>;
     expect(sentMessages[0]).toEqual({ role: 'system', content: 'agent rules' });
     expect(sentMessages[2]).toMatchObject({ role: 'assistant', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read_documentation' } }] });
-    // content 为空时必须整体省略：显式 null / 空字符串在部分网关上会被拒绝。
+    // Must omit content entirely when empty: explicit null or empty string is rejected by some gateways.
     expect(sentMessages[2]).not.toHaveProperty('content');
     expect(sentMessages[3]).toEqual({ role: 'tool', tool_call_id: 'call_1', content: 'SOURCE: /README.md - 1-5' });
     expect(result.content).toBe('');
@@ -470,7 +470,7 @@ describe('AIService.generateWithTools — native function calling', () => {
     await expect(service.generateWithTools({ system: 'rules', messages, tools }))
       .rejects.toSatisfy(isAIToolCallUnsupportedError);
     expect(window.fetch).not.toHaveBeenCalled();
-    // 能力判定 = 协议族支持 且 显式勾选；两者缺一不可。
+    // Capability check = protocol family support AND explicit toggle; both are required.
     expect(supportsChatToolCalls({ apiType: 'openai-compatible', supportsToolCalls: true })).toBe(true);
     expect(supportsChatToolCalls({ apiType: 'openai-compatible' })).toBe(false);
     expect(supportsChatToolCalls({ apiType: 'gemini', supportsToolCalls: true })).toBe(false);

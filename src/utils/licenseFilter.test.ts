@@ -48,7 +48,7 @@ describe('normalizeLicense', () => {
   });
 
   it('trims scalar strings before sentinel matching and SPDX pass-through', () => {
-    // 直接字符串路径此前未 trim，" Other " 会成为独立 facet，拆分过滤/统计。
+    // Scalar string paths were previously not trimmed; " Other " would become an independent facet, fragmenting filtering/statistics.
     expect(normalizeLicense(' Other ')).toBe(NO_LICENSE_SENTINEL);
     expect(normalizeLicense('  NOASSERTION  ')).toBe(NO_LICENSE_SENTINEL);
     expect(normalizeLicense(' none ')).toBe(NO_LICENSE_SENTINEL);

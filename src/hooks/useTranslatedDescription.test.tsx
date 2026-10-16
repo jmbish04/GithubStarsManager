@@ -29,7 +29,7 @@ const setStore = (patch?: Partial<StoreState>) => {
   storeState = { autoTranslateRepoDescription: false, language: 'zh', ...patch };
 };
 
-// hook 使用模块级缓存，各用例用不同原文避免相互污染。
+// Hook uses module-level cache; tests use different source texts to avoid cross-test pollution.
 const flushTranslation = async () => {
   await act(async () => {
     await Promise.resolve();
@@ -38,7 +38,7 @@ const flushTranslation = async () => {
   });
 };
 
-// 更深的微任务冲刷：覆盖 排队→唤醒→发请求→结算 的多跳链路。
+// Deeper microtask flush: covers queue -> wake -> dispatch -> settle multi-hop chain.
 const drain = async () => {
   await act(async () => {
     for (let i = 0; i < 12; i += 1) {
@@ -48,7 +48,7 @@ const drain = async () => {
 };
 
 beforeEach(() => {
-  // clearAllMocks 不清除实现，显式 reset 翻译 mock 保证用例互不污染。
+  // clearAllMocks does not clear implementations; explicitly reset translation mock to prevent cross-test pollution.
   mocks.translateText.mockReset();
   vi.clearAllMocks();
   setStore();
@@ -74,7 +74,7 @@ describe('useTranslatedDescription', () => {
     mocks.translateText.mockResolvedValue({ translatedText: '一个快速的构建工具', detectedLanguage: 'en' });
 
     const { result } = renderHook(() => useTranslatedDescription('A fast build tool'));
-    // 翻译完成前先显示原文（undefined = 回退原文）。
+    // Show original text before translation completes (undefined = fallback to original).
     expect(result.current).toBeUndefined();
 
     await flushTranslation();
@@ -159,8 +159,8 @@ describe('useTranslatedDescription', () => {
       detectedLanguage: 'en',
     }));
 
-    // 渲染期探针：记录每次 render 返回的值（act 冲刷 effect 前的那次渲染
-    // 也在其中），从而能观测到「旧译文短暂显示给新 key」的缺陷。
+    // Render-phase probe: records value returned by each render (including render before act flushes effect)
+    // to observe transient flashes of stale translations.
     const seen: Array<string | undefined> = [];
     const { result, rerender } = renderHook(({ text }) => {
       const value = useTranslatedDescription(text);
@@ -172,7 +172,7 @@ describe('useTranslatedDescription', () => {
 
     seen.length = 0;
     rerender({ text: 'Second repository description' });
-    // 旧译文不允许出现在换文后的任何渲染帧中
+    // Stale translations must not appear in any render frame after changing text
     expect(seen).not.toContain('译文:First repository description');
     await flushTranslation();
     expect(result.current).toBe('译文:Second repository description');
@@ -213,7 +213,7 @@ describe('useTranslatedDescription', () => {
     await drain();
     expect(mocks.translateText).toHaveBeenCalledTimes(MAX_CONCURRENT_TRANSLATIONS);
 
-    // 释放首批，槽位转交给排队中的请求
+    // Release first batch; slots are transferred to queued requests
     resolvers.splice(0).forEach((resolve) => resolve());
     await drain();
     resolvers.splice(0).forEach((resolve) => resolve());
@@ -224,7 +224,7 @@ describe('useTranslatedDescription', () => {
       expect(hook.result.current).toBe(`译文:Batch description number ${i}`);
     });
 
-    // 整波完成后新原文仍能获得翻译（槽位计数泄漏会导致这里永久卡死）
+    // Brand new source texts can still be translated after the entire wave completes (slot leak would cause permanent lockup here)
     const next = renderHook(() => useTranslatedDescription('Brand new description after the wave'));
     await drain();
     expect(mocks.translateText).toHaveBeenCalledTimes(total + 1);

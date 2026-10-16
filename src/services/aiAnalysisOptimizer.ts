@@ -33,7 +33,7 @@ export interface OptimizerConfig {
   maxRetries: number;
   retryDelayBaseMs: number;
   enableAdaptiveConcurrency: boolean;
-  /** 共享 AI 请求限流配置；不传则使用默认（熔断开启，RPM/并发不限制） */
+  /** Shared AI request rate limit config; if omitted, defaults are used (circuit breaker enabled, RPM/concurrency unconstrained). */
   rateLimiter?: AIRateLimitConfig;
 }
 
@@ -64,8 +64,8 @@ export class AIAnalysisOptimizer {
   private paused = false;
   private activeWorkers = 0;
   private shouldExitWorkers = false;
-  // 批次级中止信号：所有 worker 的限流等待、AI 请求与重试延迟共用同一信号，
-  // 保证 abort() 能立即停下所有仍在阻塞的 worker（而非只停最近一次请求）。
+  // Batch-level abort signal: shared across rate limit waits, AI requests, and retry delays of all workers,
+  // ensuring abort() immediately stops all blocked workers (rather than only the most recent request).
   private readonly batchAbortController = new AbortController();
   private readonly sharedLimiter: AIRateLimiter;
 
@@ -75,12 +75,12 @@ export class AIAnalysisOptimizer {
     this.sharedLimiter = new AIRateLimiter(this.config.rateLimiter);
   }
 
-  /** 限流器实例：供外部（请求层 / 测试）复用同一份冷却与统计。 */
+  /** Rate limiter instance: allows external callers (request layer / tests) to share cooldowns and metrics. */
   get limiter(): AIRateLimiter {
     return this.sharedLimiter;
   }
 
-  /** 中止整个批次：所有在飞请求、限流等待与重试延迟立即停止。 */
+  /** Abort the entire batch: all in-flight requests, rate limit waits, and retry delays terminate immediately. */
   abort(): void {
     this.aborted = true;
     this.shouldExitWorkers = true;
@@ -136,13 +136,13 @@ export class AIAnalysisOptimizer {
       );
     }
     
-    // 如果并发数减少，通知 worker 退出
+    // If concurrency decreased, notify workers to exit
     if (this.currentConcurrency < oldConcurrency) {
       this.shouldExitWorkers = true;
     }
   }
 
-  /** 可中止的延迟：abort() 后立即放行，调用方依靠 aborted 标记结束批次。 */
+  /** Abortable delay: resolves immediately after abort(); callers rely on the aborted flag to terminate the batch. */
   private abortableDelay(ms: number): Promise<void> {
     return new Promise(resolve => {
       const signal = this.batchAbortController.signal;
@@ -268,11 +268,11 @@ export class AIAnalysisOptimizer {
       }
 
       try {
-        // 通过共享限流器占用一个请求槽：冷却 / RPM 窗口内会自动等待
+        // Acquire a request slot through the shared rate limiter: waits automatically within cooldown / RPM window
         const release = await this.sharedLimiter.acquire(this.batchAbortController.signal);
         try {
-          // 起算点放在 acquire 之后：限流排队时间不应计入 provider 响应时长，
-          // 否则 429 冷却会把「并发调节」误判为 provider 变慢而持续降并发
+          // Start measuring duration after acquire: queueing time should not count toward provider response latency,
+          // otherwise 429 cooldowns would cause adaptive concurrency to misinterpret delays as provider slowdowns and reduce concurrency indefinitely
           const analysisStart = Date.now();
           const analysis = await aiService.analyzeRepository(task.repo, task.readmeContent, categoryNames, categoryHints, this.batchAbortController.signal);
           const analysisDuration = Date.now() - analysisStart;
@@ -301,16 +301,16 @@ export class AIAnalysisOptimizer {
           };
         }
 
-        // 429 / 限流：记入共享限流器，触发全局冷却并采纳服务端 Retry-After
+        // 429 / rate limit: record into shared rate limiter, triggering global cooldown and respecting server Retry-After
         if (isRateLimitedError(error)) {
           this.sharedLimiter.notifyRateLimit(getRetryAfterMsFromError(error));
         }
 
         if (attempt < this.config.maxRetries) {
-          // 限流场景下，最短等待到全局冷却结束（含 Retry-After），避免与冷却窗口竞争
+          // Under rate limits, wait at least until global cooldown finishes (including Retry-After) to avoid competing with cooldown windows
           const cooldownWait = this.sharedLimiter.getStatus().cooldownRemainingMs;
           const delayMs = Math.max(this.calculateRetryDelay(attempt), cooldownWait);
-          // 可中止的等待：abort() 后立即结束等待，由下一轮循环的 aborted 检查兜底返回
+          // Abortable wait: terminates immediately upon abort(); the aborted check in the next loop iteration provides fallback return
           await this.abortableDelay(delayMs);
         }
       }

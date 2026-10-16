@@ -32,8 +32,8 @@ function makeTask(id: number): AnalysisTask {
   return { repo: makeRepo(id), readmeContent: '# readme', retries: 0 };
 }
 
-describe('AIAnalysisOptimizer 与共享限流器集成', () => {
-  it('遭遇 429 时记录到限流器、等待后重试成功，并清零计数', async () => {
+describe('AIAnalysisOptimizer integration with shared rate limiter', () => {
+  it('records 429 in rate limiter, retries successfully after wait, and resets counter', async () => {
     const optimizer = new AIAnalysisOptimizer({
       maxRetries: 2,
       retryDelayBaseMs: 1,
@@ -56,11 +56,11 @@ describe('AIAnalysisOptimizer 与共享限流器集成', () => {
 
     expect(result.success).toBe(true);
     expect(analyze).toHaveBeenCalledTimes(2);
-    // 成功后将连续 429 计数复位
+    // Reset consecutive 429 count upon success
     expect(optimizer.limiter.getStatus().consecutiveRateLimits).toBe(0);
   });
 
-  it('连续 429 超过阈值触发熔断，重试耗尽后返回失败', async () => {
+  it('triggers circuit breaker when consecutive 429s exceed threshold and fails after retries exhausted', async () => {
     const optimizer = new AIAnalysisOptimizer({
       maxRetries: 2,
       retryDelayBaseMs: 1,
@@ -81,12 +81,12 @@ describe('AIAnalysisOptimizer 与共享限流器集成', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBeInstanceOf(AIRequestError);
-    // 3 次调用 >= 阈值 2 => 熔断打开
+    // 3 calls >= threshold 2 => circuit breaker opens
     expect(optimizer.limiter.getStatus().circuitOpen).toBe(true);
     expect(optimizer.limiter.getStatus().consecutiveRateLimits).toBe(3);
   });
 
-  it('非限流错误不受 RateLimiter 冷却影响', async () => {
+  it('does not subject non-rate-limit errors to RateLimiter cooldown', async () => {
     const optimizer = new AIAnalysisOptimizer({
       maxRetries: 1,
       rateLimiter: { maxConcurrency: 0, requestsPerMinute: 0, cooldownThreshold: 2 },
@@ -104,7 +104,7 @@ describe('AIAnalysisOptimizer 与共享限流器集成', () => {
     expect(optimizer.limiter.getStatus().consecutiveRateLimits).toBe(0);
   });
 
-  it('abort() 立即停止阻塞在限流等待与重试延迟中的 worker', async () => {
+  it('immediately stops workers blocked in rate limit wait or retry delay on abort()', async () => {
     const optimizer = new AIAnalysisOptimizer({
       maxRetries: 3,
       retryDelayBaseMs: 10000,
@@ -121,11 +121,11 @@ describe('AIAnalysisOptimizer 与共享限流器集成', () => {
     const analyze = vi.fn().mockRejectedValue(new AIRequestError('too many requests', 429));
     const fakeAi = { analyzeRepository: analyze } as unknown as AIService;
 
-    // 第一个任务触发 429 后陷入长重试延迟；第二个任务阻塞在限流器 acquire
+    // The first task hits a 429 and enters a long retry delay; the second task blocks on limiter acquire
     const first = optimizer.analyzeWithRetry(makeTask(4), fakeAi, []);
     const second = optimizer.analyzeWithRetry(makeTask(5), fakeAi, []);
 
-    // 给两个任务时间进入阻塞状态，然后中止整个批次
+    // Give both tasks time to enter blocked states, then abort the entire batch
     await new Promise(r => setTimeout(r, 100));
     const start = Date.now();
     optimizer.abort();
@@ -133,7 +133,7 @@ describe('AIAnalysisOptimizer 与共享限流器集成', () => {
     const [r1, r2] = await Promise.all([first, second]);
     const elapsed = Date.now() - start;
 
-    // abort 应立刻穿过冷却等待 / 重试延迟（总时长被设为 10s）
+    // abort should cut through cooldown wait / retry delay immediately (total configured duration was 10s)
     expect(elapsed).toBeLessThan(500);
     expect(r1.success).toBe(false);
     expect(r1.error?.message).toBe('Analysis aborted');
@@ -141,7 +141,7 @@ describe('AIAnalysisOptimizer 与共享限流器集成', () => {
     expect(r2.error?.message).toBe('Analysis aborted');
   });
 
-  it('abort() 立即结束流水线，即使 README 请求仍在飞行', async () => {
+  it('immediately terminates the pipeline on abort(), even if README requests are in flight', async () => {
     const optimizer = new AIAnalysisOptimizer({
       maxRetries: 0,
       rateLimiter: { maxConcurrency: 0, requestsPerMinute: 0 },
@@ -150,7 +150,7 @@ describe('AIAnalysisOptimizer 与共享限流器集成', () => {
     const analyze = vi.fn().mockResolvedValue({ summary: 'ok', tags: [], platforms: [] });
     const fakeAi = { analyzeRepository: analyze } as unknown as AIService;
 
-    // README 拉取在收到 batch 信号中止前一直挂起：验证信号确实被传到了请求 API
+    // README fetch stays pending until the batch abort signal is received: verifies signal propagates to request API
     let resolveReadmeStarted = () => {};
     const readmeStarted = new Promise<void>(resolve => {
       resolveReadmeStarted = resolve;
@@ -178,7 +178,7 @@ describe('AIAnalysisOptimizer 与共享限流器集成', () => {
     const pending = optimizer.analyzeRepositoriesPipelined(
       [makeRepo(6), makeRepo(7)], githubApi, fakeAi, []);
 
-    // 等 README 请求真正启动后再中止整个批次，避免固定延时与请求启动竞速
+    // Wait until README request actually starts before aborting the batch, avoiding race conditions with fixed delays
     await readmeStarted;
     const start = Date.now();
     optimizer.abort();
@@ -186,7 +186,7 @@ describe('AIAnalysisOptimizer 与共享限流器集成', () => {
 
     expect(Date.now() - start).toBeLessThan(500);
     expect(githubApi.getRepositoryReadme).toHaveBeenCalled();
-    // 断言 README 请求确实收到了中止信号，而非流水线提前返回放任其挂起
+    // Assert that the README request actually received the abort signal, rather than the pipeline returning early and leaving it hung
     expect(readmeAborted).toHaveBeenCalled();
   });
 });

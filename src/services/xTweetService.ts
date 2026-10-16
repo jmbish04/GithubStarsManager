@@ -1,29 +1,29 @@
 /**
- * X 推文频道数据服务（自研抓取器，直连 x.com，不依赖第三方实例）。
+ * X tweet channel data service (in-house scraper connecting directly to x.com without third-party instances).
  *
- * 两种抓取模式：
- * - 未登录（默认）：传输层（Electron 主进程 IPC 或 fullstack 服务端路由）
- *   代抓 https://x.com/<handle> 未登录主页 HTML → 解析页面内嵌的 React
- *   Flight 数据（推文 ID 在 `client:VHdlZXQ6<base64>` 引用中解码，正文与
- *   链接实体在 `:details` 块内，发布时间由雪花 ID 推导）→ expanded_url 提取
- *   GitHub 仓库链接（复用周刊提取规则）。源能力边界（2026-09 实测）：每次
- *   返回每博主最新一小批推文、无历史翻页游标。
- * - 鉴权（用户在设置中填写自己的 auth_token/ct0）：走 x.com GraphQL 内部
- *   接口（公共 Web Bearer + 用户 Cookie），UserByScreenName 解析 rest_id、
- *   UserTweets 拉取时间线——每位博主每页约 20 条、bottom cursor 支持真实
- *   服务端翻页（与 Telegram 频道同构：游标落盘跨会话续传，page 1 刷新
- *   不回退已推进游标，60 秒水位只拦 page 1）。queryId 会随发版轮换：
- *   缓存命中优先，未命中/404 时从登录态首页引用的 main.<hash>.js bundle
- *   重新提取，失败再退回内置兜底值。
- * - 鉴权降级（2026-10）：x.com 边缘 WAF 开始按 TLS 指纹拦截 Node 网络栈
- *   （403 HTML 挑战页，Chromium 栈放行），鉴权请求失败时传输层自动降级
- *   免登录 guest 流程（guest token + Chromium 栈），公开账号可继续使用，
- *   但 guest 时间线无翻页游标（每博主仅最新一页）。
+ * Two scraping modes:
+ * - Unauthenticated (default): Transport layer (Electron main process IPC or fullstack server route)
+ *   fetches the unauthenticated https://x.com/<handle> profile HTML -> parses embedded React
+ *   Flight data (tweet ID decoded from `client:VHdlZXQ6<base64>` reference, body and link
+ *   entities inside `:details` block, timestamp derived from Snowflake ID) -> extracts GitHub
+ *   repository links from expanded_url (reusing weekly issue rules). Capability boundary (tested 2026-09):
+ *   returns the latest small batch of tweets per creator without historical pagination cursors.
+ * - Authenticated (user configures their own auth_token/ct0 in settings): connects to internal
+ *   x.com GraphQL endpoints (public Web Bearer + user Cookie), resolves rest_id via UserByScreenName,
+ *   pulls timeline via UserTweets—approx. 20 tweets per creator per page, with bottom cursor supporting real
+ *   server-side pagination (isomorphic to Telegram channel: cursors persisted across sessions, page 1 refresh
+ *   does not roll back advanced cursors, 60s throttle only checks page 1). queryId rotates with site releases:
+ *   cache hits take priority; on miss/404, re-extracted from main.<hash>.js bundle referenced on authenticated
+ *   homepage, falling back to built-in fallback values.
+ * - Auth degradation (2026-10): x.com edge WAF intercepts Node network stacks by TLS fingerprint
+ *   (403 HTML challenge page, while Chromium stack passes); when authenticated requests fail, transport layer
+ *   automatically degrades to guest flow without login (guest token + Chromium stack). Public accounts remain
+ *   accessible, though guest timelines lack pagination cursors (latest page only per creator).
  *
- * 两条路径共用：仓库 upsert（原贴指向发布时间最新的推文）→ 详情补全
- * （GraphQL 批量优先，REST 逐仓回退）→ 独立 IndexedDB 持久化 → 按推文
- * 时间倒序分页切片。纯浏览器（静态部署）受 CORS 限制不可用，需桌面版或
- * 服务端模式。
+ * Shared across both paths: repository upsert (original post points to latest tweet) -> detail enrichment
+ * (GraphQL batching preferred, REST per-repo fallback) -> dedicated IndexedDB persistence -> paginated slicing
+ * sorted descending by tweet timestamp. In pure browser mode (static deploy), blocked by CORS; requires desktop
+ * or server mode.
  */
 
 import type {
@@ -47,15 +47,15 @@ import {
 } from './xTweetStorage';
 
 const X_TWEET_CHANNEL: DiscoveryChannelId = 'x-tweet';
-/** 频道每页卡片数 */
+/** Number of cards per channel page */
 export const X_TWEET_CARD_PAGE_SIZE = 20;
 const HANDLE_THROTTLE_MS = 500;
 const REST_ENRICH_THROTTLE_MS = 80;
-/** 仓库详情的刷新周期：30 天内的快照视为新鲜 */
+/** Refresh cycle for repo details: snapshots within 30 days considered fresh */
 const REPO_DETAIL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-/** 不可用仓库（404/私有）的重试周期 */
+/** Retry cycle for unavailable repositories (404/private) */
 const UNAVAILABLE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
-/** 60 秒内同步过则跳过刷新遍历（重复触发走缓存） */
+/** Skip refresh traversal if synced within 60 seconds (repeat triggers use cache) */
 const RECENT_SYNC_SKIP_MS = 60 * 1000;
 
 type StatusCallback = ((status: WeeklySyncStatus | null) => void) | undefined;
@@ -72,7 +72,7 @@ const isRateLimitError = (error: unknown): boolean =>
 const isTokenInvalidError = (error: unknown): boolean =>
   error instanceof Error && error.message.includes('token expired or invalid');
 
-/** 持久化失败标记：saveSyncBatch 拒绝必须中止整轮，不能按博主抓取失败跳过。 */
+/** Persistence error marker: saveSyncBatch rejection must abort whole round, cannot skip as creator fetch failure. */
 const markPersistenceError = (error: unknown): unknown => {
   if (error instanceof Error) {
     (error as Error & { isPersistenceError?: boolean }).isPersistenceError = true;
@@ -83,7 +83,7 @@ const markPersistenceError = (error: unknown): unknown => {
 const isPersistenceError = (error: unknown): boolean =>
   error instanceof Error && (error as Error & { isPersistenceError?: boolean }).isPersistenceError === true;
 
-/** 分页游标未前进：不能当普通抓取失败跳过，否则 hasMore 会永远为 true。 */
+/** Pagination cursor did not advance: cannot be skipped as normal fetch failure, otherwise hasMore remains permanently true. */
 const markStalledCursorError = (error: unknown): unknown => {
   if (error instanceof Error) {
     (error as Error & { isStalledCursorError?: boolean }).isStalledCursorError = true;
@@ -103,8 +103,8 @@ export const isValidXTweetHandle = (handle: string): boolean =>
 export type XTimelineTransport = (handle: string) => Promise<string>;
 
 /**
- * 传输层：抓取 x.com 未登录主页 HTML。桌面端走主进程 IPC（跟随应用代理），
- * 失败时回退 fullstack 服务端路由；两者都不可用时抛错（纯浏览器模式不支持）。
+ * Transport layer: fetches unauthenticated x.com profile HTML. Desktop uses main process IPC (honoring app proxy),
+ * falling back to fullstack server route on failure; throws if neither is available (unsupported in pure browser mode).
  */
 export const defaultXTimelineTransport: XTimelineTransport = async (handle) => {
   let desktopError: unknown = null;
@@ -123,17 +123,17 @@ export const defaultXTimelineTransport: XTimelineTransport = async (handle) => {
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
-      throw new Error(`服务端抓取 x.com 失败 (${response.status})`);
+      throw new Error(`Failed to fetch x.com from server (${response.status})`);
     }
     const data = await response.json();
     if (typeof data?.html === 'string') return data.html;
-    throw new Error('服务端返回数据无效');
+    throw new Error('Invalid data returned from server');
   }
   if (desktopError) throw desktopError;
-  throw new Error('当前运行模式不支持 X 推文抓取：需要桌面版（Electron）或服务端模式');
+  throw new Error('Current runtime mode does not support X tweet scraping: desktop (Electron) or server mode required');
 };
 
-/** 从 Flight 的 client 引用解码推文 ID（VHdlZXQ6… == base64("Tweet:<id>")） */
+/** Decodes tweet ID from Flight client reference (VHdlZXQ6… == base64("Tweet:<id>")) */
 export function decodeTweetRef(ref: string): string | null {
   try {
     const decoded = atob(ref);
@@ -144,15 +144,15 @@ export function decodeTweetRef(ref: string): string | null {
   }
 }
 
-/* ============ 鉴权 GraphQL 路径 ============ */
+/* ============ Authenticated GraphQL Path ============ */
 
-/** 兜底 queryId（2026-09 实测；queryId 随 x.com 发版轮换，缓存未命中时重新提取） */
+/** Fallback queryId (tested 2026-09; queryId rotates with x.com releases, re-extracted on cache miss) */
 const FALLBACK_X_QUERY_IDS: Record<string, string> = {
   UserTweets: 'OeFjWKHutsuyWXZGmLr02A',
   UserByScreenName: 'KybxDj9RrADIITXlGG8kpw',
 };
 const X_GRAPHQL_OPERATIONS = ['UserTweets', 'UserByScreenName'] as const;
-/** 每页请求的推文数（与官网客户端一致） */
+/** Number of tweets requested per page (matching official web client) */
 const USER_TWEETS_PAGE_SIZE = 20;
 
 const X_GRAPHQL_FEATURES = JSON.stringify({
@@ -182,12 +182,12 @@ const X_GRAPHQL_FEATURES = JSON.stringify({
 });
 
 /**
- * 鉴权路径传输层：GET 一个 x.com GraphQL / 静态资源 URL，返回响应正文。
- * 鉴权 Cookie 只经桌面 IPC 参数或服务端 POST 体传递（URL 不带敏感信息）。
- * 非 2xx 抛错（消息含状态码，供上层映射"鉴权失效/限流"）。
- * auth 允许 null（免登录 guest 流程）：鉴权 Cookie 请求被 x.com 边缘 WAF
- * 403（按 TLS 指纹拦 Node 网络栈）时，自动降级 guest 重试同一 URL——公开
- * 账号无需 Cookie 即可取时间线；其余错误（如 401 鉴权失效）不降级。
+ * Authenticated path transport layer: GET an x.com GraphQL / static asset URL, returning response body.
+ * Auth Cookies are only passed via desktop IPC arguments or server POST body (no sensitive info in URL).
+ * Throws on non-2xx (message includes status code for upstream mapping of "auth expired / rate limited").
+ * auth allows null (unauthenticated guest flow): when authenticated Cookie requests receive x.com edge WAF
+ * 403 (intercepting Node network stack by TLS fingerprint), automatically degrades to guest and retries same URL—public
+ * accounts can fetch timelines without Cookie; other errors (e.g. 401 auth expired) do not degrade.
  */
 export type XGraphQLTransport = (url: string, auth: XTweetAuth | null) => Promise<string>;
 
@@ -199,8 +199,8 @@ export const defaultXGraphQLTransport: XGraphQLTransport = async (url, auth) => 
       if (body !== null) return body;
     } catch (error) {
       if (auth && error instanceof Error && error.message.includes('403')) {
-        // 鉴权请求被 x.com 边缘 WAF 403：降级免登录 guest 流程重试同一 URL；
-        // guest 也失败时保留其错误（比 403 更接近真因）继续走服务端回退
+        // Auth request blocked by x.com edge WAF 403: degrade to unauthenticated guest flow and retry same URL;
+        // if guest also fails, preserve its error (closer to root cause than 403) and proceed to server fallback
         try {
           const guestBody = await fetchXGraphQLViaDesktop(url, null);
           if (guestBody !== null) return guestBody;
@@ -226,22 +226,22 @@ export const defaultXGraphQLTransport: XGraphQLTransport = async (url, auth) => 
         const payload = await response.clone().json() as { upstreamStatus?: unknown };
         if (typeof payload?.upstreamStatus === 'number') upstreamStatus = payload.upstreamStatus;
       } catch {
-        // 非 JSON 错误体：只报告外层状态
+        // Non-JSON error body: report outer status only
       }
       const reported = upstreamStatus ?? response.status;
-      throw new Error(`服务端 X GraphQL 请求失败 (${reported})`);
+      throw new Error(`Failed to execute server-side X GraphQL request (${reported})`);
     }
     const data = await response.json();
     if (typeof data?.body === 'string') return data.body;
-    throw new Error('服务端返回数据无效');
+    throw new Error('Invalid data returned from server');
   }
   if (desktopError) throw desktopError;
-  throw new Error('当前运行模式不支持 X 鉴权抓取：需要桌面版（Electron）或服务端模式');
+  throw new Error('Current runtime mode does not support authenticated X scraping: desktop (Electron) or server mode required');
 };
 
 const compactJson = (value: Record<string, unknown>): string => JSON.stringify(value);
 
-/** UserTweets 请求 URL（cursor 为空即第一页） */
+/** UserTweets request URL (empty cursor means page 1) */
 export const buildUserTweetsUrl = (
   userId: string,
   cursor: string | null | undefined,
@@ -256,7 +256,7 @@ export const buildUserTweetsUrl = (
     withVoice: false,
   }))}&features=${encodeURIComponent(X_GRAPHQL_FEATURES)}`;
 
-/** UserByScreenName 请求 URL（handle → rest_id） */
+/** UserByScreenName request URL (handle -> rest_id) */
 export const buildUserByScreenNameUrl = (handle: string, queryId: string): string =>
   `https://x.com/i/api/graphql/${queryId}/UserByScreenName?variables=${encodeURIComponent(compactJson({
     screen_name: handle,
@@ -264,8 +264,8 @@ export const buildUserByScreenNameUrl = (handle: string, queryId: string): strin
   }))}`;
 
 /**
- * 从登录态首页引用的 main.<hash>.js bundle 提取当前 queryId
- * （queryId 随 x.com 发版轮换；登录态首页才引用含全部 operation 的 bundle）。
+ * Extracts current queryId from main.<hash>.js bundle referenced on authenticated homepage
+ * (queryId rotates with x.com releases; only authenticated home references bundle containing all operations).
  */
 export async function extractXGraphQLQueryIds(
   auth: XTweetAuth,
@@ -273,7 +273,7 @@ export async function extractXGraphQLQueryIds(
 ): Promise<Record<string, string>> {
   const homeHtml = await graphQL('https://x.com/home', auth);
   const mainJsUrl = homeHtml.match(/https:\/\/abs\.twimg\.com\/responsive-web\/client-web\/main\.[a-zA-Z0-9_-]+\.js/)?.[0];
-  if (!mainJsUrl) throw new Error('无法定位 x.com 主脚本（页面结构可能已变化）');
+  if (!mainJsUrl) throw new Error('Could not locate x.com main script (page structure may have changed)');
   const mainJs = await graphQL(mainJsUrl, auth);
   const ids: Record<string, string> = {};
   for (const operation of X_GRAPHQL_OPERATIONS) {
@@ -282,12 +282,12 @@ export async function extractXGraphQLQueryIds(
     if (id) ids[operation] = id;
   }
   if (!ids.UserTweets || !ids.UserByScreenName) {
-    throw new Error('无法从 x.com 主脚本提取 GraphQL queryId');
+    throw new Error('Could not extract GraphQL queryId from x.com main script');
   }
   return ids;
 }
 
-/** queryId 解析：meta 缓存 → 线上 bundle 提取（成功后写缓存）→ 内置兜底。 */
+/** queryId resolution: meta cache -> online bundle extraction (caches on success) -> built-in fallback. */
 async function resolveXQueryIds(
   meta: XTweetSyncMeta,
   auth: XTweetAuth,
@@ -305,7 +305,7 @@ async function resolveXQueryIds(
   }
 }
 
-/** 用户 ID 解析：meta 缓存 → UserByScreenName。queryId 404 时失效缓存并重提取一次后重试。 */
+/** User ID resolution: meta cache -> UserByScreenName. On queryId 404, invalidates cache and retries once after re-extraction. */
 async function resolveXUserId(
   handle: string,
   meta: XTweetSyncMeta,
@@ -321,10 +321,10 @@ async function resolveXUserId(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('401')) {
-      throw new Error('X 鉴权已失效（auth_token/ct0 无效或过期），请在设置中更新或清除鉴权配置');
+      throw new Error('X authentication expired (auth_token/ct0 invalid or expired). Please update or clear authentication in settings.');
     }
     if (message.includes('403')) {
-      throw new Error('X 请求被拒绝（HTTP 403，可能触发了 Cloudflare 防火墙拦截、IP 限制或账号受限）');
+      throw new Error('X request rejected (HTTP 403: may have triggered Cloudflare firewall block, IP rate limit, or account restriction)');
     }
     if (!isUpstreamNotFound(error)) throw error;
     logger.warn('xTweet', 'UserByScreenName queryId stale, re-extracting from bundle');
@@ -334,13 +334,13 @@ async function resolveXUserId(
   }
   const restId = JSON.parse(body)?.data?.user?.result?.rest_id;
   if (typeof restId !== 'string' || !restId) {
-    throw new Error(`无法解析 @${handle} 的用户 ID（账号可能不存在或已受限）`);
+    throw new Error(`Could not resolve user ID for @${handle} (account may not exist or be restricted)`);
   }
   meta.userIds[handle.toLowerCase()] = restId;
   return restId;
 }
 
-/** 推文时间（"Sun Sep 13 06:17:25 +0000 2026"）→ ISO；无法解析回退纪元。 */
+/** Tweet timestamp ("Sun Sep 13 06:17:25 +0000 2026") -> ISO; falls back to epoch if unparseable. */
 export function tweetDateToIso(value: string): string {
   const ms = Date.parse(value);
   return Number.isFinite(ms) ? new Date(ms).toISOString() : new Date(0).toISOString();
@@ -350,9 +350,10 @@ const escapeHtmlText = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
- * full_text + url 实体 → 展示用 HTML 片段：t.co 短链按实体索引替换为指向
- * expanded_url 的锚点，其余文本转义，换行转 <br/>。索引按 UTF-16 逐段
- * 切分（与 Twitter 的 indices 语义一致）。
+ * full_text + url entities -> display HTML fragment: replaces t.co short links
+ * with anchors pointing to expanded_url based on entity indices, escapes the rest
+ * of the text, and converts newlines to <br/>. Indices slice segments by UTF-16 code units
+ * (consistent with Twitter's indices semantics).
  */
 export function buildTweetContentHtml(
   fullText: string,
@@ -382,9 +383,9 @@ interface TweetLegacyCore {
 }
 
 /**
- * 解析 UserTweets 响应 JSON：时间线条目 → 推文（含转推条目，归博主）。
- * 鉴权失效（code 32/239）抛可读错误；账号不存在/受限抛错由上层跳过。
- * cursor-bottom 是下一页游标，缺失即时间线取尽。
+ * Parses UserTweets response JSON: timeline entries -> tweets (including retweets, attributed to the author).
+ * Throws readable errors on expired authentication (code 32/239); errors for non-existent/restricted accounts are skipped by the caller.
+ * cursor-bottom is the next page cursor; absence indicates the timeline is exhausted.
  */
 export function parseXUserTweetsJson(
   body: string,
@@ -406,18 +407,18 @@ export function parseXUserTweetsJson(
   try {
     data = JSON.parse(body);
   } catch {
-    throw new Error('X GraphQL 响应不是有效 JSON');
+    throw new Error('X GraphQL response is not valid JSON');
   }
   if (!data?.data && Array.isArray(data?.errors) && data.errors.length > 0) {
     const code = data.errors[0]?.code;
     if (code === 32 || code === 239 || code === 89 || code === 326) {
-      throw new Error('X 鉴权已失效（auth_token/ct0 无效或过期），请在设置中更新或清除鉴权配置');
+      throw new Error('X authentication expired (auth_token/ct0 invalid or expired). Please update or clear authentication in settings.');
     }
-    throw new Error(`X GraphQL 错误: ${data.errors[0]?.message ?? 'unknown'}`);
+    throw new Error(`X GraphQL error: ${data.errors[0]?.message ?? 'unknown'}`);
   }
   const userResult = data?.data?.user?.result;
   if (!userResult || userResult.__typename === 'UserUnavailable') {
-    throw new Error(`无法获取 @${handle} 的时间线（账号可能不存在、受限制或已注销）`);
+    throw new Error(`Failed to fetch timeline for @${handle} (account may not exist, be restricted, or be deactivated)`);
   }
   const displayName = userResult.core?.name || handle;
   const instructions = (userResult.timeline_v2 ?? userResult.timeline)?.timeline?.instructions ?? [];
@@ -476,7 +477,7 @@ interface XTimelinePayload {
   timeline?: { instructions?: Array<{ type?: string; entries?: unknown }> };
 }
 
-/** 单博主一页的鉴权抓取：queryId 404 时失效缓存并重提取一次后重试。 */
+/** Authenticated fetch for a single author's page: invalidates cached queryId on 404, re-extracts, and retries once. */
 async function fetchXUserTimelinePage(
   userId: string,
   cursor: string | null | undefined,
@@ -490,10 +491,10 @@ async function fetchXUserTimelinePage(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('401')) {
-      throw new Error('X 鉴权已失效（auth_token/ct0 无效或过期），请在设置中更新或清除鉴权配置');
+      throw new Error('X authentication expired (auth_token/ct0 invalid or expired). Please update or clear authentication in settings.');
     }
     if (message.includes('403')) {
-      throw new Error('X 请求被拒绝（HTTP 403，可能触发了 Cloudflare 防火墙拦截、IP 限制或账号受限）');
+      throw new Error('X request rejected (HTTP 403: may have triggered Cloudflare firewall block, IP rate limit, or account restriction)');
     }
     if (!isUpstreamNotFound(error)) throw error;
     logger.warn('xTweet', 'UserTweets queryId stale, re-extracting from bundle');
@@ -503,7 +504,7 @@ async function fetchXUserTimelinePage(
   }
 }
 
-/** 仍有历史页可拉的博主（pages 无记录视为未翻过页） */
+/** Authors who still have history pages to fetch (no entry in pages means unpaginated) */
 const handlesWithMore = (meta: XTweetSyncMeta, handles: string[]): string[] =>
   handles.filter((handle) => {
     const state = meta.pages[handle.toLowerCase()];
@@ -511,10 +512,10 @@ const handlesWithMore = (meta: XTweetSyncMeta, handles: string[]): string[] =>
   });
 
 /**
- * 单博主一页的抓取-解析-落盘（推文+仓库+游标/用户ID/queryId 同一事务），
- * 返回本轮触达的仓库键。抓取/解析失败向上抛出，由调用方按"跳过该博主"
- * 处理。cursor 为 null/undefined（page 1 或该博主从未翻过页）时拉最新页，
- * 且只在从未初始化过游标时写入——绝不回退已推进的位置。
+ * Single author page fetch-parse-persist (tweets + repos + cursor/userId/queryId in the same transaction),
+ * returning repo keys touched in this round. Fetch/parse failures are thrown upward for the caller to skip
+ * that author. When cursor is null/undefined (page 1 or the author has never been paginated), the latest page
+ * is fetched and written only if the cursor was never initialized—never rolling back an advanced cursor position.
  */
 async function fetchAndIngestXUserPage(
   handle: string,
@@ -536,20 +537,20 @@ async function fetchAndIngestXUserPage(
   const body = await fetchXUserTimelinePage(userId, cursor, meta, auth, graphQL);
   const parsed = parseXUserTweetsJson(body, handle);
   if (cursor === null || cursor === undefined) {
-    // 最新页：游标只在从未翻过页时初始化，绝不回退已推进的位置
+    // Latest page: cursor is initialized only when never paginated, never rolling back an advanced position
     if (!known) {
       meta.pages[key] = { cursor: parsed.nextCursor, exhausted: parsed.exhausted };
     }
   } else {
-    // 请求游标与下一页游标相同且非空：上游未前进，落盘会让 hasMore 永远为 true
+    // If request cursor matches next cursor and is non-empty: upstream did not advance; persisting would keep hasMore permanently true
     if (cursor && parsed.nextCursor === cursor) {
-      throw markStalledCursorError(new Error(`X 分页游标未前进（@${handle}）`));
+      throw markStalledCursorError(new Error(`X pagination cursor did not advance (@${handle})`));
     }
     meta.pages[key] = { cursor: parsed.nextCursor, exhausted: parsed.exhausted };
   }
   const { newTweets, pendingRepoKeys } = ingestFeedTweets(parsed.tweets, tweets, repos);
-  // 逐博主原子落盘（推文+仓库+meta 同一事务，水位此时不推进）
-  // 写失败标记后上抛中止整轮（调用方按 isPersistenceError 识别）
+  // Atomic per-author persistence (tweets + repos + meta in the same transaction; watermark is not advanced yet).
+  // Write failures are marked and thrown to abort the entire round (identified via isPersistenceError by caller).
   try {
     await xTweetStorage.saveSyncBatch({
       tweets: newTweets,
@@ -565,7 +566,7 @@ async function fetchAndIngestXUserPage(
   return pendingRepoKeys;
 }
 
-/** 雪花 ID → 发布时间（Twitter epoch 1288834974657）。ID 超出 Number 安全范围，必须用 BigInt。 */
+/** Snowflake ID -> creation time (Twitter epoch 1288834974657). ID exceeds safe Number range, so BigInt is required. */
 export function tweetSnowflakeToDate(tweetId: string): string {
   try {
     const ms = (BigInt(tweetId) >> 22n) + 1288834974657n;
@@ -575,7 +576,7 @@ export function tweetSnowflakeToDate(tweetId: string): string {
   }
 }
 
-/** Flight 内嵌字符串是 JS 字面量（\n \" 转义），按 JSON 字符串语义还原。 */
+/** Flight embedded strings are JS string literals (with \n \" escapes), restored following JSON string semantics. */
 const unescapeFlightString = (raw: string): string => {
   try {
     return JSON.parse(`"${raw}"`) as string;
@@ -585,14 +586,15 @@ const unescapeFlightString = (raw: string): string => {
 };
 
 const TWEET_MARK_PATTERN = /client:(VHdlZXQ6[A-Za-z0-9+/=]+):(legacy|details|counts|views)/g;
-/** 顶层时间线条目：TimelineTimelineEntry:tweet-<ID>:content（嵌套的引用/转推原文不在其中） */
+/** Top-level timeline entry: TimelineTimelineEntry:tweet-<ID>:content (nested quotes/retweets are excluded) */
 const TIMELINE_ENTRY_PATTERN = /TimelineTimelineEntry:tweet-(\d+):content/g;
 
 /**
- * 解析 x.com 未登录主页 HTML 中的推文。只认顶层时间线条目列出的推文——
- * 嵌套的引用推文（quoted status）属于其他作者，若一并扫入会把它们误归属
- * 给被关注的博主。每条推文的 `:details` 块内含 full_text 与链接实体；
- * 同一推文的引用在 Flight 图中重复出现，按 ID 去重。
+ * Parses tweets from the unauthenticated x.com home HTML. Only accepts tweets listed
+ * in top-level timeline entries—nested quoted tweets belong to other authors, and including
+ * them would misattribute them to the followed author. Each tweet's `:details` block contains
+ * full_text and link entities. References to the same tweet can appear multiple times in the
+ * Flight graph and are deduplicated by ID.
  */
 export function parseXTimelineHtml(html: string, handle: string): XStoredTweet[] {
   const timelineIds = new Set([...html.matchAll(TIMELINE_ENTRY_PATTERN)].map((m) => m[1]));
@@ -628,8 +630,9 @@ export function parseXTimelineHtml(html: string, handle: string): XStoredTweet[]
 }
 
 /**
- * 处理一轮解析结果：新推文进内存映射并登记，推文涉及的仓库 upsert
- * （原贴指向发布时间最新的推文），返回本轮需要补全详情的仓库键。
+ * Processes one round of parsing results: adds new tweets to in-memory maps,
+ * upserts referenced repos (original post points to the latest tweet by creation time),
+ * and returns repo keys needing detail enrichment in this round.
  */
 export function ingestFeedTweets(
   feed: XStoredTweet[],
@@ -663,7 +666,7 @@ export function ingestFeedTweets(
   return { newTweets, pendingRepoKeys };
 }
 
-/** 需要补全/维护详情的仓库：新触达（从未拉过）、过期快照、到期重试的不可用仓库。 */
+/** Repos needing detail enrichment/maintenance: newly discovered (never fetched), expired snapshots, and unavailable repos due for retry. */
 export function reposNeedingDetail(
   repos: Map<string, XStoredRepo>,
   touchedKeys: Set<string>,
@@ -684,7 +687,7 @@ export function reposNeedingDetail(
   return targets;
 }
 
-/** REST 逐仓补全回退路径（GraphQL 不可用时），限流/鉴权错误直接上抛中止本轮。 */
+/** Fallback REST per-repo enrichment path (when GraphQL is unavailable); rate-limit/auth errors are rethrown directly to abort this round. */
 async function enrichReposViaRest(
   api: GitHubApiService,
   targets: XStoredRepo[],
@@ -700,7 +703,7 @@ async function enrichReposViaRest(
       repo.lastFetchedAt = new Date().toISOString();
     } catch (error) {
       if (isAbortError(error) || isRateLimitError(error) || isTokenInvalidError(error)) throw error;
-      // 404/410/其他 4xx：标记不可用，到期重试（makeRequest 已做过网络/5xx 重试）
+      // 404/410/other 4xx: mark as unavailable and retry after expiry (makeRequest already performed network/5xx retries)
       logger.warn('xTweet', `Repo details unavailable: ${repo.fullName}`, error);
       repo.lastFetchedAt = new Date().toISOString();
     }
@@ -709,7 +712,7 @@ async function enrichReposViaRest(
   }
 }
 
-/** GraphQL 批量补全；部分批次失败时仅对未成功的仓库回退 REST。 */
+/** Batch enrichment via GraphQL; falls back to REST only for repos that failed when partial batches error. */
 async function enrichRepos(
   api: GitHubApiService,
   targets: XStoredRepo[],
@@ -748,7 +751,7 @@ async function enrichRepos(
   }
 }
 
-/** 由已补全详情的仓库构建频道卡片（未补全详情的条目暂不展示）。 */
+/** Builds channel discovery cards from repos with enriched details (entries without details are hidden for now). */
 export function buildXTweetDiscoveryRepos(
   tweets: Map<string, XStoredTweet>,
   repos: Map<string, XStoredRepo>,
@@ -784,8 +787,9 @@ let syncAbortController: AbortController | null = null;
 let syncInFlight: Promise<void> | null = null;
 
 /**
- * 中止并等待当前正在运行的 X 推文同步完成。
- * 主要用于数据管理面板清理缓存前调用，防止并发写入导致清理后脏数据重新落盘。
+ * Aborts and waits for any currently running X tweet sync to finish.
+ * Primarily called before clearing cache in the data management panel to prevent
+ * concurrent writes from persisting stale data right after cleanup.
  */
 export async function abortXTweetSync(): Promise<void> {
   syncAbortController?.abort();
@@ -794,7 +798,7 @@ export async function abortXTweetSync(): Promise<void> {
   }
 }
 
-/** 互斥执行：先登记新一轮再等待旧轮，避免重叠请求并发执行 body。 */
+/** Mutex execution: registers the new round before waiting for the previous one to avoid concurrent body execution on overlapping requests. */
 async function runExclusiveSync(
   body: (signal: AbortSignal) => Promise<void>,
   onStatus: StatusCallback,
@@ -804,12 +808,12 @@ async function runExclusiveSync(
   const prevController = syncAbortController;
   let resolveSlot: () => void = () => {};
   const slot = new Promise<void>((resolve) => { resolveSlot = resolve; });
-  // 先登记：后续请求等待的是本轮 slot，不会与本轮同时进入 body
+  // Register first: subsequent requests will wait on this round's slot and will not enter body concurrently
   syncAbortController = controller;
   syncInFlight = slot;
   prevController?.abort();
   if (prev) await prev.catch(() => {});
-  // 等待期间可能已被更新的请求取代：直接退出，不执行 body
+  // May have been superseded by a newer request during the wait: exit immediately without running body
   if (syncAbortController !== controller) {
     resolveSlot();
     return;
@@ -828,8 +832,8 @@ async function runExclusiveSync(
 }
 
 /**
- * 60 秒水位需同时满足：时间在窗口内 + 关注列表签名一致。
- * 只看时间戳会让"同步后 60 秒内新添加的关注"被跳过、直到窗口结束才被抓取。
+ * The 60-second watermark requires both: time within the window + identical follows signature.
+ * Checking only timestamps would cause newly followed authors added within 60s of a sync to be skipped until the window expires.
  */
 const isRecentlySynced = (meta: { lastSyncedAt: string | null; followsSignature: string }, signature: string): boolean =>
   meta.followsSignature === signature
@@ -837,13 +841,13 @@ const isRecentlySynced = (meta: { lastSyncedAt: string | null; followsSignature:
   && Number.isFinite(Date.parse(meta.lastSyncedAt))
   && Date.now() - Date.parse(meta.lastSyncedAt) < RECENT_SYNC_SKIP_MS;
 
-/** 关注列表签名：规范化 handle 排序拼接（大小写不敏感去重后的集合身份） */
+/** Follows list signature: normalized, sorted, concatenated handles (case-insensitive deduplicated set identity). */
 const followsSignatureOf = (handles: string[]): string =>
   [...new Set(handles.map((handle) => handle.toLowerCase()))].sort().join(',');
 
 /**
- * 鉴权身份指纹（非敏感）：同一组 Cookie 稳定，不同 Cookie 必然不同。
- * 只用 djb2 哈希区分缓存归属，绝不把原始 Cookie 写入签名或持久化元数据。
+ * Authentication identity fingerprint (non-sensitive): stable for the same cookie pair, distinct across different cookies.
+ * Uses a djb2 hash to partition cached data; raw cookies are never written to signatures or persistent metadata.
  */
 export const xTweetAuthFingerprint = (auth: XTweetAuth | null): string => {
   if (!auth) return 'anon';
@@ -856,16 +860,16 @@ export const xTweetAuthFingerprint = (auth: XTweetAuth | null): string => {
 };
 
 /**
- * 频道抓取入口（refreshChannel 调用）：
- * - 配置了 auth（鉴权 GraphQL 路径）：走 syncXTweetChannelWithAuth——真实
- *   服务端翻页，"加载更多"每点击一次对每位未取尽的博主拉下一页；
- * - 未配置（默认未登录路径）：
- *   - page 1（手动刷新/首次进入）：距上次同步超 60 秒时，逐博主重抓最新
- *     批次（增量，已知推文按 ID 跳过），新触达仓库批量补全详情；
- *   - page N（加载更多）：缓存不足该页窗口且距上次同步超 60 秒时补一次
- *     刷新，否则纯切片；
- *   每页返回累积前缀（前 page × 20 张卡片，调用方整体替换），因为刷新
- *   新增的卡片会落进已消费的窗口内，append 切片永远补不到。
+ * Channel sync entry point (called by refreshChannel):
+ * - With auth configured (authenticated GraphQL path): uses syncXTweetChannelWithAuth—true
+ *   server-side pagination, fetching the next page for each unexhausted author on every "load more" click;
+ * - Without auth (default unauthenticated path):
+ *   - page 1 (manual refresh / initial visit): fetches the latest batch per author if more than 60s
+ *     have passed since last sync (incremental, skipping known tweets by ID), batch-enriching details for newly reached repos;
+ *   - page N (load more): triggers a refresh only if cache is insufficient for the page window and >60s
+ *     have passed since last sync; otherwise slices directly from cache;
+ *   Each page returns an accumulated prefix (first page * 20 cards, replaced as a whole by caller),
+ *   because cards added during refresh can fall within earlier windows that append-slicing would miss.
  */
 export async function syncXTweetChannel(
   api: GitHubApiService,
@@ -890,7 +894,7 @@ export async function syncXTweetChannel(
   const signature = followsSignatureOf(handles);
   const meta0 = await xTweetStorage.getSyncMeta();
   const recent = isRecentlySynced(meta0, signature);
-  // 预读快照：不触网时直接复用为结算数据，避免同一次调用里重复全量遍历
+  // Pre-read snapshot: reuse directly for settlement when skipping network to avoid repeated full scans in the same call
   let snapshot: { tweets: Map<string, XStoredTweet>; repos: Map<string, XStoredRepo> } | null = null;
   let needsSync = page <= 1 && !recent;
   if (!needsSync) {
@@ -906,7 +910,7 @@ export async function syncXTweetChannel(
 
   if (needsSync) {
     await runExclusiveSync(async (signal) => {
-      // 上一轮可能已落盘新数据，重读最新状态
+      // Previous round may have written new data; reread latest state
       const meta = await xTweetStorage.getSyncMeta();
       if (isRecentlySynced(meta, signature)) return;
       meta.followsSignature = signature;
@@ -919,7 +923,7 @@ export async function syncXTweetChannel(
       for (const handle of handles) {
         if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
         onStatus?.({ phase: 'syncing', current: succeeded, total: handles.length });
-        // 抓取/解析失败只跳过该博主（账号不存在/网络抖动不拖垮整轮）
+        // Fetch/parse failure only skips this author (missing account or network jitter does not break the entire round)
         let parsed: XStoredTweet[];
         try {
           const html = await transport(handle);
@@ -933,9 +937,9 @@ export async function syncXTweetChannel(
         }
         const { newTweets, pendingRepoKeys } = ingestFeedTweets(parsed, tweets, repos);
         for (const key of pendingRepoKeys) touchedRepoKeys.add(key);
-        // 逐博主原子落盘（推文+仓库同一事务，水位此时不推进）。
-        // 写失败必须上抛中止整轮：内存合并态（tweets/原贴指针）无法安全
-        // 回滚，带着脏状态继续会让未持久化的合并混入末轮落盘
+        // Atomic per-author persistence (tweets + repos in the same transaction; watermark is not advanced yet).
+        // Write failure must be thrown to abort the round: in-memory merged state (tweets/source tweet pointers) cannot safely
+        // roll back, and continuing with dirty state would leak unpersisted merges into final rounds.
         await xTweetStorage.saveSyncBatch({
           tweets: newTweets,
           repos: [...touchedRepoKeys]
@@ -949,7 +953,7 @@ export async function syncXTweetChannel(
       if (succeeded === 0 && handles.length > 0) {
         throw firstError instanceof Error
           ? firstError
-          : new Error('X 推文抓取失败：所有博主的时间线均不可达');
+          : new Error('Failed to fetch X tweets: timelines for all accounts are unreachable');
       }
 
       const enrichTargets = reposNeedingDetail(repos, touchedRepoKeys, Date.now());
@@ -958,22 +962,22 @@ export async function syncXTweetChannel(
         .filter((repo): repo is XStoredRepo => Boolean(repo));
       try {
         await enrichRepos(api, enrichTargets, onStatus, signal);
-        // 成功路径：详情与水位同一事务提交——若失败回滚，下轮会重抓而不是
-        // 带着新水位跳过、把缺详情的仓库晾到 TTL 才补
+        // Success path: repo details and watermark committed in the same transaction—if rolled back on failure,
+        // the next round retries instead of skipping with a new watermark and leaving missing details until TTL expires.
         meta.lastSyncedAt = new Date().toISOString();
         await xTweetStorage.saveSyncBatch({ tweets: [], repos: touchedRepos(), meta });
       } catch (error) {
         if (isAbortError(error)) {
-          // 取消：保留已获取的详情，但不推进水位（下轮继续补全）
+          // Cancelled: retain fetched details without advancing watermark (next round continues enrichment)
           await xTweetStorage.saveSyncBatch({ tweets: [], repos: touchedRepos(), meta });
         }
-        // 限流/令牌错误：不提交部分或降级详情，也不推进水位
+        // Rate limit / token error: do not commit partial or degraded details, nor advance watermark
         throw error;
       }
     }, onStatus);
   }
 
-  // 触网轮次内部已有原子落盘，结算读最新；未触网轮次复用预读快照
+  // Network rounds have atomic writes internally, so read latest for settlement; non-network rounds reuse pre-read snapshot
   const settled = needsSync
     ? {
         tweets: await xTweetStorage.getAllTweets(),
@@ -990,12 +994,12 @@ export async function syncXTweetChannel(
 }
 
 /**
- * 鉴权 GraphQL 同步（真实服务端翻页，与 Telegram 频道同构）：
- * - page 1：距上次同步超 60 秒时逐博主重抓最新页（增量）；
- * - page N：对每位未取尽的博主按落盘游标拉下一页（一次点击翻一页，
- *   不受水位拦截），随后整体重建切片；
- * - 游标/用户 ID/queryId 随推文原子落盘跨会话续传；page 1 刷新不回退
- *   已推进的游标；频道全部取尽后纯切片直至缓存耗尽。
+ * Authenticated GraphQL sync (true server-side pagination, isomorphic to Telegram channel):
+ * - page 1: fetches latest page per author when last sync was >60s ago (incremental);
+ * - page N: fetches next page for each unexhausted author using persisted cursor (one click advances one page,
+ *   unblocked by watermarks), then rebuilds slices across the set;
+ * - Cursors/userIds/queryIds persist atomically with tweets across sessions; page 1 refresh never rolls back
+ *   advanced cursors; once all authors are exhausted, slices pure cache until exhausted.
  */
 async function syncXTweetChannelWithAuth(
   api: GitHubApiService,
@@ -1006,8 +1010,8 @@ async function syncXTweetChannelWithAuth(
   graphQL: XGraphQLTransport,
 ): Promise<PaginatedDiscoveryRepositories> {
   const windowEnd = page * X_TWEET_CARD_PAGE_SIZE;
-  // 签名带鉴权指纹：不同 Cookie 之间切换后 60 秒水位立即失效，触发重抓，
-  // 避免复用旧账户的 IndexedDB 快照（指纹为哈希，不含原始 Cookie）
+  // Signature includes auth fingerprint: switching between cookies immediately invalidates the 60s watermark,
+  // triggering a fresh fetch to avoid reusing IndexedDB snapshots from a previous account (fingerprint is a hash, no raw cookies).
   const currentFingerprint = xTweetAuthFingerprint(auth);
   const signature = `${followsSignatureOf(handles)}|${currentFingerprint}`;
 
@@ -1015,8 +1019,8 @@ async function syncXTweetChannelWithAuth(
   let settledMeta: XTweetSyncMeta | null = null;
 
   await runExclusiveSync(async (signal) => {
-    // 鉴权指纹变化检查必须置于 needsSync 判断和缓存快照读取之前；
-    // 检测到变化时先 clearAll()，若抛错立即终止整轮，确保不发起上游请求或提交结果
+    // Auth fingerprint check must happen before needsSync evaluation and cache snapshot reading;
+    // upon detecting a change, clearAll() is called first; any error immediately aborts the round to ensure no upstream requests or commits.
     let meta = await xTweetStorage.getSyncMeta();
     const prevFingerprint = meta.authFingerprint || (meta.followsSignature.includes('|') ? meta.followsSignature.split('|')[1] : '');
     const authChanged = Boolean(prevFingerprint && prevFingerprint !== currentFingerprint);
@@ -1050,7 +1054,7 @@ async function syncXTweetChannelWithAuth(
     const touchedRepoKeys = new Set<string>();
     let succeeded = 0;
     let firstError: unknown = null;
-    // page N 只翻未取尽的博主；page 1 始终重抓全部博主最新页
+    // page N only advances unexhausted authors; page 1 always refetches latest page for all authors
     const targets = page <= 1 ? handles : handlesWithMore(meta, handles);
     for (const handle of targets) {
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -1062,7 +1066,7 @@ async function syncXTweetChannelWithAuth(
         for (const key of pendingKeys) touchedRepoKeys.add(key);
       } catch (error) {
         if (isAbortError(error) || isPersistenceError(error) || isStalledCursorError(error)) throw error;
-        // 抓取/解析失败只跳过该博主（账号不存在/网络抖动不拖垮整轮）
+        // Fetch/parse failure only skips this author (missing account or network jitter does not break the entire round)
         logger.warn('xTweet', `Authenticated timeline fetch failed for @${handle}`, error);
         firstError = firstError ?? error;
         await sleep(HANDLE_THROTTLE_MS);
@@ -1074,7 +1078,7 @@ async function syncXTweetChannelWithAuth(
     if (succeeded === 0 && targets.length > 0) {
       throw firstError instanceof Error
         ? firstError
-        : new Error('X 推文抓取失败：所有博主的时间线均不可达');
+        : new Error('Failed to fetch X tweets: timelines for all accounts are unreachable');
     }
 
     const enrichTargets = reposNeedingDetail(repos, touchedRepoKeys, Date.now());
@@ -1087,7 +1091,7 @@ async function syncXTweetChannelWithAuth(
       await xTweetStorage.saveSyncBatch({ tweets: [], repos: touchedRepos(), meta });
     } catch (error) {
       if (isAbortError(error)) {
-        // 取消：保留已获取的详情，但不推进水位（下轮继续补全）
+        // Cancelled: retain fetched details without advancing watermark (next round continues enrichment)
         await xTweetStorage.saveSyncBatch({ tweets: [], repos: touchedRepos(), meta });
       }
       throw error;
@@ -1118,8 +1122,8 @@ async function syncXTweetChannelWithAuth(
   };
 }
 
-/** 设置弹窗"测试连接"：真实抓取一位博主主页并解析，返回可验证的结果。
- *  配置鉴权时走 GraphQL UserTweets（每页约 20 条），否则走未登录 HTML。 */
+/** Settings modal "Test Connection": fetches and parses an author's profile, returning verifiable results.
+ *  Uses GraphQL UserTweets (~20 items per page) when auth is configured; falls back to unauthenticated HTML otherwise. */
 export async function probeXTweetSource(
   handle: string,
   transport: XTimelineTransport = defaultXTimelineTransport,
@@ -1127,7 +1131,7 @@ export async function probeXTweetSource(
   graphQL: XGraphQLTransport = defaultXGraphQLTransport,
 ): Promise<{ ok: boolean; tweetCount?: number; repoCount?: number; error?: string }> {
   if (!isValidXTweetHandle(handle)) {
-    return { ok: false, error: '无效的用户名' };
+    return { ok: false, error: 'Invalid username' };
   }
   try {
     if (auth) {

@@ -8,8 +8,9 @@ export interface PluginEnablePrompt {
 }
 
 /**
- * 组装"启用插件"的权限确认文案。本地插件面板与插件市场共用，
- * 保证两个入口向用户披露的信息完全一致。
+ * Assembles the permission confirmation text for "Enable plugin". Shared between
+ * the local plugin panel and the plugin marketplace, ensuring both entry points
+ * disclose identical information to the user.
  */
 export function buildPluginEnablePrompt(t: TranslateFn, manifest: PluginManifest): PluginEnablePrompt {
   const permissions = manifest.permissions;

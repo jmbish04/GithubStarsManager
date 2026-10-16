@@ -1,26 +1,27 @@
 /**
- * Batch Repository Intake —— 批量导入的候选模型。
+ * Batch Repository Intake — Candidate models for batch import.
  *
- * 处理流程（roadmap §6 / 开发守则 §6）：
+ * Processing flow (roadmap §6 / Development Guidelines §6):
  * ```
  * Paste → Extract → Normalize → Deduplicate → Resolve GitHub metadata
  *       → Enrich with local/Core data → Review → Batch actions
  * ```
- * 本文件描述**前四步**的产物：一个已经归一化为 `owner/repo`、已去重、但仍未联网校验的候选。
- * 「Resolve GitHub metadata」（是否存在、是否私有、是否改名/转移、是否限流）与
- * 「Enrich with local/Core data」（是否已 Star、是否已在 My Apps）由后续阶段填充，
- * 因此 `status` 与 `reason` 的取值域在这里一次性定义完整，避免下一阶段再改模型。
+ * This file describes the output of the first four steps: a candidate normalized to `owner/repo`,
+ * deduplicated, but not yet verified over the network.
+ * "Resolve GitHub metadata" (exists, private, renamed/transferred, rate-limited) and
+ * "Enrich with local/Core data" (already starred, already in My Apps) are populated by subsequent stages;
+ * therefore, the domains of `status` and `reason` are fully defined here upfront to avoid model churn later.
  */
-/** 候选来源。第一版只实现 `text` 与 `json`；`clipboard` / `file` 留给后续阶段复用同一模型。 */
+/** Candidate source. Version 1 only implements `text` and `json`; `clipboard` / `file` are reserved for future reuse of the same model. */
 export type ImportSource = 'text' | 'json' | 'clipboard' | 'file';
 
 /**
- * 候选状态。
- * - `pending`：归一化成功，尚未联网校验（Extract/Deduplicate 阶段的正常结果）。
- * - `resolved`：已成功解析到 GitHub 元数据（Resolve 阶段填充）。
- * - `duplicate`：同一仓库（或同一无效片段）在本次输入中重复出现，本条是重复项。
- * - `invalid`：看起来像 GitHub 仓库但无法归一化（保留字路径、格式非法等），本阶段即可判定。
- * - `unavailable`：能归一化但解析失败（不存在 / 私有 / 改名 / 限流等），Resolve 阶段填充。
+ * Candidate status.
+ * - `pending`: Successfully normalized, not yet verified over the network (normal result of the Extract/Deduplicate stage).
+ * - `resolved`: Successfully resolved GitHub metadata (populated in Resolve stage).
+ * - `duplicate`: Duplicate occurrence of the same repository (or same invalid snippet) within the current input.
+ * - `invalid`: Resembles a GitHub repository but cannot be normalized (reserved path, malformed format, etc.), determined in this stage.
+ * - `unavailable`: Normalized but resolution failed (not found / private / renamed / rate-limited, etc.), populated in Resolve stage.
  */
 export type ImportCandidateStatus =
   | 'pending'
@@ -29,24 +30,24 @@ export type ImportCandidateStatus =
   | 'invalid'
   | 'unavailable';
 
-/** 候选是怎么被识别出来的，供预览界面区分可信度。 */
+/** How the candidate was matched, used by the preview UI to differentiate confidence. */
 export type ImportCandidateMatchedBy = 'github-url' | 'bare-slug';
 
 /**
- * 识别可信度。
- * - `high`：来自明确包含 `github.com` 的 URL（含 release/issue/tree/blob 等子路径）。
- * - `low`：来自正文里的裸 `owner/repo` 写法。散文里这对词天然有歧义
- *   （`src/utils`、`and/or`、`TCP/IP` 之类），因此一律降级，交由预览阶段由用户确认。
+ * Recognition confidence.
+ * - `high`: Originates from a URL explicitly containing `github.com` (including release/issue/tree/blob subpaths).
+ * - `low`: Originates from a bare `owner/repo` snippet in prose. Bare pairs in text are naturally ambiguous
+ *   (`src/utils`, `and/or`, `TCP/IP`, etc.), so they are demoted for user confirmation in preview.
  */
 export type ImportCandidateConfidence = 'high' | 'low';
 
 /**
- * 失败原因。
+ * Failure reason.
  *
- * 标注了阶段的取值由对应阶段产出，本阶段只产出 `not-a-repository-url` / `malformed-slug`：
- * - Extract 阶段：`not-a-repository-url`、`malformed-slug`
- * - Resolve 阶段：`not-found`、`private-or-inaccessible`、`renamed`、`rate-limited`
- * - Enrich 阶段：`already-exists`
+ * Values annotated with their respective stage are emitted by that stage; this stage emits only `not-a-repository-url` / `malformed-slug`:
+ * - Extract stage: `not-a-repository-url`, `malformed-slug`
+ * - Resolve stage: `not-found`, `private-or-inaccessible`, `renamed`, `rate-limited`
+ * - Enrich stage: `already-exists`
  */
 export type ImportFailureReason =
   | 'not-a-repository-url'
@@ -58,73 +59,73 @@ export type ImportFailureReason =
   | 'already-exists';
 
 /**
- * 一个导入候选。
+ * An import candidate.
  *
- * `originalValue` 始终保留原始片段——批量导入的每一步都必须是可回溯的，
- * 用户需要能看到「这条是从哪段文本里识别出来的」。
+ * `originalValue` always retains the raw snippet — every step in batch import must be traceable
+ * so users can see which text segment produced this candidate.
  */
 export interface ImportedRepositoryCandidate {
-  /** 归一化后的 `owner/repo`；`invalid` 时为空字符串。 */
+  /** Normalized `owner/repo`; empty string when `invalid`. */
   repositoryFullName: string;
   source: ImportSource;
-  /** 输入中触发本条候选的原始片段（未修改）。 */
+  /** Raw, unmodified snippet in the input that triggered this candidate. */
   originalValue: string;
   status: ImportCandidateStatus;
-  /** 本地是否已 Star（Enrich 阶段填充；本阶段在调用方提供本地集合时也会填）。 */
+  /** Whether already starred locally (populated in Enrich stage; also filled here if caller supplies a local set). */
   alreadyStarred?: boolean;
-  /** `invalid` / `unavailable`，或 Enrich 阶段识别到已存在时有值。 */
+  /** Present for `invalid` / `unavailable`, or when Enrich stage identifies an existing repository. */
   reason?: ImportFailureReason;
-  /** 识别来源，附加字段（守则模型之外），用于预览界面区分 URL 与裸写法。 */
+  /** Matched source; supplementary field (outside guideline model) used in preview UI to distinguish URLs from bare slugs. */
   matchedBy?: ImportCandidateMatchedBy;
-  /** 识别可信度，附加字段（守则模型之外）。 */
+  /** Recognition confidence; supplementary field (outside guideline model). */
   confidence?: ImportCandidateConfidence;
   /**
-   * Resolve 阶段发现仓库被改名/转移时的原始 `owner/repo`。
-   * 守则要求显示 `old-owner/repo → new-owner/repo` 且**不得静默修改**，
-   * 因此把旧名字单独留在这里，由用户确认后才替换。
+   * Original `owner/repo` when the Resolve stage discovers a renamed or transferred repository.
+   * Guidelines require displaying `old-owner/repo → new-owner/repo` WITHOUT silent changes,
+   * so the old name is preserved here until confirmed by the user.
    */
   previousFullName?: string;
 }
 
-/** 输入层面的问题（与单个候选无关）。 */
+/** Input-level issues (independent of individual candidates). */
 export interface RepositoryImportInputError {
   /**
-   * `json-parse-failed` 与 `input-too-large` 是致命问题：此时 `candidates` 为空。
-   * `too-many-values` 与 `depth-limit-exceeded` 只是截断：`candidates` 仍包含已扫描到的结果。
+   * `json-parse-failed` and `input-too-large` are fatal: `candidates` is empty.
+   * `too-many-values` and `depth-limit-exceeded` indicate truncation: `candidates` still contains results scanned so far.
    */
   code: 'json-parse-failed' | 'input-too-large' | 'too-many-values' | 'depth-limit-exceeded';
   message: string;
 }
 
-/** Extract + Normalize + Deduplicate 的结果。 */
+/** Result of Extract + Normalize + Deduplicate. */
 export interface RepositoryImportExtractionResult {
-  /** 按首次出现顺序排列的候选（含 `invalid` 与 `duplicate`）。 */
+  /** Candidates ordered by first occurrence (including `invalid` and `duplicate`). */
   candidates: ImportedRepositoryCandidate[];
-  /** 输入整体不合法或被截断时的问题列表；致命问题（见 {@link RepositoryImportInputError}）时 `candidates` 为空。 */
+  /** List of issues when input is wholly invalid or truncated; for fatal errors (see {@link RepositoryImportInputError}), `candidates` is empty. */
   inputErrors: RepositoryImportInputError[];
   stats: {
-    /** 实际扫描过的字符串数量（JSON 递归时是各层字符串值之和）。 */
+    /** Total number of strings actually scanned (sum of string values across all levels in JSON recursion). */
     scanned: number;
-    /** 归一化成功的候选数（不含 duplicates / invalid）。 */
+    /** Number of successfully normalized candidates (excluding duplicates / invalid). */
     valid: number;
     duplicates: number;
     invalid: number;
   };
 }
 
-/** 提取选项。 */
+/** Extraction options. */
 export interface RepositoryImportExtractionOptions {
-  /** 输入类型；`json` 会先做 JSON 解析再递归扫描字符串值。默认 `text`。 */
+  /** Input type; `json` parses JSON first before recursively scanning string values. Default `text`. */
   source?: ImportSource;
   /**
-   * 本地已有仓库的小写 `owner/repo` 集合；提供时用于填充 `alreadyStarred`。
-   * 这是纯函数输入，不做任何 IO。
+   * Set of lowercased `owner/repo` strings for existing local repositories; used to populate `alreadyStarred`.
+   * Pure function input with no I/O.
    */
   localRepositoryFullNames?: ReadonlySet<string>;
-  /** 输入最大长度（JavaScript 字符串长度），超出则报 `input-too-large` 并放弃扫描。默认 524288。 */
+  /** Maximum input length (JavaScript string length); exceeds trigger `input-too-large` and aborts scanning. Default 524288. */
   maxInputLength?: number;
-  /** 递归扫描 JSON 时最多处理多少个字符串值，防止病态输入。默认 20000。 */
+  /** Maximum number of string values processed during JSON recursion to guard against pathological inputs. Default 20000. */
   maxValues?: number;
-  /** JSON 递归最大深度。默认 32。 */
+  /** JSON recursion maximum depth. Default 32. */
   maxDepth?: number;
 }

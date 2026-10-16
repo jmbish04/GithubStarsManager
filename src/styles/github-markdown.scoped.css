@@ -2479,28 +2479,31 @@ html.dark .markdown-body {
   --bgColor-danger-muted: #f851491a;
 }
 
-/* ---- 宽表格滚动容器（MarkdownRenderer 的 table 组件包装） ------------------ */
+/* ---- Wide table scroll container (MarkdownRenderer table component wrapper) -- */
 
-/* 模型常输出多列对比表；在窄容器（问答侧栏、README 弹层）内横向滚动而不是
-   撑破布局或被截断。包装层只在需要时出现滚动条。 */
+/* Models often output multi-column comparison tables. Scroll horizontally within narrow
+   containers (chat sidebar, README modal) instead of breaking the layout or getting clipped.
+   The wrapper displays scrollbars only when needed. */
 .markdown-table-scroll {
   max-width: 100%;
   overflow-x: auto;
 }
 
 .markdown-table-scroll table {
-  /* 上游的 max-width:100% 会在包装层内压缩表格；滚动交给包装层，表格按
-     内容宽度展开（width:max-content 来自上游 github-markdown 规则）。 */
+  /* Upstream max-width:100% compresses tables inside the wrapper. Offload scrolling
+     to the wrapper and allow the table to expand to fit its content (width:max-content
+     comes from upstream github-markdown rules). */
   min-width: 0;
   max-width: none;
   overflow: visible;
 }
 
-/* ---- 仓库问答侧栏的排版安全 ---------------------------------------------- */
+/* ---- Repository chat sidebar typography and layout safety ---------------- */
 
-/* 侧栏较窄。默认表格是 display:block + width:max-content（单元格不换行、
-   横向滚动条沉在长表格底部，等于看不见）。聊天场景改为占满容器宽度、
-   单元格自动换行；确实放不下的多列表由上方包装层横向滚动。 */
+/* The sidebar is narrow. Default tables use display:block + width:max-content (no cell
+   wrapping, horizontal scrollbar pushed to the bottom of long tables, effectively invisible).
+   In chat, make tables span full container width with word-wrapping cells; multi-column
+   tables that genuinely overflow are scrolled horizontally by the outer wrapper above. */
 .repository-chat-markdown table {
   display: table;
   width: 100%;
@@ -2508,16 +2511,17 @@ html.dark .markdown-body {
   overflow: visible;
 }
 
-/* 长 URL / 长 token（内联代码、表格单元格）允许断行，避免横向溢出。 */
+/* Allow line breaks on long URLs / long tokens (inline code, table cells) to prevent horizontal overflow. */
 .repository-chat-markdown :is(code, th, td) {
   overflow-wrap: anywhere;
 }
 
-/* 代码块与 ASCII 文本绘图不换行（会破坏图形），改为在块内横向滚动，
-   不把消息卡片或侧栏撑出横向溢出。字号对齐 GitHub 的实际渲染值
-   （16px 正文 × 85% = 13.6px）：侧栏正文是 14px，沿用上游 85% 只得到
-   11.9px，明显小于 GitHub 的代码字号。深色主题的上游规则带 html.dark
-   前缀、特异性更高，这里需要同等特异性的变体才能在两种主题下都生效。 */
+/* Code blocks and ASCII text diagrams do not wrap (wrapping breaks diagrams); instead,
+   scroll horizontally within the block without causing the message card or sidebar to
+   overflow horizontally. Font size matches GitHub's actual rendered size (16px body × 85% =
+   13.6px): sidebar body text is 14px, so using upstream's 85% yields only 11.9px, which is
+   noticeably smaller than GitHub's code font size. Dark theme upstream rules use the html.dark
+   prefix with higher specificity, so a matching specificity variant is needed here to take effect in both themes. */
 .repository-chat-markdown pre,
 html.dark .repository-chat-markdown pre {
   max-width: 100%;
@@ -2525,7 +2529,8 @@ html.dark .repository-chat-markdown pre {
   font-size: 13.6px;
 }
 
-/* 长单词/URL 在窄侧栏内断行，避免把消息区撑宽后整段文字被右缘裁掉。 */
+/* Break long words/URLs inside narrow sidebars to prevent expanding the message area and clipping text at the right edge. */
 .repository-chat-markdown {
   overflow-wrap: break-word;
 }
+

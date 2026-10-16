@@ -24,8 +24,9 @@ export interface LoginActions {
 
 export const useLoginActions = (): LoginActions => {
   const authenticateWithGitHub = useCallback(async (token: string) => {
-    // 必须直连校验调用方传入的 token：走后端代理时服务端用的是库里存的
-    // github_token，会拿旧令牌的身份冒充本次登录校验结果。
+    // Must validate the caller's token directly: when using the backend proxy,
+    // the server uses the database-stored github_token, which would impersonate
+    // this login validation with the old token's identity.
     const api = createGitHubApiService(token, { direct: true });
     return api.getCurrentUser();
   }, []);

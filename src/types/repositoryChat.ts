@@ -73,8 +73,8 @@ export interface RepositoryChatAgentBudget {
 }
 
 /**
- * 聊天窗口里的任务深度档位。'default' 完全沿用设置页配置的 agentBudget；
- * 其余档位使用固定预设覆盖预算（见 TASK_DEPTH_PRESETS）。
+ * Task depth tiers in the chat view. 'default' follows the agentBudget configured
+ * on the settings page; other tiers override the budget with fixed presets (see TASK_DEPTH_PRESETS).
  */
 export type RepositoryChatTaskDepth = 'default' | 'quick' | 'deep' | 'unlimited';
 
@@ -83,7 +83,7 @@ export interface RepositoryChatTaskDepthPreset {
   answerMaxTokens: number;
 }
 
-/** 每个非默认档位的预算预设；maxTurns 均不低于 2（实测 1 轮取证不足以回答）。 */
+/** Budget presets for non-default tiers; maxTurns is at least 2 for all (testing showed 1 retrieval turn is insufficient for answers). */
 export const TASK_DEPTH_PRESETS: Record<Exclude<RepositoryChatTaskDepth, 'default'>, RepositoryChatTaskDepthPreset> = {
   quick: {
     budget: { maxTurns: 2, maxToolCalls: 8, maxReadFiles: 4, maxCodeReads: 1, maxNoProgressRounds: 1, maxDurationMs: 60_000 },
@@ -99,7 +99,7 @@ export const TASK_DEPTH_PRESETS: Record<Exclude<RepositoryChatTaskDepth, 'defaul
   },
 };
 
-/** 回答阶段默认的 max_tokens（'default' 档使用）。 */
+/** Default max_tokens for the answer phase (used by the 'default' tier). */
 export const DEFAULT_ANSWER_MAX_TOKENS = 4_000;
 
 export interface RepositoryChatSettings {
@@ -110,9 +110,9 @@ export interface RepositoryChatSettings {
   enableWebTools: boolean;
   retainSessionDays: number;
   /**
-   * 实验性：问答取证改用模型原生 function calling 的受控工具循环。
-   * 仅当问答模型的 AI 配置勾选"支持工具调用"时实际生效，否则自动沿用
-   * 编排式循环。默认关闭。
+   * Experimental: uses a controlled tool loop with model-native function calling for Q&A evidence retrieval.
+   * Only takes effect when the Q&A model's AI configuration has "supports tool calls" checked; otherwise
+   * automatically falls back to the orchestrated loop. Off by default.
    */
   enableAgentToolLoop: boolean;
   /**

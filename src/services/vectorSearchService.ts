@@ -1,8 +1,8 @@
 /**
- * 向量语义搜索服务
+ * Vector semantic search service
  *
- * 1. EmbeddingClient — 调用用户配置的 Embedding API 生成向量
- * 2. VectorSearchService — 与 Cloudflare Worker 通信（存/查/删向量）
+ * 1. EmbeddingClient — invokes user-configured Embedding API to generate vectors
+ * 2. VectorSearchService — communicates with Cloudflare Worker (store/query/delete vectors)
  */
 
 import type { EmbeddingConfig, VectorSearchConfig, Repository, VectorIndexMode } from '../types';
@@ -16,8 +16,8 @@ export class EmbeddingClient {
   constructor(private config: EmbeddingConfig) {}
 
   /**
-   * 批量生成 embedding 向量
-   * @param purpose 'document' 用于索引, 'query' 用于搜索查询
+   * Batch generate embedding vectors
+   * @param purpose 'document' for indexing, 'query' for search queries
    */
   async embed(texts: string[], purpose: 'document' | 'query' = 'document', signal?: AbortSignal): Promise<number[][]> {
     switch (this.config.apiType) {
@@ -37,7 +37,7 @@ export class EmbeddingClient {
   }
 
   /**
-   * 测试连接：发送单条文本，验证返回向量维度
+   * Test connection: sends a single text to verify returned vector dimensions
    */
   async testConnection(): Promise<{ success: boolean; dimensions: number; error?: string }> {
     try {
@@ -83,14 +83,14 @@ export class EmbeddingClient {
     }
 
     const data = await response.json();
-    // OpenAI 格式: { data: [{ embedding: [...], index: 0 }] }
+    // OpenAI format: { data: [{ embedding: [...], index: 0 }] }
     return data.data
       .sort((a: { index: number }, b: { index: number }) => a.index - b.index)
       .map((d: { embedding: number[] }) => d.embedding);
   }
 
   // ----------------------------------------------------------
-  // Ollama 本地模型
+  // Ollama local model
   // POST /api/embed
   // ----------------------------------------------------------
   private async embedOllama(texts: string[], signal?: AbortSignal): Promise<number[][]> {
@@ -109,7 +109,7 @@ export class EmbeddingClient {
     }
 
     const data = await response.json();
-    // Ollama 格式: { embeddings: [[...], [...]] }
+    // Ollama format: { embeddings: [[...], [...]] }
     return data.embeddings;
   }
 
@@ -176,11 +176,11 @@ export class EmbeddingClient {
 }
 
 // ============================================================
-// VectorSearchService — 与 Cloudflare Worker 通信
+// VectorSearchService — communicates with Cloudflare Worker
 // ============================================================
 
-// Vectorize V2 限制：returnMetadata 返回 metadata 时 topK 上限为 50。
-// Worker /query 同样以 50 为 clamp 上限，此处保持一致，避免请求被静默截断。
+// Vectorize V2 limit: topK is capped at 50 when returnMetadata returns metadata.
+// Worker /query similarly clamps topK to 50; kept consistent here to prevent requests from being silently truncated.
 export const VECTORIZE_QUERY_TOPK_LIMIT = 50;
 
 export interface VectorizeVector {
@@ -192,8 +192,8 @@ export interface VectorizeVector {
     language: string;
     stars: number;
     tags: string[];
-    // 可选：此 PR 之前（embedding v2）索引的向量不含 license 键，重索引前以 undefined 出现。
-    // indexAllRepos 写入时会填入字符串；消费方请按可选处理。
+    // Optional: vectors indexed before this PR (embedding v2) lacked the license key and appear as undefined until reindexed.
+    // indexAllRepos populates a string on write; consumers should treat as optional.
     license?: string;
   };
 }
@@ -207,7 +207,7 @@ export interface VectorQueryResult {
     language: string;
     stars: number;
     tags: string[];
-    // 同上：旧向量查询返回时缺该键，按可选处理。
+    // Same as above: legacy vector queries omit this key, treat as optional.
     license?: string;
   };
 }
@@ -252,7 +252,7 @@ export class VectorSearchService {
   }
 
   /**
-   * 批量 upsert 向量到 Vectorize
+   * Batch upsert vectors to Vectorize
    */
   async upsert(vectors: VectorizeVector[], signal?: AbortSignal): Promise<{ upserted: number }> {
     return this.request<{ upserted: number }>('/upsert', {
@@ -262,7 +262,7 @@ export class VectorSearchService {
   }
 
   /**
-   * 向量相似度查询
+   * Query vector similarity
    */
   async query(
     vector: number[],
@@ -278,7 +278,7 @@ export class VectorSearchService {
   }
 
   /**
-   * 删除指定 ID 的向量
+   * Delete vectors by IDs
    */
   async delete(ids: string[], signal?: AbortSignal): Promise<{ deleted: number }> {
     return this.request<{ deleted: number }>('/delete', {
@@ -288,7 +288,7 @@ export class VectorSearchService {
   }
 
   /**
-   * 清理不在 keepIds 列表中的向量（删除已 unstar 的仓库）
+   * Clean up vectors not in keepIds list (delete unstarred repositories)
    */
   async cleanup(keepIds: string[], signal?: AbortSignal): Promise<{ deleted: number }> {
     return this.request<{ deleted: number }>('/cleanup', {
@@ -298,14 +298,14 @@ export class VectorSearchService {
   }
 
   /**
-   * 获取索引状态
+   * Get index status
    */
   async getStatus(): Promise<VectorizeStatus> {
     return this.request<VectorizeStatus>('/status');
   }
 
   /**
-   * 测试 Worker 连通性
+   * Test Worker connectivity
    */
   async testConnection(): Promise<{ success: boolean; vectorCount: number; dimensions: number; error?: string }> {
     try {
@@ -327,29 +327,29 @@ export class VectorSearchService {
 }
 
 // ============================================================
-// 工具函数
+// Utility functions
 // ============================================================
 
 /**
- * 嵌入文本格式版本。
- * buildEmbeddingText 的输出格式变化时必须递增，
- * 使增量索引能检测到格式变化并强制重新索引所有向量。
+ * Embedding text format version.
+ * Must be incremented when buildEmbeddingText output format changes,
+ * allowing incremental indexing to detect format changes and force reindexing of all vectors.
  */
 export const EMBEDDING_FORMAT_VERSION = 3;
 
 /**
- * 拼接仓库文本用于 embedding
- * @param repo 仓库数据
- * @param readmeContent README 内容（可选）
- * @param maxChars README 最大字符数，默认 6000
+ * Concatenate repository text for embedding
+ * @param repo Repository data
+ * @param readmeContent README content (optional)
+ * @param maxChars Maximum characters from README, default 6000
  */
 export function buildEmbeddingText(repo: Repository, readmeContent?: string, maxChars = 6000): string {
   const parts: string[] = [];
 
-  // 结构化字段标签，帮助 embedding 模型理解字段角色和权重
+  // Structured field labels help embedding model understand field roles and weights
   if (repo.full_name) parts.push(`Repository: ${repo.full_name}`);
 
-  // 去重：description 和 ai_summary 内容重叠时，跳过较短的 description
+  // Deduplication: skip shorter description when description and ai_summary overlap
   const description = repo.description || '';
   const aiSummary = repo.ai_summary || '';
   const customDesc = repo.custom_description || '';
@@ -360,7 +360,7 @@ export function buildEmbeddingText(repo: Repository, readmeContent?: string, max
   if (customDesc) parts.push(`About: ${customDesc}`);
   if (aiSummary) parts.push(`Summary: ${aiSummary}`);
 
-  // 合并 topics 和 tags，去重
+  // Merge topics and tags, deduplicate
   const allTopics = [...new Set([
     ...(repo.topics || []),
     ...(repo.ai_tags || []),
@@ -369,20 +369,20 @@ export function buildEmbeddingText(repo: Repository, readmeContent?: string, max
   if (allTopics.length > 0) parts.push(`Topics: ${allTopics.join(', ')}`);
 
   if (repo.language) parts.push(`Language: ${repo.language}`);
-  // 开源许可：先归一化，避免 raw GitHub 对象变成 "[object Object]" 污染 embedding；
-  // 哨兵（无/未声明）不写入，与 null/缺失保持同一语义。
+  // Open source license: normalize first to avoid raw GitHub objects becoming "[object Object]" and polluting embedding;
+  // sentinels (none/unspecified) are omitted, maintaining identical semantics with null/missing.
   {
     const lic = normalizeLicense(repo.license);
     if (lic !== NO_LICENSE_SENTINEL) parts.push(`License: ${lic}`);
   }
 
-  // README 内容提供最丰富的语义信息
+  // README content provides the richest semantic information
   if (readmeContent) {
     const cleaned = readmeContent
-      .replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g, '') // 移除链接徽章 [![...](...)](...) — 必须在图片之前
-      .replace(/!\[.*?\]\(.*?\)/g, '') // 移除图片/徽章 ![...](...)
-      .replace(/<[^>]+>/g, ' ') // 移除 HTML 标签
-      .replace(/\n{3,}/g, '\n\n') // 压缩多余空行
+      .replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g, '') // Remove link badges [![...](...)](...) — must precede images
+      .replace(/!\[.*?\]\(.*?\)/g, '') // Remove images/badges ![...](...)
+      .replace(/<[^>]+>/g, ' ') // Remove HTML tags
+      .replace(/\n{3,}/g, '\n\n') // Collapse extra blank lines
       .trim();
     const truncated = cleaned.slice(0, maxChars);
     if (truncated) parts.push(`README:\n${truncated}`);
@@ -391,35 +391,35 @@ export function buildEmbeddingText(repo: Repository, readmeContent?: string, max
 }
 
 /**
- * 判断单个仓库是否需要重新向量索引（增量谓词的权威实现）。
+ * Determines whether a single repository needs vector reindexing (authoritative implementation of incremental predicate).
  *
- * 以下任一成立即视为需要重索引：
- *  - 从未索引（`vector_indexed_at` 缺失）；
- *  - embedding 格式版本升级（由调用方据 `formatVersionChanged` 传入）；
- *  - 内容时间（`last_edited` 与 `analyzed_at` 中较新者）晚于上次索引时间；
- *  - license 变化（归一化后比对 `vector_indexed_license` 与 `license`）。
+ * Considered needing reindexing if any of the following hold:
+ *  - Never indexed (`vector_indexed_at` missing);
+ *  - Embedding format version upgraded (passed in via `formatVersionChanged` by caller);
+ *  - Content timestamp (newer of `last_edited` and `analyzed_at`) is later than last index time;
+ *  - License changed (compares normalized `vector_indexed_license` with `license`).
  *
- * 该模块与 `VectorSearchSettings.tsx` 的 `unindexedCount` / `attemptedCount` 谓词
- * 必须保持一致，故统一抽取为可选导出供复用，避免三处副本分别漂移。
+ * This module's predicate must stay consistent with `VectorSearchSettings.tsx` `unindexedCount` / `attemptedCount`,
+ * so it is extracted as an export for reuse to prevent drift across three copies.
  */
 export function needsReindex(repo: Pick<Repository, 'last_edited' | 'analyzed_at' | 'license' | 'vector_indexed_at' | 'vector_indexed_license'>, formatVersionChanged: boolean): boolean {
-  if (!repo.vector_indexed_at) return true; // 从未索引
-  if (formatVersionChanged) return true; // 格式版本升级，需要重新索引
-  // 取 last_edited 与 analyzed_at 中较新者作为内容时间，更新后需要重新索引
+  if (!repo.vector_indexed_at) return true; // Never indexed
+  if (formatVersionChanged) return true; // Format version upgrade, requires reindexing
+  // Use newer of last_edited and analyzed_at as content timestamp; updates require reindexing
   const contentTime = [repo.last_edited, repo.analyzed_at]
     .filter((t): t is string => !!t)
     .sort()
     .pop() || '';
   if (contentTime > repo.vector_indexed_at) return true;
-  // license 变化（归一化后比对）：GitHub 同步可能仅更新 license 而 last_edited 不变，
-  // 此时向量元数据与嵌入文本中的 License 字段会过时，故需重新索引。
+  // License change (compared after normalization): GitHub sync may update only license while last_edited remains unchanged,
+  // making vector metadata and the License field in embedding text stale, requiring reindexing.
   return normalizeLicense(repo.vector_indexed_license ?? null) !== normalizeLicense(repo.license ?? null);
 }
 
 /**
- * 全量/增量重建向量索引
- * 遍历已分析仓库，分批生成 embedding 并 upsert 到 Worker
- * @param readmeFetcher 可选：获取仓库 README 内容的函数 (owner, repo) => content
+ * Full / incremental vector index rebuild.
+ * Iterates through analyzed repositories, generates embeddings in batches, and upserts them to Worker.
+ * @param readmeFetcher Optional: function to fetch repository README content (owner, repo) => content
  */
 export interface IndexProgress {
   phase: 'readme' | 'embedding' | 'uploading';
@@ -428,10 +428,10 @@ export interface IndexProgress {
 }
 
 /**
- * 判断 embedding 错误是否属于"输入过长"类（如硅基流动 20015）。
- * 这类错误的特点是：batch 中某一条超 token 限制导致整批失败，
- * 可以通过降级为逐条 embed 来隔离出真正超限的那条。
- * 只匹配明确的长度/token 关键词，避免把通用 400/配置错误误判为可重试。
+ * Determines whether an embedding error is an "input too long" error (e.g. SiliconFlow 20015).
+ * Characteristic of these errors: a single item in a batch exceeding token limit causes the entire batch to fail;
+ * degrading to per-item embedding isolates the item that actually exceeded the limit.
+ * Matches only explicit length/token keywords to avoid misclassifying generic 400/configuration errors as retryable.
  */
 export function looksLikeLengthError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
@@ -445,18 +445,18 @@ export function looksLikeLengthError(err: unknown): boolean {
 }
 
 /**
- * 对文本做截断，保留下限 256 字符。
+ * Truncates text, preserving a minimum threshold of 256 characters.
  */
 export function truncateForRetry(text: string, maxChars: number): string {
   return text.slice(0, Math.max(256, Math.min(text.length, maxChars)));
 }
 
 /**
- * 批量 embed，带单条失败隔离 + 截断重试。
- * - 正常路径：一次 batch 调用，快。
- * - 若 batch 抛出"长度类"错误：降级为逐条 embed，只让真正超限的那条失败。
- * - 非 length 错误（auth/5xx/网络）：直接 rethrow，交由上层整批失败处理。
- * 返回稀疏数组：成功位置为向量，彻底失败的位置为 null。
+ * Batch embed with per-item failure isolation + truncation retry.
+ * - Fast path: single batch call, fast.
+ * - If batch throws a "length" error: degrade to per-item embed, failing only the item that exceeded the limit.
+ * - Non-length errors (auth/5xx/network): rethrow directly for upper-layer entire batch failure handling.
+ * Returns sparse array: vector at successful indices, null at completely failed indices.
  */
 export async function embedWithFallback(
   texts: string[],
@@ -464,7 +464,7 @@ export async function embedWithFallback(
   signal: AbortSignal | undefined,
   retryMaxChars: number
 ): Promise<(number[] | null)[]> {
-  // 快路径：尝试整批
+  // Fast path: try entire batch
   try {
     if (signal?.aborted) throw new Error('Aborted');
     const vectors = await embeddingClient.embed(texts, 'document', signal);
@@ -476,18 +476,18 @@ export async function embedWithFallback(
     if (signal?.aborted || (err instanceof Error && err.message === 'Aborted')) {
       throw new Error('Aborted');
     }
-    // 仅对"长度类"错误降级为逐条；其他错误整批失败
+    // Degrade to per-item only for "length" errors; other errors fail the whole batch
     if (!looksLikeLengthError(err)) {
       throw err;
     }
   }
 
-  // 慢路径：逐条 embed，单条超限则截断重试
+  // Slow path: per-item embed, retry with truncation if single item exceeds limit
   const results: (number[] | null)[] = new Array(texts.length).fill(null);
   for (let i = 0; i < texts.length; i++) {
     if (signal?.aborted) throw new Error('Aborted');
     const original = texts[i];
-    // 截断重试阶梯：每步严格递减，保留下限 256
+    // Truncation retry ladder: strictly decreasing steps, lower bound 256
     const firstLimit = Math.max(256, Math.min(retryMaxChars, Math.floor(original.length / 2)));
     const secondLimit = Math.max(256, Math.floor(firstLimit / 2));
     const candidates = [
@@ -497,7 +497,7 @@ export async function embedWithFallback(
     ].filter((c, idx, arr) => idx === 0 || c.length < (arr[idx - 1]?.length ?? Infinity));
     let succeeded = false;
     for (const candidate of candidates) {
-      if (!candidate) { succeeded = true; break; } // 空文本直接跳过
+      if (!candidate) { succeeded = true; break; } // Skip empty text directly
       try {
         const v = await embeddingClient.embed([candidate], 'document', signal);
         if (Array.isArray(v) && v.length === 1 && Array.isArray(v[0])) {
@@ -509,7 +509,7 @@ export async function embedWithFallback(
         if (signal?.aborted || (err instanceof Error && err.message === 'Aborted')) {
           throw new Error('Aborted');
         }
-        // 仍是 length 错误 → 尝试更短的候选；非长度错误（5xx/network/auth）立即抛出
+        // Still length error -> try shorter candidate; non-length error (5xx/network/auth) throws immediately
         if (!looksLikeLengthError(err)) {
           throw err;
         }
@@ -535,9 +535,9 @@ export async function indexAllRepos(
     readmeMaxChars?: number;
     incremental?: boolean;
     onRepoIndexed?: (repoId: number) => void;
-    /** 当前存储的格式版本号 */
+    /** Currently stored format version */
     formatVersion?: number;
-    /** 最新格式版本号（EMBEDDING_FORMAT_VERSION） */
+    /** Latest format version (EMBEDDING_FORMAT_VERSION) */
     currentFormatVersion?: number;
   } = {}
 ): Promise<{ indexed: number; skipped: number; errors: number; error?: string; indexedRepoIds: number[] }> {
@@ -547,12 +547,12 @@ export async function indexAllRepos(
     throw new Error('batchSize must be a positive integer');
   }
 
-  // 只索引已分析且未失败的仓库
+  // Only index analyzed repos that have not failed
   let indexable = repos.filter((r) => r.analyzed_at && !r.analysis_failed);
-  // 增量模式下跳过已索引且内容未更新的仓库
+  // In incremental mode, skip indexed repos whose content has not updated
   if (incremental) {
-    // 嵌入文本格式版本变化时，强制重新索引所有向量以避免混合格式
-    // 缺失版本号视为 v1（旧格式），仍需触发升级
+    // When embedding text format version changes, force reindexing all vectors to prevent mixed formats
+    // Missing version is treated as v1 (legacy format), still requiring an upgrade
     const formatVersionChanged = (options.formatVersion ?? 1) < (options.currentFormatVersion ?? EMBEDDING_FORMAT_VERSION);
     indexable = indexable.filter((r) => needsReindex(r, formatVersionChanged));
   }
@@ -561,7 +561,7 @@ export async function indexAllRepos(
   let lastError = '';
   const indexedRepoIds: number[] = [];
 
-  // 仅在 readme 模式下获取 README 内容
+  // Fetch README content only in readme mode
   const shouldFetchReadme = indexMode === 'readme' && readmeFetcher;
   const readmeCache = new Map<string, string>();
   if (shouldFetchReadme) {
@@ -601,11 +601,11 @@ export async function indexAllRepos(
     const texts = batch.map(repo => buildEmbeddingText(repo, readmeCache.get(repo.full_name), readmeMaxChars));
 
     try {
-      // 1. 调用 Embedding API 生成向量（带单条失败隔离 + 截断重试）
-      //    长度类错误（如硅基流动 20015）会降级为逐条 embed，避免整批失败
+      // 1. Call Embedding API to generate vectors (with per-item failure isolation + truncation retry)
+      //    Length errors (e.g. SiliconFlow 20015) degrade to per-item embed to avoid failing entire batch
       const vectors = await embedWithFallback(texts, embeddingClient, signal, readmeMaxChars);
 
-      // 2. 组装成功项的 Vectorize 格式（跳过 null 的失败项）
+      // 2. Assemble Vectorize format for successful items (skip null failed items)
       const vectorizeVectors: VectorizeVector[] = [];
       let batchErrors = 0;
       for (let j = 0; j < batch.length; j++) {
@@ -620,8 +620,8 @@ export async function indexAllRepos(
               language: batch[j].language || '',
               stars: batch[j].stargazers_count || 0,
               tags: batch[j].ai_tags || [],
-              // 历史/导入数据 license 可能是 GitHub 对象或数字；统一经 normalizeLicense
-              // 降为 SPDX id / 哨兵，避免把 "[object Object]" 写入向量元数据。
+              // Legacy/imported data license may be a GitHub object or number; normalized via normalizeLicense
+              // down to SPDX id / sentinel to avoid writing "[object Object]" into vector metadata.
               license: normalizeLicense(batch[j].license),
             },
           });
@@ -630,8 +630,8 @@ export async function indexAllRepos(
         }
       }
 
-      // 3. upsert 到 Worker（仅当有成功向量时）
-      //    Vectorize upsert 是原子的，但用返回的 upserted 数量计数更严谨
+      // 3. Upsert to Worker (only when there are successful vectors)
+      //    Vectorize upsert is atomic, but counting via returned upserted count is more rigorous
       const currentBatch = Math.floor(i / batchSize) + 1;
       if (vectorizeVectors.length > 0) {
         onProgress?.({ phase: 'uploading', done: currentBatch, total: totalBatches });
@@ -640,13 +640,13 @@ export async function indexAllRepos(
           ? Math.min(upsertResult.upserted, vectorizeVectors.length)
           : vectorizeVectors.length;
         indexed += upsertedCount;
-        // 仅标记确认 upserted 的 repo（按顺序）
+        // Only mark repos confirmed upserted (in order)
         for (let j = 0; j < upsertedCount; j++) {
           const repoId = parseInt(vectorizeVectors[j].id, 10);
           indexedRepoIds.push(repoId);
           onRepoIndexed?.(repoId);
         }
-        // 若 worker 返回的 upserted 少于发送数，差额计入 errors
+        // If worker returns fewer upserted than sent, record difference in errors
         const notUpserted = vectorizeVectors.length - upsertedCount;
         if (notUpserted > 0) {
           batchErrors += notUpserted;
@@ -673,14 +673,14 @@ export async function indexAllRepos(
 }
 
 /**
- * 查找与源仓库语义相似的仓库。
+ * Find repositories semantically similar to source repository.
  *
- * 流程：
- * 1. 拼接源仓库文本并 embed（purpose='query'）
- * 2. 调用 Worker 的 /query 接口获取相似向量 id 列表
- * 3. 从全量仓库中映射回 Repository，过滤掉源仓库自身
+ * Flow:
+ * 1. Build source repository text and embed (purpose='query')
+ * 2. Call Worker's /query endpoint to get list of similar vector IDs
+ * 3. Map back to Repository from full repository list, filtering out source repository itself
  *
- * @returns 相似仓库数组（按相似度降序，已排除源仓库）
+ * @returns Array of similar repositories (in descending similarity order, excluding source repository)
  */
 export async function findSimilarRepositories(
   sourceRepo: Repository,

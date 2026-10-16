@@ -1,11 +1,11 @@
 /**
- * grep.app 代码搜索服务（前端直连优先）。
+ * grep.app code search service (frontend direct connection preferred).
  *
- * 接口为非官方逆向规格：`GET https://grep.app/api/search`，无需认证。
- * 实测注意：
- * - 机房 IP 会触发 Vercel Challenge（429），浏览器 egress 正常，故默认由浏览器直接 fetch。
- * - `repo/path` 实际为纯字符串（文档中的 `{raw}` 包裹已过时），此处做双向兼容。
- * - `f.lang` 等过滤有效，但 `facets` 仍返回全局分布，UI 需用 facets 做选项、用 hits 做展示。
+ * Interface reverse-engineered from unofficial spec: `GET https://grep.app/api/search`, no authentication required.
+ * Operational notes:
+ * - Datacenter IPs trigger Vercel Challenges (429), whereas browser egress works normally, so fetch directly from the browser by default.
+ * - `repo/path` is actually a plain string (the `{raw}` wrapper in docs is outdated); bi-directional compatibility is maintained here.
+ * - Filters like `f.lang` work, but `facets` still return global distributions; UI should use facets for selection options and hits for display.
  */
 
 export const GREP_APP_BASE_URL = 'https://grep.app';
@@ -15,17 +15,17 @@ export type GrepMatchMode = 'fuzzy' | 'words' | 'regexp';
 
 export interface GrepSearchParams {
   q: string;
-  /** 匹配模式：fuzzy（默认，啥都不传）/ words（全词）/ regexp（RE2 正则） */
+  /** Matching mode: fuzzy (default, nothing passed) / words (whole word) / regexp (RE2 regex) */
   mode?: GrepMatchMode;
-  /** 区分大小写，可与任意模式叠加 */
+  /** Case-sensitive matching, can be combined with any mode */
   caseSensitive?: boolean;
-  /** 语言过滤（多值重复传 f.lang） */
+  /** Language filter (pass multiple f.lang parameters) */
   langs?: string[];
-  /** 仓库过滤（owner/repo，多值重复传 f.repo） */
+  /** Repository filter (owner/repo, pass multiple f.repo parameters) */
   repos?: string[];
-  /** 路径过滤（多值重复传 f.path） */
+  /** Path filter (pass multiple f.path parameters) */
   paths?: string[];
-  /** 分页页码（对应 Load More），默认 1 */
+  /** Page number for pagination (corresponds to Load More), defaults to 1 */
   page?: number;
 }
 
@@ -40,7 +40,7 @@ export interface GrepCodeHit {
   path: string;
   language: string;
   totalMatches: string;
-  /** 服务端返回的 highlight-table HTML（含 <mark>），渲染前需消毒 */
+  /** Server-returned highlight-table HTML (contains <mark>), must be sanitized before rendering */
   snippetHtml: string;
 }
 
@@ -52,7 +52,7 @@ export interface GrepSearchResult {
   hits: GrepCodeHit[];
 }
 
-/** 兼容文档旧格式 `{raw: string}` 与实际纯字符串（数值型按字符串归一化） */
+/** Compatible with both legacy doc format `{raw: string}` and actual plain string (numeric values normalized to string) */
 function rawToString(value: unknown): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
@@ -74,7 +74,7 @@ function toBucketList(input: unknown): GrepFacetBucket[] {
     .filter((bucket) => bucket.val !== '');
 }
 
-/** 拼接 grep.app 搜索 URL：多值过滤重复传参，全词与正则互斥由调用方保证。 */
+/** Builds grep.app search URL: multi-value filters repeat query params; mutual exclusion between words and regexp is caller's responsibility. */
 export function buildGrepSearchUrl(params: GrepSearchParams): string {
   const query = new URLSearchParams();
   query.set('q', params.q);
@@ -94,7 +94,7 @@ export function buildGrepSearchUrl(params: GrepSearchParams): string {
   return `${GREP_APP_SEARCH_URL}?${query.toString()}`;
 }
 
-/** 归一化 grep.app 响应：兼容纯字符串与旧 `{raw}` 包裹两种命中形状。 */
+/** Normalizes grep.app response: supports both plain strings and legacy `{raw}` wrapped hit shapes. */
 export function normalizeGrepSearchResponse(data: unknown): GrepSearchResult {
   const root = (data ?? {}) as Record<string, unknown>;
   const facets = (root.facets ?? {}) as Record<string, unknown>;
@@ -128,7 +128,7 @@ export function normalizeGrepSearchResponse(data: unknown): GrepSearchResult {
   return { total, repoFacets, pathFacets, langFacets, hits };
 }
 
-/** 判断错误是否为 grep.app 限流（HTTP 429），供重试 UI 使用。 */
+/** Determines whether an error is a grep.app rate limit (HTTP 429), used for retry UI. */
 export function isGrepRateLimitError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const status = (error as { status?: unknown }).status;
@@ -142,8 +142,8 @@ export interface GrepSearchOptions {
 }
 
 /**
- * 执行一次 grep.app 搜索：空查询直接返回空结果；支持外部取消与超时取消；
- * 429 抛出带 `status` 的错误，其余非 2xx 同理。
+ * Executes a grep.app search: empty queries return empty results directly; supports external cancellation and timeout;
+ * 429 throws an error with `status`, as do other non-2xx responses.
  */
 export async function searchGrepApp(
   params: GrepSearchParams,
@@ -157,7 +157,7 @@ export async function searchGrepApp(
   const timeoutMs = options.timeoutMs ?? 25000;
   const controller = new AbortController();
   const onAbort = () => controller.abort();
-  // 外层 signal 若已处于 aborted 状态，addEventListener 不会回放，需显式同步一次
+  // If the external signal is already aborted, addEventListener will not replay, so synchronize explicitly
   if (options.signal?.aborted) controller.abort();
   else options.signal?.addEventListener('abort', onAbort, { once: true });
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -185,8 +185,8 @@ export async function searchGrepApp(
 }
 
 /**
- * 收藏过滤：按 full_name 大小写不敏感匹配。
- * grep 命中只有 `owner/repo` 字符串，本地 star 列表是唯一可信来源。
+ * Starred repository filtering: case-insensitive match on full_name.
+ * grep hits only provide an `owner/repo` string; the local starred list is the sole source of truth.
  */
 export function filterStarredHits(hits: GrepCodeHit[], starredFullNames: Iterable<string>): GrepCodeHit[] {
   const starred = new Set<string>();
@@ -197,9 +197,10 @@ export function filterStarredHits(hits: GrepCodeHit[], starredFullNames: Iterabl
 }
 
 /**
- * 最小化消毒：DOMParser 允许名单实现，仅保留 pygments highlight-table
- * 排版与 `<mark>` 高亮所需的标签，剥离其余元素（保留子节点文本）与全部属性。
- * 不引入 DOMPurify 新依赖，避免包体积变化。仅运行于浏览器/jsdom 环境。
+ * Minimal sanitization: DOMParser allowlist implementation, keeping only tags necessary
+ * for pygments highlight-table formatting and `<mark>` highlights, stripping other elements
+ * (preserving child node text) and all attributes.
+ * Avoids adding a new DOMPurify dependency to prevent bundle size growth. Runs only in browser/jsdom environments.
  */
 export function sanitizeGrepSnippet(html: string): string {
   if (!html) return '';
@@ -208,18 +209,18 @@ export function sanitizeGrepSnippet(html: string): string {
     'PRE', 'SPAN', 'MARK', 'BR', 'CODE',
   ]);
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  // 可执行/样式元素连内容整体移除，避免解包后残留脚本正文
+  // Remove executable/styling elements along with their contents entirely to avoid leftover script text after unpacking
   doc.querySelectorAll('script, style').forEach((el) => el.remove());
 
   const sanitizeChildren = (parent: Element): void => {
     for (const child of Array.from(parent.children)) {
       sanitizeChildren(child);
       if (!allowed.has(child.tagName)) {
-        // 非允许名单元素：解包保留子节点（文本/高亮）后移除
+        // Non-allowlisted element: unpack child nodes (text/highlights) to retain them, then remove parent
         child.replaceWith(...Array.from(child.childNodes));
         continue;
       }
-      // 允许名单元素：剥离全部属性（含 on* 事件与 javascript: 伪协议）
+      // Allowlisted element: strip all attributes (including on* handlers and javascript: pseudo-protocols)
       for (const attr of Array.from(child.attributes)) {
         child.removeAttribute(attr.name);
       }

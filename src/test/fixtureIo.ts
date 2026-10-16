@@ -3,8 +3,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 /**
- * i18n 迁移保障网：把迁移前的行为固化为 JSON fixture。
- * 用 UPDATE_I18N_FIXTURES=1 重新生成；默认严格比对，任何字节级差异都会失败。
+ * i18n migration safety net: solidifies pre-migration behavior into JSON fixtures.
+ * Regenerate using UPDATE_I18N_FIXTURES=1; by default, performs strict comparison and fails on any byte-level difference.
  */
 export const fixturePath = (importMetaUrl: string, relative: string): string =>
   path.join(path.dirname(fileURLToPath(importMetaUrl)), relative);

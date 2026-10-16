@@ -198,7 +198,7 @@ describe('useAppStore release add/upsert actions', () => {
     const publishedAt = '2026-01-01T00:00:00.000Z';
     const assetAtPublish = { ...makeRelease(1).assets[0], updated_at: publishedAt };
 
-    // 初始：已同步的 release，用户已标记为已读
+    // Initial: synced release, marked as read by user
     useAppStore.getState().addReleases([makeRelease(1, {
       published_at: publishedAt,
       assets: [assetAtPublish],
@@ -206,7 +206,7 @@ describe('useAppStore release add/upsert actions', () => {
     useAppStore.getState().markReleaseAsRead(1);
     const isUnread = () => !useAppStore.getState().readReleases.has(1);
 
-    // 刷新：GitHub 返回同 id 但资产已被替换（updated_at 晚于 published_at）
+    // Refresh: GitHub returns same id but assets have been replaced (updated_at later than published_at)
     const latest = makeRelease(1, {
       published_at: publishedAt,
       assets: [
@@ -219,19 +219,19 @@ describe('useAppStore release add/upsert actions', () => {
       ],
     });
 
-    // 复用 handleRefresh 的共享筛选逻辑（findReleasesWithChangedAssets），不依赖已读状态
+    // Reuse handleRefresh's shared filtering logic (findReleasesWithChangedAssets), independent of read state
     const updatedReleases = findReleasesWithChangedAssets([latest], useAppStore.getState().releases);
     expect(updatedReleases).toHaveLength(1);
     useAppStore.getState().upsertReleases(updatedReleases);
 
-    // 资产更新后：无论之前是否已读，都重置为未读并展示"资产已更新"
+    // After asset update: reset to unread and show "Assets updated" regardless of prior read status
     const merged = useAppStore.getState().releases.find(r => r.id === 1)!;
     expect(merged.is_read).toBe(false);
     expect(merged.updated_asset_ids).toEqual([101, 999]);
     expect(isUnread()).toBe(true);
     expect(shouldShowAssetsUpdatedIndicator(merged)).toBe(true);
 
-    // 用户再次点击该条 release → 已读，"资产已更新"随 updated_asset_ids 清空而消失
+    // User clicks the release again -> read; "Assets updated" disappears as updated_asset_ids is cleared
     useAppStore.getState().markReleaseAsRead(1);
     expect(isUnread()).toBe(false);
     const afterRead = useAppStore.getState().releases.find(r => r.id === 1)!;
@@ -240,8 +240,8 @@ describe('useAppStore release add/upsert actions', () => {
   });
 
   it('regression: asset updated_at newer than published_at alone does not show the indicator', () => {
-    // GitHub 上资产几乎都在 Release 创建后上传（updated_at > published_at 常态），
-    // 只有"相对上次拉取发生了变化"（updated_asset_ids 非空）才允许展示标识。
+    // Assets on GitHub are almost always uploaded after Release creation (updated_at > published_at is the norm);
+    // only "changes relative to the last fetch" (non-empty updated_asset_ids) are permitted to show the indicator.
     const publishedAt = '2026-01-01T00:00:00.000Z';
     useAppStore.getState().addReleases([makeRelease(1, {
       published_at: publishedAt,
@@ -663,8 +663,8 @@ describe('useAppStore repository performance guards', () => {
   });
 
   it('keeps the real GitHub id when adding a new repository so later syncs match', () => {
-    // 回归：批量从链接 Star 的仓库自带 GitHub id。若换成合成 id，后续「同步」
-    // 按 GitHub id 匹配不到本地记录，会用裸 GitHub 数据覆盖掉 AI 分析与分类标签。
+    // Regression: batch starred repos from links carry real GitHub ids. If replaced with synthesized ids, subsequent syncs
+    // would fail to match local records by GitHub id, overwriting AI analysis and category tags with bare GitHub data.
     useAppStore.setState({ repositories: [createRepository(1)], searchResults: [] });
     const batchStarred = createRepository(765_432_1, { full_name: 'owner/from-links' });
 
@@ -675,19 +675,19 @@ describe('useAppStore repository performance guards', () => {
   });
 
   it('updates a renamed repository by its real GitHub id instead of adding a duplicate', () => {
-    // 回归（CodeRabbit r4145581832）：id 是权威身份，改名只换 full_name。
-    // 同一 id 却不同名时必须就地更新，否则同一仓库会出现两条记录。
+    // Regression (CodeRabbit r4145581832): id is the authoritative identity; renaming only changes full_name.
+    // Same id with different name must be updated in place, otherwise duplicate records appear for the same repo.
     const existing = createRepository(1, {
       full_name: 'owner/old',
-      ai_summary: '旧仓库分析',
-      custom_category: '工具',
+      ai_summary: 'Old repo analysis',
+      custom_category: 'Tools',
       category_locked: true,
     });
     useAppStore.setState({ repositories: [existing], searchResults: [] });
 
     useAppStore.getState().addRepository(createRepository(1, {
       full_name: 'owner/new',
-      description: '改名后的描述',
+      description: 'Renamed description',
     }));
 
     const repositories = useAppStore.getState().repositories;
@@ -695,89 +695,89 @@ describe('useAppStore repository performance guards', () => {
     expect(repositories[0]).toMatchObject({
       id: 1,
       full_name: 'owner/new',
-      description: '改名后的描述',
-      // 本地 AI 分析与自定义字段保留
-      ai_summary: '旧仓库分析',
-      custom_category: '工具',
+      description: 'Renamed description',
+      // Preserve local AI analysis and custom fields
+      ai_summary: 'Old repo analysis',
+      custom_category: 'Tools',
       category_locked: true,
     });
   });
 
   it('keeps AI analysis and custom category when re-adding an existing repository', () => {
-    // 入参来自 GitHub 详情 / 发现页数据，不带 AI 字段，直接展开会清空已有分析结果。
-    // 合成 id 的历史记录（批量 Star 遗留）缺失权威身份，应继续被认领。
+    // Input comes from GitHub details / discovery page data without AI fields; spreading directly clears existing analysis.
+    // Legacy records with synthesized ids (leftover from batch star import) lack authoritative identity and should continue to be claimed.
     const analyzed = createRepository(1_700_000_000_005, {
-      ai_summary: 'AI 摘要',
+      ai_summary: 'AI summary',
       ai_tags: ['ai-tag'],
       ai_platforms: ['cli'],
       analyzed_at: '2026-02-01T00:00:00.000Z',
-      custom_category: '工具',
+      custom_category: 'Tools',
       category_locked: true,
     });
     useAppStore.setState({ repositories: [analyzed], searchResults: [] });
 
-    // 同一 full_name，但 id 不同、且不带任何 AI 字段
+    // Same full_name, but different id, without any AI fields
     useAppStore.getState().addRepository(createRepository(999, {
       full_name: analyzed.full_name,
-      description: '来自 GitHub 的新描述',
+      description: 'New description from GitHub',
     }));
 
     expect(useAppStore.getState().repositories).toHaveLength(1);
     expect(useAppStore.getState().repositories[0]).toMatchObject({
       id: analyzed.id,
-      description: '来自 GitHub 的新描述',
-      ai_summary: 'AI 摘要',
+      description: 'New description from GitHub',
+      ai_summary: 'AI summary',
       ai_tags: ['ai-tag'],
       ai_platforms: ['cli'],
       analyzed_at: '2026-02-01T00:00:00.000Z',
-      custom_category: '工具',
+      custom_category: 'Tools',
       category_locked: true,
     });
   });
 
   it('keeps AI analysis when re-adding with the same GitHub id', () => {
-    // 同一 GitHub 身份（id 相同）⇒ 无论是否合成 id，都应保留 AI 分析
-    const analyzed = createRepository(555, { ai_summary: 'AI 摘要', ai_tags: ['ai-tag'] });
+    // Same GitHub identity (same id) => preserve AI analysis regardless of synthesized id status
+    const analyzed = createRepository(555, { ai_summary: 'AI summary', ai_tags: ['ai-tag'] });
     useAppStore.setState({ repositories: [analyzed], searchResults: [] });
 
     useAppStore.getState().addRepository(createRepository(555, {
       full_name: analyzed.full_name,
-      description: '来自 GitHub 的新描述',
+      description: 'New description from GitHub',
     }));
 
     expect(useAppStore.getState().repositories[0]).toMatchObject({
       id: 555,
-      description: '来自 GitHub 的新描述',
-      ai_summary: 'AI 摘要',
+      description: 'New description from GitHub',
+      ai_summary: 'AI summary',
       ai_tags: ['ai-tag'],
     });
   });
 
   it('adds a name-reusing repo as a separate record instead of overwriting the old id', () => {
-    // 回归（CodeRabbit r4145277692）：本地记录带**真实 GitHub id**（id:5），
-    // 原仓库已改名/删除，入参是复用旧名的新仓库（id:999）。
-    // 绝不能把新仓库写到旧仓库的 id 下 —— 否则用户对新仓库做完 AI 分析后，
-    // 下次同步按 GitHub id 匹配不到本地记录（名称兜底只认领合成 id 记录），
-    // 分析结果会再次丢失，即本 PR 要修的原始问题。
+    // Regression (CodeRabbit r4145277692): local record has a *real GitHub id* (id:5),
+    // original repo was renamed/deleted, and input is a new repo reusing the old name (id:999).
+    // Must NEVER write the new repo under the old repo's id—otherwise after user runs AI analysis
+    // on the new repo, the next sync won't match local records by GitHub id (name fallback only claims synthesized id records),
+    // and analysis results would be lost again (the original issue this PR fixes).
     const old = createRepository(5, {
-      ai_summary: '旧仓库分析',
-      custom_category: '内部工具',
+      ai_summary: 'Old repo analysis',
+      custom_category: 'Internal Tools',
       category_locked: true,
     });
     useAppStore.setState({ repositories: [old], searchResults: [] });
 
     useAppStore.getState().addRepository(createRepository(999, {
       full_name: old.full_name,
-      description: '一个完全不同的新项目',
+      description: 'A completely different new project',
     }));
 
     const repositories = useAppStore.getState().repositories;
-    // 旧记录原样保留，新仓库作为独立记录加入
+    // Old record preserved intact; new repository added as a separate record
     expect(repositories).toHaveLength(2);
     expect(repositories[0]).toMatchObject({
       id: 5,
-      ai_summary: '旧仓库分析',
-      custom_category: '内部工具',
+      ai_summary: 'Old repo analysis',
+      custom_category: 'Internal Tools',
       category_locked: true,
     });
     const added = repositories.find(r => r.id === 999);
@@ -785,86 +785,86 @@ describe('useAppStore repository performance guards', () => {
     expect(added).toMatchObject({
       id: 999,
       full_name: old.full_name,
-      description: '一个完全不同的新项目',
+      description: 'A completely different new project',
     });
-    // 新仓库不得继承旧仓库的 AI 分析
+    // New repository must not inherit the old repo's AI analysis
     expect(added?.ai_summary).toBeUndefined();
     expect(added?.custom_category).toBeUndefined();
   });
 
   it('updates the identity-matching record instead of appending a duplicate', () => {
-    // 回归（CodeRabbit 5367214192）：列表里已存在「旧真实 id + 新真实 id」的同名
-    // 记录时，再次添加新仓库必须更新 id 999 那条，而不是追加重复记录。
+    // Regression (CodeRabbit 5367214192): when both "old real id + new real id" records with the same name
+    // already exist, re-adding the new repo must update the id 999 record instead of appending duplicates.
     const old = createRepository(5, { full_name: 'owner/old' });
     const current = createRepository(999, {
       full_name: 'owner/old',
-      description: '旧描述',
-      ai_summary: '新仓库的分析结果',
-      ai_tags: ['新标签'],
+      description: 'Old description',
+      ai_summary: 'Analysis result for new repo',
+      ai_tags: ['new-tag'],
     });
     useAppStore.setState({ repositories: [old, current], searchResults: [] });
 
     useAppStore.getState().addRepository(createRepository(999, {
       full_name: 'owner/old',
-      description: '刷新后的描述',
+      description: 'Refreshed description',
     }));
 
     const repositories = useAppStore.getState().repositories;
-    // 不得出现重复 id
+    // No duplicate ids allowed
     expect(repositories.map(r => r.id)).toEqual([5, 999]);
-    // id 999 的记录被就地更新，且保留其 AI 分析
+    // Record with id 999 updated in place while preserving its AI analysis
     const updated = repositories.find(r => r.id === 999)!;
-    expect(updated.description).toBe('刷新后的描述');
-    expect(updated.ai_summary).toBe('新仓库的分析结果');
-    expect(updated.ai_tags).toEqual(['新标签']);
+    expect(updated.description).toBe('Refreshed description');
+    expect(updated.ai_summary).toBe('Analysis result for new repo');
+    expect(updated.ai_tags).toEqual(['new-tag']);
   });
 
   it('prefers the legacy synthetic record when no exact identity match exists', () => {
-    // 同名 + 合成 id 的历史记录仍应被认领并就地更新（正向场景不被误伤）
+    // Historical record with same name + synthesized id should still be claimed and updated in place
     const legacy = createRepository(1_700_000_000_123, {
       full_name: 'owner/legacy',
-      ai_summary: 'AI 摘要',
+      ai_summary: 'AI summary',
     });
     useAppStore.setState({ repositories: [legacy], searchResults: [] });
 
     useAppStore.getState().addRepository(createRepository(42, {
       full_name: 'owner/legacy',
-      description: '来自 GitHub 的描述',
+      description: 'Description from GitHub',
     }));
 
     const repositories = useAppStore.getState().repositories;
     expect(repositories).toHaveLength(1);
     expect(repositories[0]).toMatchObject({
       id: 1_700_000_000_123,
-      description: '来自 GitHub 的描述',
-      ai_summary: 'AI 摘要',
+      description: 'Description from GitHub',
+      ai_summary: 'AI summary',
     });
   });
 
   it('keeps the new repo id after AI analysis so the next sync can still match it', () => {
-    // 完整链路：复用旧名 → 独立记录 → AI 分析 → 同步仍能按 GitHub id 命中
+    // Full flow: reused old name -> separate record -> AI analysis -> sync still matches by GitHub id
     const old = createRepository(5, { full_name: 'owner/old' });
     useAppStore.setState({ repositories: [old], searchResults: [] });
 
     useAppStore.getState().addRepository(createRepository(999, {
       full_name: 'owner/old',
-      description: '新项目',
+      description: 'New project',
     }));
 
-    // 用户对新仓库做 AI 分析
+    // User performs AI analysis on new repository
     const analyzed = useAppStore.getState().repositories.find(r => r.id === 999)!;
     useAppStore.getState().updateRepository({
       ...analyzed,
-      ai_summary: '新仓库的分析结果',
-      ai_tags: ['新标签'],
+      ai_summary: 'Analysis result for new repo',
+      ai_tags: ['new-tag'],
     });
 
-    // 同步时 GitHub 返回真实 id 999 ⇒ 必须按 id 命中，分析结果得以保留
+    // During sync GitHub returns real id 999 => must match by id, preserving analysis results
     const storeRepos = useAppStore.getState().repositories;
     const matched = storeRepos.find(r => r.id === 999);
-    expect(matched?.ai_summary).toBe('新仓库的分析结果');
-    expect(matched?.ai_tags).toEqual(['新标签']);
-    // 旧仓库的记录未被污染
+    expect(matched?.ai_summary).toBe('Analysis result for new repo');
+    expect(matched?.ai_tags).toEqual(['new-tag']);
+    // Old repository record is not polluted
     expect(storeRepos.find(r => r.id === 5)?.ai_summary).toBeUndefined();
   });
 
@@ -1169,8 +1169,8 @@ describe('useAppStore persisted-state historical fixtures', () => {
   });
 
   it('keeps persisted heavy-field array references when no release backfill is needed', () => {
-    // 分片持久化按引用判脏：hydration 规整化不得在无回填需求时重建重数据数组，
-    // 否则每次启动后都会触发一次全量重写。
+    // Sharded persistence dirty-checks by reference: hydration normalization must not rebuild heavy data arrays
+    // when no backfill is needed, otherwise a full rewrite would be triggered on every startup.
     const repositories = [createRepository(1, { has_fetched_releases: true }), createRepository(2)];
     const gists = [{ id: 'gist-1' }];
     const releases = [
@@ -1185,7 +1185,7 @@ describe('useAppStore persisted-state historical fixtures', () => {
     expect(normalized.gists).toBe(gists);
     expect(normalized.releases).toBe(releases);
 
-    // 存在需要回填的仓库时，回填行为保持不变
+    // Backfill behavior remains unchanged when repositories requiring backfill are present
     const needsBackfill = normalizePersistedState(
       buildPersistedSnapshot({ repositories: [createRepository(1)], releases }),
       useAppStore.getInitialState(),

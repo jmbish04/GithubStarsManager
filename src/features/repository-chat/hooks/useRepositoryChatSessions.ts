@@ -13,7 +13,7 @@ const createId = (): string => {
   return `repository-chat-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
-/** 会话默认标题集合：历史会话可能以任意语言创建，判断是否默认标题用集合比较 */
+/** Set of default session titles: historical sessions might be created in any language, so comparison uses a Set to determine default title status */
 export const DEFAULT_CHAT_TITLES = new Set([
   '新对话', 'New conversation', '新しい会話', 'Nueva conversación', 'Nova conversa',
   'Новый диалог', '新對話', 'Nouvelle conversation', 'Neue Unterhaltung', '새 대화',
@@ -24,7 +24,7 @@ const DEFAULT_TITLE_BY_LANGUAGE: Record<AppLanguage, string> = {
 };
 const defaultTitle = (language: AppLanguage) => DEFAULT_TITLE_BY_LANGUAGE[language] ?? 'New conversation';
 
-/** 通知全局问答历史入口（SearchBar 徽标、历史抽屉）刷新。 */
+/** Notifies global chat history entry points (SearchBar badge, history drawer) to refresh. */
 const notifyGlobalHistoryChanged = () => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('gsm:global-chat-history-changed'));

@@ -91,7 +91,7 @@ export const useReleaseTimelineActions = () => {
       if (updatedReleases.length > 0) upsertReleases(updatedReleases);
       setLastRefreshTime(now);
 
-      // updatedReleases 既含资产变化也含正文回填（空日志补回），文案不再只提资产。
+      // updatedReleases includes both asset changes and body backfills (restoring empty changelogs), so the message no longer mentions only assets.
       const updatedPart = updatedReleases.length > 0
         ? t('useReleaseTimelineActions.releases-updated', { count: updatedReleases.length })
         : '';

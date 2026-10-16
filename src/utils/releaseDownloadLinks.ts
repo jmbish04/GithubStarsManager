@@ -9,9 +9,9 @@ export interface ReleaseDownloadLink {
   size: number | null;
   isSourceCode: boolean;
   assetId?: number;
-  /** 资产自身的 updated_at（ISO 字符串）；Source code 条目没有。 */
+  /** Asset's own updated_at (ISO string); omitted for Source code items. */
   updatedAt?: string;
-  /** GitHub 给出的 MIME 类型，供平台推断的 MIME 兜底层使用。 */
+  /** MIME type provided by GitHub, used by the MIME fallback layer of platform detection. */
   contentType?: string;
 }
 

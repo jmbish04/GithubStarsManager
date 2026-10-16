@@ -53,8 +53,8 @@ const repository: Repository = {
   owner: { login: 'owner', avatar_url: 'https://github.com/owner.png' },
 };
 
-// 带“资产已更新”标识的未读 Release：展开资产按钮会触发 markReleaseAsRead，
-// 真实 store 会同时清空 updated_asset_ids 并生成新的 releases 数组。
+// Unread release with an "assets updated" badge: clicking the expand assets button triggers markReleaseAsRead;
+// the actual store will clear updated_asset_ids and generate a new releases array.
 const createRelease = (): Release => ({
   id: 101,
   tag_name: 'v1.0.0',
@@ -146,8 +146,8 @@ const wireStoreMocks = () => {
     setState: vi.fn((update: Partial<typeof storeState>) => Object.assign(storeState, update)),
   });
 
-  // 复刻真实 store 的 markReleaseAsRead 行为：标记已读并清空
-  // updated_asset_ids 时会生成新的 releases 数组（引用变化）。
+  // Replicate actual store behavior for markReleaseAsRead: marking as read and clearing
+  // updated_asset_ids generates a new releases array (reference change).
   markAllReleasesOnBackend.mockResolvedValue(undefined);
   storeState.markAllReleasesAsRead = vi.fn(() => {
     storeState.readReleases = new Set(storeState.releases.map(release => release.id));
@@ -196,11 +196,11 @@ describe('ReleaseTimeline unread snapshot', () => {
       expect(storeState.markReleaseAsRead).toHaveBeenCalledWith(101);
     });
 
-    // 标记已读后条目必须保留在“仅显示未读”列表中，直到快照真正刷新
+    // After marking as read, the item must remain in the "unread only" list until the snapshot actually refreshes
     await waitFor(() => {
       expect(screen.queryAllByText('owner/repo')).toHaveLength(itemTexts.length);
     });
-    // 展开确实生效：资产行可见
+    // Expansion actually took effect: asset row is visible
     expect(await screen.findByText('app.zip')).toBeInTheDocument();
   });
 });
@@ -237,8 +237,8 @@ describe('ReleaseTimeline asset filter matching', () => {
   const beta = makeRepo(8, 'beta', 'owner/beta');
   const gamma = makeRepo(9, 'gamma', 'owner/gamma');
 
-  // 复刻 issue #404 场景：Portable 过滤器；beta 的 Release 不含 Portable 字眼，
-  // 但被加入「始终包含」列表，启用过滤器时必须照常出现。
+  // Replicate issue #404 scenario: Portable filter; beta's release does not contain "Portable",
+  // but is added to the "always include" list, so it must still appear when the filter is enabled.
   const portableFilter: AssetFilter = {
     id: 'f1',
     name: 'Portable',
@@ -295,7 +295,7 @@ describe('ReleaseTimeline asset filter matching', () => {
     const alpha = makeRepo(7, 'alpha', 'owner/alpha');
     storeState.repositories = [alpha];
     storeState.releaseSubscriptions = new Set([alpha.id]);
-    // app-setup.exe 不命中 portable 关键词：默认不列出，但可用「显示全部」展开
+    // app-setup.exe does not match "portable" keyword: not listed by default, but expandable via "show all"
     storeState.releases = [makeRepoRelease(101, alpha, ['app-portable.zip', 'app-setup.exe'])];
     activateFilter();
 
@@ -306,7 +306,7 @@ describe('ReleaseTimeline asset filter matching', () => {
     expect(await screen.findByText('app-portable.zip')).toBeInTheDocument();
     expect(screen.queryByText('app-setup.exe')).not.toBeInTheDocument();
 
-    // 卡片提供展开全部资产的入口，并在展开后允许收回
+    // Card provides an entry to expand all assets and allows collapsing afterwards
     await user.click(screen.getByRole('button', { name: '显示全部 2 个' }));
     expect(await screen.findByText('app-setup.exe')).toBeInTheDocument();
 
@@ -322,7 +322,7 @@ describe('ReleaseTimeline asset filter matching', () => {
       'koreader-android-x86-v1.apk',
       'koreader-appimage-aarch64-latest-nightly',
     ]);
-    // GitHub 为每个 Release 自动生成的源码归档伪资产：含 zip/mac 的都不该被展示
+    // GitHub auto-generated pseudo source archives for each release: those containing zip/mac should not be displayed
     release.zipball_url = 'https://github.com/owner/alpha/zipball/v601';
     release.tarball_url = 'https://github.com/owner/alpha/tarball/v601';
     storeState.repositories = [alpha];
@@ -334,13 +334,13 @@ describe('ReleaseTimeline asset filter matching', () => {
     const assetToggles = await screen.findAllByRole('button', { name: '显示下载资产' });
     await user.click(assetToggles[0]);
 
-    // 只保留名称含 macos 或 arm64 的那一项
+    // Only keep the item whose name contains macos or arm64
     expect(await screen.findByText('koreader-macos-11.0-arm64-v1.7z')).toBeInTheDocument();
     expect(screen.queryByText('koreader-android-x86-v1.apk')).not.toBeInTheDocument();
     expect(screen.queryByText('koreader-appimage-aarch64-latest-nightly')).not.toBeInTheDocument();
     expect(screen.queryByText('Source code (v601.zip)')).not.toBeInTheDocument();
     expect(screen.queryByText('Source code (v601.tar.gz)')).not.toBeInTheDocument();
-    // 3 个真实资产 + 2 个源码归档被折叠，计数跟随可见项
+    // 3 real assets + 2 source archives collapsed, count tracks visible items
     expect(screen.getByText('(1)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '显示全部 5 个' })).toBeInTheDocument();
   });
@@ -351,7 +351,7 @@ describe('ReleaseTimeline asset filter matching', () => {
     storeState.repositories = [beta];
     storeState.releaseSubscriptions = new Set([beta.id]);
     storeState.releases = [makeRepoRelease(201, beta, ['beta-1.0.zip', 'beta-1.0.exe'])];
-    // includeRepos 绕过关键词判断：该仓库的 Release 不受资产级裁剪
+    // includeRepos bypasses keyword matching: releases from this repository are not subject to asset-level trimming
     activateFilter({ id: 'f1', name: 'Portable', keywords: ['portable'], includeRepos: ['owner/beta'] });
 
     render(<ReleaseTimeline />);
@@ -366,8 +366,8 @@ describe('ReleaseTimeline asset filter matching', () => {
   it('ignores the auto-generated source archives when matching include keywords', async () => {
     const alpha = makeRepo(7, 'alpha', 'owner/alpha');
     const beta = makeRepo(8, 'beta', 'owner/beta');
-    // 复刻线上误报：GitHub 给每个 Release 都挂 "Source code (<tag>.zip)"，
-    // 于是只要关键词里有 zip，零资产或纯 .whl 的 Release 也会出现在过滤结果里。
+    // Replicate online false positive: GitHub attaches "Source code (<tag>.zip)" to every release,
+    // so whenever keywords contain "zip", releases with zero assets or only .whl files appeared in filtered results.
     const whlOnly = makeRepoRelease(101, alpha, ['mineru-4.0.0-py3-none-any.whl']);
     whlOnly.zipball_url = 'https://github.com/owner/alpha/zipball/v101';
     whlOnly.tarball_url = 'https://github.com/owner/alpha/tarball/v101';
@@ -424,7 +424,7 @@ describe('ReleaseTimeline per-filter repository exclusions', () => {
   it('lets always-include bypass the same filter\u2019s exclude keywords', async () => {
     storeState.repositories = [beta];
     storeState.releaseSubscriptions = new Set([beta.id]);
-    // 资产名同时命中包含词与排除词，但仓库被始终包含 → 绕过关键词判断
+    // Asset name matches both include and exclude keywords, but repository is always included -> bypasses keyword matching
     storeState.releases = [makeRepoRelease(201, beta, ['beta-app.zip'])];
     activate(
       [{ id: 'f1', name: 'App', keywords: ['app'], excludeKeywords: ['beta'], includeRepos: ['owner/beta'] }],
@@ -489,7 +489,7 @@ describe('ReleaseTimeline per-filter repository exclusions', () => {
     storeState.repositories = [alpha];
     storeState.releaseSubscriptions = new Set([alpha.id]);
     storeState.releases = [release];
-    // preset-source 不在 assetFilters 中时由 PRESET_FILTERS 常量兜底
+    // Fall back to PRESET_FILTERS constant when preset-source is not in assetFilters
     activate([], ['preset-source']);
 
     render(<ReleaseTimeline />);
@@ -561,7 +561,7 @@ describe('ReleaseTimeline per-filter repository exclusions', () => {
     );
 
     render(<ReleaseTimeline />);
-    // 包含列表内的仓库显示；排除列表与两组之外的仓库都隐藏
+    // Repositories on the include list are shown; those on the exclude list or outside both lists are hidden
     await expectVisible('owner/beta');
     expect(screen.queryByText('owner/alpha')).not.toBeInTheDocument();
     expect(screen.queryByText('owner/delta')).not.toBeInTheDocument();

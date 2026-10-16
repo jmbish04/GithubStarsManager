@@ -45,9 +45,9 @@ function makeRepo(overrides: Partial<Repository> = {}): Repository {
 }
 
 /**
- * 最小化 slice 测试装置：仅提供 pushCategoriesToLists 读取/写入的状态字段。
- * 仓库 my-cli-app（topics: ['cli']）经 devtools 分类关键词 'cli' 命中，
- * 使推送流程完整走到最终 set()，从而可断言 categoryListIdMap 的持久化。
+ * Minimal slice test harness: only provides state fields read/written by pushCategoriesToLists.
+ * Repository my-cli-app (topics: ['cli']) matches the devtools category keyword 'cli',
+ * allowing the push flow to proceed through the final set() call so categoryListIdMap persistence can be asserted.
  */
 function makeSliceHarness(options: {
   currentLists: Array<{ id: string; name: string; items: string[] }>;
@@ -87,12 +87,12 @@ function makeSliceHarness(options: {
   return { push, api, state };
 }
 
-describe('pushCategoriesToLists 语言切换自动重命名', () => {
+describe('pushCategoriesToLists language switch auto-rename', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('persistedId 映射的中文 list 在英文语言下被重命名为分类名，不新建 list', async () => {
+  it('renames persistedId-mapped Chinese list to category name in English without creating new list', async () => {
     const { push, api, state } = makeSliceHarness({
       currentLists: [{ id: 'L_zh', name: '开发工具', items: [] }],
       categoryListIdMap: { devtools: 'L_zh' },
@@ -107,7 +107,7 @@ describe('pushCategoriesToLists 语言切换自动重命名', () => {
     expect(state.listsPush.error).toBeNull();
   });
 
-  it('无映射时按名称变体匹配既有中文 list：重命名并写入映射', async () => {
+  it('matches existing Chinese list by name variant when unmapped: renames and saves mapping', async () => {
     const { push, api, state } = makeSliceHarness({
       currentLists: [{ id: 'L_legacy', name: '开发工具', items: [] }],
     });
@@ -119,7 +119,7 @@ describe('pushCategoriesToLists 语言切换自动重命名', () => {
     expect(state.categoryListIdMap.devtools).toBe('L_legacy');
   });
 
-  it('list 名称已与分类名一致时不调用 updateUserList', async () => {
+  it('does not call updateUserList when list name already matches category name', async () => {
     const { push, api } = makeSliceHarness({
       currentLists: [{ id: 'L_en', name: 'Development Tools', items: [] }],
       categoryListIdMap: { devtools: 'L_en' },
@@ -131,7 +131,7 @@ describe('pushCategoriesToLists 语言切换自动重命名', () => {
     expect(api.createUserList).not.toHaveBeenCalled();
   });
 
-  it('重命名失败时保留映射并继续推送（best-effort，下轮重试）', async () => {
+  it('retains mapping and continues push when rename fails (best-effort, retries next round)', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { push, api, state } = makeSliceHarness({
       currentLists: [{ id: 'L_zh', name: '开发工具', items: [] }],
@@ -152,7 +152,7 @@ describe('pushCategoriesToLists 语言切换自动重命名', () => {
     warnSpy.mockRestore();
   });
 
-  it('新建 list 使用当前语言的分类名（而非规范中文名）', async () => {
+  it('creates new list using current language category name (rather than canonical Chinese name)', async () => {
     const { push, api, state } = makeSliceHarness({
       currentLists: [],
     });
@@ -164,12 +164,12 @@ describe('pushCategoriesToLists 语言切换自动重命名', () => {
   });
 });
 
-describe('pushCategoriesToLists GitHub Lists 硬限制预校验', () => {
+describe('pushCategoriesToLists GitHub Lists hard limit pre-validation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('分类名称超过 32 字符时中止推送、零写入，并在错误中列出该名称', async () => {
+  it('aborts push with zero writes and lists offending name when category name exceeds 32 characters', async () => {
     const longName = 'x'.repeat(GITHUB_LISTS_NAME_MAX_LENGTH + 1);
     const { push, api, state } = makeSliceHarness({
       currentLists: [],
@@ -185,7 +185,7 @@ describe('pushCategoriesToLists GitHub Lists 硬限制预校验', () => {
     expect(state.listsPush.error).toContain(String(GITHUB_LISTS_NAME_MAX_LENGTH));
   });
 
-  it('远端已有 32 个 list 且还需新建时中止推送（数量上限）', async () => {
+  it('aborts push when remote already has 32 lists and new list creation is needed (count limit)', async () => {
     const currentLists = Array.from({ length: GITHUB_LISTS_MAX_COUNT }, (_, i) => ({
       id: `L_${i}`,
       name: `Unrelated List ${i}`,
@@ -200,7 +200,7 @@ describe('pushCategoriesToLists GitHub Lists 硬限制预校验', () => {
     expect(state.listsPush.error).not.toBeNull();
   });
 
-  it('远端已有 32 个 list 但分类全部可复用时正常推送（复用不占额度）', async () => {
+  it('pushes normally when remote already has 32 lists but all categories can be reused (reuse does not count against limit)', async () => {
     const currentLists = [
       ...Array.from({ length: GITHUB_LISTS_MAX_COUNT - 1 }, (_, i) => ({
         id: `L_${i}`,
@@ -221,12 +221,12 @@ describe('pushCategoriesToLists GitHub Lists 硬限制预校验', () => {
   });
 });
 
-describe('pushCategoriesToLists 隐藏分类不参与回写', () => {
+describe('pushCategoriesToLists hidden categories do not participate in push', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('隐藏分类既有映射原样保留，不做改名/新建', async () => {
+  it('preserves existing mapping for hidden categories without renaming or creating', async () => {
     const { push, api, state } = makeSliceHarness({
       currentLists: [{ id: 'L_web', name: 'Web应用', items: [] }],
       categoryListIdMap: { web: 'L_web' },
@@ -239,7 +239,7 @@ describe('pushCategoriesToLists 隐藏分类不参与回写', () => {
     expect(state.categoryListIdMap.web).toBe('L_web');
   });
 
-  it('仓库在隐藏分类 list 中的既有成员关系不被移除（保留为非托管成员）', async () => {
+  it('preserves existing repository membership in hidden category list (kept as unmanaged member)', async () => {
     const { push, api } = makeSliceHarness({
       currentLists: [{ id: 'L_web', name: 'Web应用', items: ['owner/my-cli-app'] }],
       categoryListIdMap: { web: 'L_web' },
@@ -248,12 +248,12 @@ describe('pushCategoriesToLists 隐藏分类不参与回写', () => {
 
     await push();
 
-    // 仓库加入 devtools list 的同时，保留其在隐藏分类 list（L_web）中的成员关系
+    // When the repo is added to the devtools list, preserve its membership in the hidden category list (L_web)
     expect(api.updateUserListsForItem).toHaveBeenCalledWith('node_1', ['L_web', 'L_new']);
   });
 });
 
-describe('pushCategoriesToLists 仅推送选中分类', () => {
+describe('pushCategoriesToLists only pushes selected categories', () => {
   const alpha: Category = { id: 'custom-alpha', name: 'Alpha', icon: '📁', keywords: ['alpha'], isCustom: true };
 
   const thingRepo = (topics: string[]) => makeRepo({ name: 'thing', full_name: 'owner/thing', html_url: 'https://github.com/owner/thing', topics });
@@ -262,7 +262,7 @@ describe('pushCategoriesToLists 仅推送选中分类', () => {
     vi.clearAllMocks();
   });
 
-  it('只为选中分类新建 list，并保留仓库在未选中托管 list 中的成员关系', async () => {
+  it('only creates new lists for selected categories and preserves repository membership in unselected managed lists', async () => {
     const { push, api, state } = makeSliceHarness({
       currentLists: [{ id: 'L_dev', name: 'Development Tools', items: ['owner/thing'] }],
       categoryListIdMap: { devtools: 'L_dev' },
@@ -281,7 +281,7 @@ describe('pushCategoriesToLists 仅推送选中分类', () => {
     expect(state.listsPush.error).toBeNull();
   });
 
-  it('过期成员清理仅作用于选中分类的 list', async () => {
+  it('only cleans up stale members in lists for selected categories', async () => {
     const { push, api } = makeSliceHarness({
       currentLists: [
         { id: 'L_dev', name: 'Development Tools', items: ['owner/thing'] },
@@ -299,10 +299,10 @@ describe('pushCategoriesToLists 仅推送选中分类', () => {
     expect(api.updateUserListsForItem).toHaveBeenCalledWith('node_1', ['L_dev']);
   });
 
-  it('选中分类与未选分类共享同一 list 时，共享 list 的成员关系不被清理', async () => {
-    // 历史映射重叠：devtools（未选）与 custom-alpha（选中）指向同一个 list。
-    // thing 仅因 devtools 而在 L_shared 中，不命中选中的 alpha，
-    // 若共享 list 被当作选中分类的托管 list 清空，thing 的成员关系会被误删。
+  it('does not clean up shared list memberships when selected and unselected categories share the same list', async () => {
+    // Historical overlapping mappings: devtools (unselected) and custom-alpha (selected) point to the same list.
+    // thing is only in L_shared because of devtools and does not match selected alpha;
+    // if the shared list were cleared as a managed list of the selected category, thing's membership would be erroneously deleted.
     const { push, api, state } = makeSliceHarness({
       currentLists: [{ id: 'L_shared', name: 'Alpha', items: ['owner/thing'] }],
       categoryListIdMap: { devtools: 'L_shared', 'custom-alpha': 'L_shared' },
@@ -320,9 +320,9 @@ describe('pushCategoriesToLists 仅推送选中分类', () => {
   });
 
   it.each([
-    ['空数组', [] as string[]],
-    ['未知/隐藏分类 id', ['missing', 'web']],
-  ])('选中集合为%s时报错且不发起任何请求', async (_label, ids) => {
+    ['empty array', [] as string[]],
+    ['unknown/hidden category id', ['missing', 'web']],
+  ])('errors without making any requests when selected set is %s', async (_label, ids) => {
     const { push, api, state } = makeSliceHarness({ currentLists: [] });
 
     await push(ids);

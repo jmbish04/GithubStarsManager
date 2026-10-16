@@ -52,12 +52,12 @@ const makeVectorService = () => ({
   upsert: vi.fn(async (vectors: Array<{ id: string }>) => ({ upserted: vectors.length })),
 }) as unknown as Parameters<typeof indexAllRepos>[2];
 
-// 硅基流动真实的长度超限 payload（code 20015）
+// Real SiliconFlow length exceeded payload (code 20015)
 const LENGTH_ERROR = () =>
   new Error('Embedding API error 400: {"code":20015,"message":"The parameter is invalid.","data":null}');
 
 describe('needsReindex', () => {
-  // 共享：未索引 / 内容更新 / license 变化 / 格式升级——权威谓词，UI 与 indexAllRepos 共用。
+  // Shared: unindexed / content updated / license changed / format upgrade — authoritative predicate shared between UI and indexAllRepos.
   const indexed = (overrides: Partial<Repository> = {}): Repository => makeRepository(1, {
     vector_indexed_at: '2026-01-10T00:00:00.000Z',
     vector_indexed_license: 'MIT',
@@ -111,9 +111,9 @@ describe('looksLikeLengthError', () => {
   });
 
   it('does NOT treat generic 400 / "parameter is invalid" as length errors', () => {
-    // 纯 400 状态码不一定是长度问题（可能是配置/参数缺失）
+    // Pure 400 status code is not necessarily a length issue (could be missing config/params)
     expect(looksLikeLengthError(new Error('400 Bad Request'))).toBe(false);
-    // 只有 "parameter is invalid" 而无 20015 也可能是配置错误
+    // Having only "parameter is invalid" without 20015 could also be a configuration error
     expect(looksLikeLengthError(new Error('parameter is invalid'))).toBe(false);
   });
 
@@ -161,7 +161,7 @@ const incrementalFilteringRepos = () => [
 ];
 
 describe('indexAllRepos incremental filtering', () => {
-  // formatVersion / expected：当前版本只索引新增/更新；旧版本或缺省（#234 回归路径）触发全量重建
+  // formatVersion / expected: current version indexes only new/updated; old or missing version (#234 regression path) triggers full rebuild
   it.each([
     { formatVersion: EMBEDDING_FORMAT_VERSION, expected: [2, 3], expectation: 'current format version skips indexed unchanged repos' },
     { formatVersion: EMBEDDING_FORMAT_VERSION - 1, expected: [1, 2, 3], expectation: 'old format version reindexes all indexable repos' },
@@ -304,7 +304,7 @@ describe('embedWithFallback', () => {
   });
 
   it('does NOT fall back to per-item on generic 400 errors', async () => {
-    // 通用 400（非长度类）应整批失败，不降级为逐条
+    // Generic 400 (non-length) should fail the entire batch without degrading to per-item
     const client = makeClient(async () => {
       throw new Error('400 Bad Request: model not found');
     });

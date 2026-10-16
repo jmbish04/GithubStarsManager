@@ -1,28 +1,28 @@
-# 版本管理说明
+# Version Management
 
-## 目录结构
+## Directory Structure
 
-- `version-info.xml` - 存储所有版本信息的XML文件
-- `README.md` - 本说明文件
+- `version-info.xml` - XML file storing all version information
+- `README.md` - This documentation file
 
-## 版本更新流程
+## Version Update Process
 
-### 1. 更新版本信息
+### 1. Update Version Information
 
-使用脚本自动更新版本：
+Update version information automatically using the script:
 
 ```bash
-npm run update-version 0.1.3 "修复搜索功能bug" "添加新的过滤选项" "优化界面响应速度"
+npm run update-version 0.1.3 "Fix search functionality bug" "Add new filter options" "Optimize UI responsiveness"
 ```
 
-这个命令会：
-- 更新 `package.json` 中的版本号
-- 在 `version-info.xml` 中添加新版本记录
-- 更新 `src/services/updateService.ts` 中的当前版本号
+This command will:
+- Update the version number in `package.json`
+- Append a new version record to `version-info.xml`
+- Update the current version number in `src/services/updateService.ts`
 
-### 2. 手动更新（不推荐）
+### 2. Manual Update (Not Recommended)
 
-如果需要手动更新 `version-info.xml`，请按照以下格式：
+If you need to manually update `version-info.xml`, follow this format:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -31,37 +31,37 @@ npm run update-version 0.1.3 "修复搜索功能bug" "添加新的过滤选项" 
     <number>0.1.3</number>
     <releaseDate>2025-01-03</releaseDate>
     <changelog>
-      <item>修复搜索功能bug</item>
-      <item>添加新的过滤选项</item>
-      <item>优化界面响应速度</item>
+      <item>Fix search functionality bug</item>
+      <item>Add new filter options</item>
+      <item>Optimize UI responsiveness</item>
     </changelog>
     <downloadUrl>https://github.com/AmintaCCCP/GithubStarsManager/releases/download/v0.1.3/github-stars-manager-0.1.3.dmg</downloadUrl>
   </version>
 </versions>
 ```
 
-### 3. 发布流程
+### 3. Release Process
 
-1. 使用 `npm run update-version` 更新版本信息
-2. 提交更改到 Git 仓库：
+1. Use `npm run update-version` to update version information
+2. Commit changes to the Git repository:
    ```bash
    git add .
    git commit -m "chore: bump version to v0.1.3"
    git push origin main
    ```
-3. 在 GitHub 上创建对应的 Release，并上传构建好的安装包
-4. 确保下载链接与 XML 中的 `downloadUrl` 一致
+3. Create the corresponding Release on GitHub and upload the built installation packages
+4. Ensure the download link matches `downloadUrl` in the XML
 
-## XML 文件格式说明
+## XML File Format Reference
 
-- `number`: 版本号，格式为 x.y.z
-- `releaseDate`: 发布日期，格式为 YYYY-MM-DD
-- `changelog`: 更新日志，每个 `<item>` 代表一条更新内容
-- `downloadUrl`: 对应版本的下载链接
+- `number`: Version number, in x.y.z format
+- `releaseDate`: Release date, in YYYY-MM-DD format
+- `changelog`: Changelog, where each `<item>` represents an update item
+- `downloadUrl`: Download URL for the corresponding release
 
-## 注意事项
+## Notes
 
-1. 版本号必须遵循语义化版本规范（Semantic Versioning）
-2. 每次发布新版本时，确保 GitHub Release 中的下载链接可用
-3. XML 文件会被应用程序通过网络请求读取，确保文件格式正确
-4. 建议在发布前先在本地测试更新检查功能
+1. Version numbers must follow Semantic Versioning (SemVer)
+2. When releasing a new version, verify that the download link in the GitHub Release is accessible
+3. The XML file is fetched over the network by the application; ensure valid XML formatting
+4. It is recommended to test the update check feature locally before releasing

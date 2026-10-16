@@ -1,27 +1,27 @@
 
 /**
- * 分片持久化布局（开发守则 §7 性能守则）。
+ * Sharded persistence layout (Development Guidelines §7 Performance Rules).
  *
- * 历史版本把整个 partialize 结果序列化成单个 IndexedDB 键，任何状态变更
- * （包括开关一个弹窗）都要重新 stringify 并重写全部数据（实测可达 ~144MB，
- * 单次 stringify ~130ms + 写入 ~270ms，持续阻塞主线程）。
+ * Historical versions serialized the entire partialize result into a single IndexedDB key.
+ * Any state change (including toggling a modal) required re-stringifying and rewriting all data
+ * (empirically up to ~144MB, ~130ms stringify + ~270ms write, continually blocking the main thread).
  *
- * 分片原则：
- * - 体积大、变更低频的重数据（repositories/gists/releases/forks/账号工作区/
- *   trending 快照）各自独立分片，只在内容真正变化（引用判脏）时重写；
- * - 体积小、变更高频的偏好与视图状态集中到 core 分片，单次重写仅几 KB；
- * - partialize 未来新增的键由 resolveShardForField 兜底归入 core，保证
- *   任何持久化字段都不会因遗漏分片映射而丢失。
+ * Sharding principles:
+ * - Heavy, infrequently changed data (repositories/gists/releases/forks/accountWorkspaces/
+ *   trendingSnapshots) reside in independent shards, rewritten only when contents actually change (reference dirty check);
+ * - Lightweight, frequently changed preferences and view states are aggregated into the core shard, with single rewrites taking only a few KB;
+ * - Future keys added to partialize are safely defaulted to core by resolveShardForField,
+ *   ensuring no persisted field is lost due to a missing shard mapping.
  *
- * ── 硬性契约 ────────────────────────────────────────────────────────────
- * 1. 不可变更新：分片按「字段引用」判脏的前提是持久化字段永远不可变更新。
- *    对 repositories/gists/releases/forks/accountWorkspaces/trendingSnapshots
- *    的任何原地修改（push/sort/索引赋值）都会因引用未变而静默不落盘。
- *    新代码必须使用不可变更新（这是 zustand 生态的既有约定）。
- * 2. 格式版本：递增 PERSISTENCE_SHARD_FORMAT 时必须同步提供
- *    readPersistedSnapshot 的旧格式迁移分支；仅改常量会让旧分片不可读，
- *    且 legacy 单键快照在首次迁移后已退役——结果是空启动后覆盖全部数据。
- * ───────────────────────────────────────────────────────────────────────
+ * ── Hard Contract ────────────────────────────────────────────────────────
+ * 1. Immutable updates: Shards checking dirty status by "field reference" relies on persisted fields always being updated immutably.
+ *    Any in-place mutation (push/sort/index assignment) to repositories/gists/releases/forks/accountWorkspaces/trendingSnapshots
+ *    will silently fail to persist because the reference did not change.
+ *    New code must use immutable updates (an established convention in the zustand ecosystem).
+ * 2. Format version: When bumping PERSISTENCE_SHARD_FORMAT, you must provide
+ *    a migration branch for older formats in readPersistedSnapshot; changing only the constant makes older shards unreadable,
+ *    and the legacy single-key snapshot was retired after the initial migration—resulting in an empty startup overwriting all data.
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 export const PERSISTENCE_SHARD_FORMAT = 1;
@@ -46,7 +46,7 @@ export const PERSISTENCE_SHARD_NAMES: readonly PersistenceShardName[] = [
 ];
 
 export const PERSISTENCE_SHARD_FIELDS: Record<PersistenceShardName, readonly string[]> = {
-  // 体积小、变更高频的偏好/视图/配置状态；单次 stringify+写入仅几 KB。
+  // Lightweight, frequently changed preference/view/config state; single stringify + write is only a few KB.
   core: [
     'user',
     'githubToken',
@@ -122,13 +122,13 @@ export const PERSISTENCE_SHARD_FIELDS: Record<PersistenceShardName, readonly str
     'rpcDownloadConfig',
     'routeMode',
   ],
-  // 以下为体积大、变更低频的重数据分片：仅在对应数组引用变化时重写。
+  // The following are heavy, infrequently changed data shards: rewritten only when corresponding array references change.
   repositories: ['repositories'],
   gists: ['gists', 'starredGists'],
   releases: ['releases'],
   forks: ['forks'],
-  // 登出时每账号快照一份完整数据，可能成为最大分片；按账号逐项判脏（见
-  // accountWorkspacesUnchanged）避免 hydration 规整化产生的新对象引用触发全量重写。
+  // Snapshots full data per account on logout, potentially becoming the largest shard; checks dirty state per account (see
+  // accountWorkspacesUnchanged) to prevent new object references produced by hydration normalization from triggering full rewrites.
   accountWorkspaces: ['accountWorkspaces'],
   trendingSnapshots: ['trendingSnapshots'],
 };
@@ -143,7 +143,7 @@ for (const [shard, fields] of Object.entries(PERSISTENCE_SHARD_FIELDS)) {
   }
 }
 
-/** 未知字段兜底归入 core，保证新增持久化字段不会因遗漏映射而丢失。 */
+/** Fallback unknown fields to core, ensuring newly added persisted fields are not lost if mapping is missing. */
 export const resolveShardForField = (field: string): PersistenceShardName =>
   FIELD_TO_SHARD.get(field) ?? 'core';
 
@@ -152,7 +152,7 @@ export const shardKeyFor = (name: string, shard: PersistenceShardName): string =
 
 export const metaKeyFor = (name: string): string => `${name}#meta`;
 
-/** 分片清单，写入 meta 键；读取时以它为准拼装完整快照。 */
+/** Shard manifest written to the meta key; used as source of truth to assemble full snapshot on read. */
 export interface ShardMeta {
   format: number;
   version: number;
@@ -160,14 +160,14 @@ export interface ShardMeta {
   savedAt: string;
 }
 
-/** 单个分片的持久化载荷。 */
+/** Persistence payload for an individual shard. */
 export interface ShardPayload {
   format: number;
   version: number;
   state: Record<string, unknown>;
 }
 
-/** 按 partialize 输出构建每个分片的字段视图（保留原引用，不拷贝）。 */
+/** Constructs a field view for each shard from partialize output (preserves original references, no copying). */
 export const buildShardViews = (
   state: Record<string, unknown>,
 ): Record<PersistenceShardName, Record<string, unknown>> => {
@@ -181,10 +181,10 @@ export const buildShardViews = (
   return views;
 };
 
-// 账号工作区：重数组按引用比较；规整化会重建的小对象按内容比较，
-// 避免 hydration 后的新引用被误判为真实变更。
-// 维护约定：AccountWorkspace 的每个字段必须恰好出现在其中一个列表里
-// （storage.test.ts 有覆盖断言），否则新字段的内容变化会被判脏逻辑漏掉。
+// Account workspace: heavy arrays are compared by reference; small objects reconstructed by normalization are compared by value,
+// preventing new post-hydration references from being falsely identified as actual changes.
+// Maintenance contract: every field in AccountWorkspace must appear in exactly one of these lists
+// (covered by assertions in storage.test.ts); otherwise content changes to new fields will be missed by dirty checking.
 export const WORKSPACE_REFERENCE_FIELDS = [
   'repositories',
   'gists',
@@ -238,7 +238,7 @@ const accountWorkspacesUnchanged = (prev: unknown, next: unknown): boolean => {
     }
     const a = prevWorkspace as Record<string, unknown>;
     const b = nextWorkspace as Record<string, unknown>;
-    // 未知字段数量不一致视为已变更，避免漏写历史快照里的额外字段。
+    // Differing unknown field counts are treated as changed to avoid missing extra fields from historical snapshots.
     if (Object.keys(a).length !== Object.keys(b).length) return false;
     for (const field of WORKSPACE_REFERENCE_FIELDS) {
       if (!Object.is(a[field], b[field])) return false;
@@ -251,12 +251,12 @@ const accountWorkspacesUnchanged = (prev: unknown, next: unknown): boolean => {
 };
 
 /**
- * 找出相对上次成功写入发生变化的分片。
+ * Identifies shards that changed relative to the last successful write.
  *
- * - 重数据分片按字段引用判脏（zustand 不可变更新保证未变字段引用不变）；
- * - core 分片按内容判脏：partialize 每次调用都会重建若干小对象/数组
- *   （searchFilters、proxyConfig、Array.from(Set) 等），按引用会让 core
- *   恒判脏；core 体积只有几 KB，JSON 内容比较成本可忽略。
+ * - Heavy data shards check dirty status by field reference (zustand immutable updates ensure unchanged fields keep identical references);
+ * - core shard checks dirty status by value: partialize reconstructs multiple small objects/arrays on every call
+ *   (searchFilters, proxyConfig, Array.from(Set), etc.), so checking by reference would keep core
+ *   permanently dirty; core size is only a few KB, making JSON content comparison negligible in cost.
  */
 export const findDirtyShards = (
   views: Record<PersistenceShardName, Record<string, unknown>>,

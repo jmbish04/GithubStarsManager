@@ -203,7 +203,7 @@ export const normalizeNumberSet = (value: unknown): Set<number> => {
   return new Set<number>();
 };
 
-// 新安装/重置配置的默认：已是最新格式版本，避免首次增量索引被误判为需要全量重建
+// Default for fresh installs / reset configs: starts at the latest format version to prevent initial incremental indexing from triggering an unnecessary full rebuild
 export const defaultVectorSearchConfig: VectorSearchConfig = {
   enabled: false,
   workerUrl: '',
@@ -276,7 +276,7 @@ export const normalizeMcpConfig = (raw: unknown): McpServiceConfig => {
   };
 };
 
-// 持久化历史配置缺失 embeddingFormatVersion 时的回退版本：旧值为 1，确保旧用户触发一次重建
+// Fallback version when persisted historical config lacks embeddingFormatVersion: legacy value is 1, ensuring existing users trigger a rebuild
 export const LEGACY_EMBEDDING_FORMAT_VERSION = 1;
 
 export const isKnownEmbeddingFormatVersion = (value: unknown): value is number => (
@@ -296,7 +296,7 @@ export const normalizeVectorSearchConfig = (
 
   const config = raw as Record<string, unknown>;
   const configId = typeof config.embeddingConfigId === 'string' ? config.embeddingConfigId : '';
-  // 仅在确实存在 embeddingConfigId 时才查找 embedding 配置，避免每次 hydration 都遍历 embeddingConfigs
+  // Only search for embedding config when embeddingConfigId is present, avoiding iterating embeddingConfigs on every hydration
   const hasValidConfig = configId
     ? (Array.isArray(embeddingConfigs)
         ? embeddingConfigs.some((cfg) => cfg && typeof cfg === 'object' && (cfg as { id?: unknown }).id === configId)
@@ -308,8 +308,8 @@ export const normalizeVectorSearchConfig = (
   const searchTopK = typeof config.searchTopK === 'number' && Number.isInteger(config.searchTopK) && config.searchTopK >= 5 && config.searchTopK <= 50
     ? config.searchTopK
     : defaultVectorSearchConfig.searchTopK;
-  // 持久化的 embeddingFormatVersion 缺失或越界时一律回落到 legacy 版本 1，触发一次全量重建；
-  // 不使用 defaultVectorSearchConfig.embeddingFormatVersion（= 最新版），否则旧用户会跳过重建
+  // Fallback to legacy version 1 when persisted embeddingFormatVersion is missing or out of range, triggering a full rebuild;
+  // do not use defaultVectorSearchConfig.embeddingFormatVersion (= latest version), otherwise existing users would skip the rebuild
   const embeddingFormatVersion = isKnownEmbeddingFormatVersion(config.embeddingFormatVersion)
     ? config.embeddingFormatVersion
     : LEGACY_EMBEDDING_FORMAT_VERSION;
@@ -443,7 +443,7 @@ export const defaultCategories: Category[] = [
   }
 ];
 
-// 预设筛选器图标映射
+// Preset filter icon mapping
 const PRESET_FILTER_ICONS: Record<string, string> = {
   'preset-windows': 'Monitor',
   'preset-macos': 'Apple',
@@ -452,7 +452,7 @@ const PRESET_FILTER_ICONS: Record<string, string> = {
   'preset-source': 'Package',
 };
 
-// 默认预设筛选器
+// Default preset filters
 export const defaultPresetFilters: AssetFilter[] = PRESET_FILTERS.map(pf => ({
   ...pf,
   isPreset: true,

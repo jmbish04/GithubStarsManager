@@ -15,16 +15,16 @@ interface PluginPageViewerProps {
   pageTitle: string;
   onClose: () => void;
   t: TranslateFn;
-  /** modal：在弹窗内使用，隐藏自带标题栏（由外层 Modal 提供标题与关闭按钮）。 */
+  /** modal: used inside modal dialog, hides internal titlebar (outer Modal provides title and close button). */
   variant?: 'panel' | 'modal';
-  /** 随 plugin-page:init 一次性下发给页面的上下文（如仓库元数据），不走能力桥。 */
+  /** Context dispatched at once to page via plugin-page:init (e.g. repo metadata); does not go through capability bridge. */
   initContext?: Record<string, unknown>;
 }
 
 export const PluginPageViewer: React.FC<PluginPageViewerProps> = ({ pluginId, pluginName, pageId, pageTitle, onClose, t, variant = 'panel', initContext }) => {
   const isModal = variant === 'modal';
-  // 账号标签随 init 下发给页面：页面据此在绘制本地缓存前完成账号校验。
-  // 标签解析是异步的（SHA-256），就绪前不渲染 iframe，避免首帧缺标签绕过校验。
+  // Account tag is dispatched to page with init: page uses it to complete account verification before rendering local cache.
+  // Tag resolution is async (SHA-256); do not render iframe before ready to prevent first frame from bypassing verification.
   const accountTag = usePluginAccountTag();
   const generateAI = usePluginAI();
   const requestNetwork = usePluginNetwork();
@@ -35,8 +35,8 @@ export const PluginPageViewer: React.FC<PluginPageViewerProps> = ({ pluginId, pl
   const requestTimesRef = useRef<number[]>([]);
   const mountedRef = useRef(true);
   const aiRequestsRef = useRef(new Set<AbortController>());
-  // network.request 的在途请求：页面卸载/重载时中止，避免带着 Token 的请求
-  // 在结果无人消费后继续跑完（ai.generate 已有同款机制）。
+  // In-flight network.request calls: aborted on page unmount/reload to prevent requests carrying Token
+  // from running to completion when results have no consumer (ai.generate has matching mechanism).
   const networkSignalRef = useRef<AbortController>(new AbortController());
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,8 +68,8 @@ export const PluginPageViewer: React.FC<PluginPageViewerProps> = ({ pluginId, pl
   const accountTagRef = useRef(accountTag);
   accountTagRef.current = accountTag;
 
-  // init 只在 iframe onLoad 时发送一次，而弹窗上下文（如 README）是异步到位的。
-  // 页面已初始化后上下文发生变化时补发一次，携带同一 token，页面按新上下文刷新。
+  // init is only sent once upon iframe onLoad, whereas modal context (like README) arrives asynchronously.
+  // When context changes after initialization, redispatch once with the same token so page refreshes with new context.
   const initContextSignature = JSON.stringify(initContext ?? null);
   useEffect(() => {
     const frameWindow = frameRef.current?.contentWindow;
@@ -78,7 +78,7 @@ export const PluginPageViewer: React.FC<PluginPageViewerProps> = ({ pluginId, pl
       type: 'plugin-page:init', pluginId, pageId, token: tokenRef.current,
       context: { ...initContextRef.current, accountTag: accountTagRef.current },
     }, `plugin-page://${pluginId}`);
-    // initContextSignature 只用来触发重发；实际载荷取 ref，避免把对象身份放进依赖。
+    // initContextSignature is only used to trigger redispatch; actual payload is read from ref to avoid object identity in deps.
   }, [initContextSignature, pluginId, pageId, accountTag]);
 
   useEffect(() => {
@@ -109,8 +109,8 @@ export const PluginPageViewer: React.FC<PluginPageViewerProps> = ({ pluginId, pl
         rejectRequest('PLUGIN_PAGE_REQUEST_TOO_LARGE', 'Plugin page request arguments are not serializable');
         return;
       }
-      // 与主进程 pluginPageBridge 的预算一致：截图导出回传二进制，放宽到
-      // 10 MiB；其余方法维持 1 MiB。这里先拦一层，避免大载荷进 IPC。
+      // Matches main-process pluginPageBridge budget: binary screenshot export payload relaxed to
+      // 10 MiB; other methods stay 1 MiB. Intercept here to prevent large payloads entering IPC.
       const sizeLimit = request.method === 'clipboard.writeImage' || request.method === 'downloads.saveFile'
         ? 10 * 1024 * 1024
         : 1024 * 1024;
@@ -184,7 +184,7 @@ export const PluginPageViewer: React.FC<PluginPageViewerProps> = ({ pluginId, pl
             : 'h-[min(70vh,800px)] min-h-[480px] w-full rounded-lg border border-border bg-white'}
           onLoad={() => {
             for (const controller of aiRequestsRef.current) controller.abort();
-            // 先中止旧 epoch 的在途请求再轮换，避免它们带着 Token 继续跑完。
+            // Abort in-flight requests of previous epoch before rotating, preventing them from running to completion with Token.
             networkSignalRef.current.abort();
             networkSignalRef.current = new AbortController();
             tokenRef.current = crypto.randomUUID();

@@ -7,7 +7,7 @@ import {
 } from './xTweetFollows';
 
 describe('normalizeXTweetHandleInput', () => {
-  it('接受 @用户名、裸用户名与 x.com/twitter.com 主页链接', () => {
+  it('accepts @handle, bare handle, and x.com/twitter.com profile URLs', () => {
     expect(normalizeXTweetHandleInput('@geekbb')).toBe('geekbb');
     expect(normalizeXTweetHandleInput('geekbb')).toBe('geekbb');
     expect(normalizeXTweetHandleInput('https://x.com/geekbb')).toBe('geekbb');
@@ -16,7 +16,7 @@ describe('normalizeXTweetHandleInput', () => {
     expect(normalizeXTweetHandleInput('  @geekbb  ')).toBe('geekbb');
   });
 
-  it('拒绝空输入、超长与非法字符', () => {
+  it('rejects empty input, oversized strings, and invalid characters', () => {
     expect(normalizeXTweetHandleInput('')).toBeNull();
     expect(normalizeXTweetHandleInput('   ')).toBeNull();
     expect(normalizeXTweetHandleInput('this-handle-is-way-too-long-for-x')).toBeNull();
@@ -26,16 +26,16 @@ describe('normalizeXTweetHandleInput', () => {
 });
 
 describe('normalizeXTweetFollows', () => {
-  it('非数组回退默认关注（geekbb）', () => {
+  it('falls back to default follows (geekbb) for non-array input', () => {
     expect(normalizeXTweetFollows(undefined)).toEqual(DEFAULT_XTWEET_FOLLOWS);
     expect(normalizeXTweetFollows('nope')).toEqual(DEFAULT_XTWEET_FOLLOWS);
   });
 
-  it('空数组被尊重（用户可清空关注）', () => {
+  it('preserves empty arrays when user clears all follows', () => {
     expect(normalizeXTweetFollows([])).toEqual([]);
   });
 
-  it('剔除非法项并按 handle 去重（大小写不敏感，保留最早添加）', () => {
+  it('removes invalid entries and deduplicates by handle (case-insensitive, keeping earliest added)', () => {
     const result = normalizeXTweetFollows([
       { handle: 'geekbb', addedAt: '2026-09-12T00:00:00.000Z' },
       { handle: '@GeekBB', addedAt: '2026-09-13T00:00:00.000Z' },
@@ -50,7 +50,7 @@ describe('normalizeXTweetFollows', () => {
 });
 
 describe('normalizeXTweetAuth', () => {
-  it('两端去空白后成对保存；任一为空即整体视为未配置', () => {
+  it('trims whitespace and stores pairs together; treats auth as unconfigured if either is empty', () => {
     expect(normalizeXTweetAuth({ authToken: '  abc  ', ct0: ' def ' })).toEqual({ authToken: 'abc', ct0: 'def' });
     expect(normalizeXTweetAuth({ authToken: 'abc', ct0: '' })).toBeNull();
     expect(normalizeXTweetAuth({ authToken: '', ct0: 'def' })).toBeNull();
@@ -59,7 +59,7 @@ describe('normalizeXTweetAuth', () => {
     expect(normalizeXTweetAuth({ authToken: 1, ct0: 2 })).toBeNull();
   });
 
-  it('去除首尾包裹的引号；纯引号输入判定为无效并返回 null', () => {
+  it('strips enclosing quotes; treats quote-only input as invalid and returns null', () => {
     expect(normalizeXTweetAuth({ authToken: '"my_token"', ct0: "'my_ct0'" })).toEqual({
       authToken: 'my_token',
       ct0: 'my_ct0',

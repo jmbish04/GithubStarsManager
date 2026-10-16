@@ -26,20 +26,20 @@ export const appPersistenceOptions: PersistOptions<AppStoreState, PersistedAppSt
   version: 16,
   storage: debouncedPersistStorage as PersistStorage<PersistedAppState>,
 partialize: (state) => ({
-  // 持久化用户信息和认证状态
+  // Persist user info and authentication state
   user: state.user,
   githubToken: state.githubToken,
   isAuthenticated: state.isAuthenticated,
   accountWorkspaces: state.accountWorkspaces,
 
-  // 持久化仓库数据
+  // Persist repository data
   repositories: state.repositories,
   lastSync: state.lastSync,
 
-  // Theme token（开发守则 §14）：声明式外观偏好
+  // Theme tokens (Development Guidelines §14): declarative appearance preferences
   themeTokens: state.themeTokens,
 
-  // 持久化 Gist 数据
+  // Persist Gist data
   gists: state.gists,
   starredGists: state.starredGists,
   gistSearchFilters: {
@@ -49,39 +49,39 @@ sortOrder: state.gistSearchFilters.sortOrder,
   selectedGistCategory: state.selectedGistCategory,
   analyzingGistIds: Array.from(state.analyzingGistIds),
 
-  // 持久化AI配置
+  // Persist AI config
   aiConfigs: state.aiConfigs,
   activeAIConfig: state.activeAIConfig,
   repositoryChatSettings: state.repositoryChatSettings,
 
-  // 持久化Embedding配置
+  // Persist Embedding config
   embeddingConfigs: state.embeddingConfigs,
   activeEmbeddingConfig: state.activeEmbeddingConfig,
 
-  // 持久化向量搜索配置
+  // Persist vector search config
   vectorSearchConfig: state.vectorSearchConfig,
-  // 持久化向量搜索状态（vectorCount 等，跨重启保留）
+  // Persist vector search status (vectorCount etc., retained across restarts)
   vectorSearchStatus: state.vectorSearchStatus,
 
   // MCP prefs + bearer token (stable across restarts; only changes on user reset)
   mcpConfig: state.mcpConfig,
 
-  // 持久化WebDAV配置
+  // Persist WebDAV config
   webdavConfigs: state.webdavConfigs,
   activeWebDAVConfig: state.activeWebDAVConfig,
   lastBackup: state.lastBackup,
 
-  // 持久化Release订阅、来源和已读状态
+  // Persist release subscriptions, sources, and read status
   releaseSubscriptions: Array.from(state.releaseSubscriptions),
   releaseSourceSettings: state.releaseSourceSettings,
   readReleases: Array.from(state.readReleases),
   releases: state.releases,
 
-  // 持久化Fork数据
+  // Persist Fork data
   forks: state.forks,
   readForks: Array.from(state.readForks),
 
-  // 持久化自定义分类
+  // Persist custom categories
   customCategories: state.customCategories,
   hiddenDefaultCategoryIds: state.hiddenDefaultCategoryIds,
   categoryOrder: state.categoryOrder,
@@ -89,16 +89,16 @@ sortOrder: state.gistSearchFilters.sortOrder,
   categoryMatchMode: state.categoryMatchMode,
   defaultCategoryOverrides: state.defaultCategoryOverrides,
 
-  // 持久化资源过滤器
+  // Persist asset filters
   assetFilters: state.assetFilters,
-  // 卡片可见字段（开发守则 §14）
+  // Card visible fields (Development Guidelines §14)
   repositoryCardFields: state.repositoryCardFields,
   repositoryCardActions: state.repositoryCardActions,
 
-  // Trending 快照（开发守则 §7）：本地榜单历史，不参与任何远端同步
+  // Trending snapshots (Development Guidelines §7): local trending history, not synced remotely
   trendingSnapshots: state.trendingSnapshots,
 
-  // 持久化UI设置
+  // Persist UI settings
   theme: state.theme,
   themePreset: state.themePreset,
   currentView: state.currentView,
@@ -109,25 +109,25 @@ sortOrder: state.gistSearchFilters.sortOrder,
   isSidebarCollapsed: state.isSidebarCollapsed,
   headerMenuConfig: state.headerMenuConfig,
 
-  // 持久化后端 API Secret（跨会话/跨标签保留，配合修复 #259）。同时保留
-  // localStorage 镜像（AUTH_MIRROR_KEY）作为异步 IndexedDB 写入失败时的兜底。
+  // Persist backend API Secret (retained across sessions/tabs, fixing #259). Also preserve
+  // localStorage mirror (AUTH_MIRROR_KEY) as fallback when asynchronous IndexedDB write fails.
   backendApiSecret: state.backendApiSecret,
 
-  // 持久化同步范围配置（GitHub Lists 同步）
+  // Persist sync scope configuration (GitHub Lists sync)
   syncMode: state.syncMode,
   syncModeConfigured: state.syncModeConfigured,
-  // 持久化分类 → GitHub List 映射（跨语言稳定身份）
+  // Persist category -> GitHub List mapping (cross-language stable identity)
   categoryListIdMap: state.categoryListIdMap,
 
-  // 持久化搜索排序设置
+  // Persist search sort settings
   searchFilters: {
 sortBy: state.searchFilters.sortBy,
 sortOrder: state.searchFilters.sortOrder,
   },
 
-  // 持久化仓库页面视图设置
+  // Persist repository page view settings
   repositoryViewMode: state.repositoryViewMode,
-  // 持久化Release页面视图设置
+  // Persist release page view settings
   releaseViewMode: state.releaseViewMode,
   releaseShowMode: state.releaseShowMode,
   releaseLatestMode: state.releaseLatestMode,
@@ -137,19 +137,19 @@ sortOrder: state.searchFilters.sortOrder,
   includePreRelease: state.includePreRelease,
   includeKeysInBackup: state.includeKeysInBackup,
 
-  // 持久化Fork页面视图设置
+  // Persist fork page view settings
   forkViewMode: state.forkViewMode,
   forkSelectedFilters: state.forkSelectedFilters,
   forkSearchQuery: state.forkSearchQuery,
   forkExpandedRepositories: Array.from(state.forkExpandedRepositories),
 
-// 持久化发现设置
+// Persist discovery settings
 discoveryChannels: state.discoveryChannels,
 selectedDiscoveryChannel: state.selectedDiscoveryChannel,
-// discoveryRepos 不持久化，它是极其庞大的 JSON 对象。
-// 在 Electron 41/v8/macOS 上的 IDB partialize 阶段，
-// 由于频繁序列化这个可能达数MB的大对象，会触发底层 JIT CHECK assertion failed (brk 0) 导致崩溃。
-// 这里的会话级运行时数据都取消持久化：
+// discoveryRepos is not persisted because it is an enormous JSON object.
+// During the IDB partialize phase on Electron 41/v8/macOS,
+// frequently serializing this large multi-MB object triggers underlying JIT CHECK assertion failed (brk 0) crashes.
+// All session-level runtime data here is excluded from persistence:
 // discoveryRepos
 // discoveryLastRefresh
 // discoveryTotalCount
@@ -162,11 +162,11 @@ discoverySortOrder: state.discoverySortOrder,
 discoverySelectedTopic: state.discoverySelectedTopic,
   weeklyOnlyCollected: state.weeklyOnlyCollected,
   xTweetFollows: state.xTweetFollows,
-  // xTweetAuth 仅由桌面端 safeStorage 安全加密存储（Web 模式仅在内存），避免明文 Cookie 写入 IndexedDB/localStorage（CWE-922）。
-  // 仅持久化非敏感的 xTweetAuthRevision 用于跨会话请求签名稳定性。
+  // xTweetAuth is only encrypted and stored via desktop safeStorage (memory-only in web mode) to avoid writing plaintext cookies to IndexedDB/localStorage (CWE-922).
+  // Only non-sensitive xTweetAuthRevision is persisted for cross-session request signature stability.
   xTweetAuthRevision: state.xTweetAuthRevision,
   telegramFollows: state.telegramFollows,
-// 持久化完整代理配置，包含认证密码，确保重启后无需重新输入。
+// Persist complete proxy configuration including auth password, ensuring no re-entry on restart.
 proxyConfig: {
   enabled: state.proxyConfig.enabled,
   type: state.proxyConfig.type,
@@ -175,7 +175,7 @@ proxyConfig: {
   username: state.proxyConfig.username,
   password: state.proxyConfig.password,
 },
-// 持久化 RPC 下载配置（含密钥，确保重启后不丢失）
+// Persist RPC download configuration (including secret to avoid loss on restart)
 rpcDownloadConfig: {
   enabled: state.rpcDownloadConfig.enabled,
   host: state.rpcDownloadConfig.host,
@@ -185,7 +185,7 @@ rpcDownloadConfig: {
 routeMode: state.routeMode,
 }),
 migrate: (persistedState) => {
-  // 版本升级适配处理
+  // Version upgrade adaptation handling
   const state = persistedState as PersistedAppState | undefined;
 
   if (state && !state.releaseSourceSettings) {
@@ -195,25 +195,25 @@ state.releaseSourceSettings = defaultReleaseSourceSettings;
 state.releaseSourceSettings = normalizeReleaseSourceSettings(state.releaseSourceSettings);
   }
 
-  // 从旧版本升级时，确保 categoryOrder 字段存在
+  // Ensure categoryOrder field exists when upgrading from older versions
   if (state && !Array.isArray(state.categoryOrder)) {
 console.log('Migrating from old version: initializing categoryOrder');
 state.categoryOrder = [];
   }
 
-  // 从旧版本升级时，确保 collapsedSidebarCategoryCount 字段存在
+  // Ensure collapsedSidebarCategoryCount field exists when upgrading from older versions
   if (state && typeof state.collapsedSidebarCategoryCount !== 'number') {
 console.log('Migrating from old version: initializing collapsedSidebarCategoryCount');
 state.collapsedSidebarCategoryCount = 20;
   }
 
-  // 从旧版本升级时，确保 defaultCategoryOverrides 字段存在
+  // Ensure defaultCategoryOverrides field exists when upgrading from older versions
   if (state && typeof state.defaultCategoryOverrides !== 'object') {
 console.log('Migrating from old version: initializing defaultCategoryOverrides');
 state.defaultCategoryOverrides = {};
   }
 
-  // 从旧版本升级时，确保 vectorSearchStatus 字段存在（vectorCount 等）
+  // Ensure vectorSearchStatus field exists when upgrading from older versions (vectorCount etc.)
   if (state) {
 state.vectorSearchStatus = normalizeVectorSearchStatus(state.vectorSearchStatus);
   }
@@ -224,11 +224,11 @@ const stateRecord = state as Record<string, unknown>;
 stateRecord.mcpConfig = normalizeMcpConfig(stateRecord.mcpConfig);
   }
 
-  // 迁移仓库数据中的旧标记
+  // Migrate legacy flags in repository data
   if (state && Array.isArray(state.repositories)) {
 let migratedCount = 0;
 state.repositories = state.repositories.map((repo: Repository) => {
-  // 将旧的 '__EMPTY__' 标记转换为空字符串（表示用户明确清空）
+  // Convert legacy '__EMPTY__' flag to empty string (indicating user explicitly cleared it)
   if (repo.custom_description === '__EMPTY__') {
     migratedCount++;
     return { ...repo, custom_description: '' };
@@ -262,7 +262,7 @@ enabled: persistedChannel.enabled !== false,
 };
 }), ...normalizeExternalDiscoveryChannels(persistedChannels)];
   }
-  // 迁移订阅频道（版本 4→5：daily-dev → most-dev，新增 trending，补全 nameEn）
+  // Migrate subscription channels (version 4->5: daily-dev -> most-dev, add trending, backfill nameEn)
   const defaultChannelsMap = new Map(defaultSubscriptionChannels.map(ch => [ch.id, ch]));
   if (state && !Array.isArray(state.subscriptionChannels)) {
 console.log('Migrating: initializing subscription channels');
@@ -277,7 +277,7 @@ if (chRecord.id === 'daily-dev' || chRecord.id === 'most-dev') {
 if (defaultCh) {
   return {
 ...(chRecord as Partial<SubscriptionChannel>),
-name: defaultCh.name, // 始终使用中文名称
+name: defaultCh.name, // Always use default definition name
 nameEn: (chRecord.nameEn as string) || defaultCh.nameEn || (chRecord.name as string) || defaultCh.nameEn,
 icon: (chRecord.icon as string) || defaultCh.icon,
 description: (chRecord.description as string) || defaultCh.description,
@@ -285,7 +285,7 @@ description: (chRecord.description as string) || defaultCh.description,
 }
 return chRecord as unknown as SubscriptionChannel;
 });
-// 确保 trending 频道存在（如果缺失则添加）
+// Ensure trending channel exists (add if missing)
 const hasTrending = state.subscriptionChannels.some((ch: SubscriptionChannel) => ch.id === 'trending');
 if (!hasTrending) {
 console.log('Migrating: adding trending channel');
@@ -302,7 +302,7 @@ state.subscriptionChannels.push({
   if (state && !state.discoveryPlatform) {
 state.discoveryPlatform = 'All';
   }
-  // 版本 6→7：新增 includeKeysInBackup（默认 false，安全优先）
+  // Version 6->7: add includeKeysInBackup (default false, security first)
   if (state && typeof state.includeKeysInBackup !== 'boolean') {
 console.log('Migrating: initializing includeKeysInBackup to false (security first)');
 state.includeKeysInBackup = false;
@@ -316,28 +316,28 @@ state.discoverySortBy = 'BestMatch';
   if (state && !state.discoverySortOrder) {
 state.discoverySortOrder = 'Descending';
   }
-  // discoveryIsLoading 不应持久化，migrate 时始终重置防止旧数据格式异常导致 spread 崩溃
+  // discoveryIsLoading should not be persisted; always reset on migrate to prevent spread crash on malformed legacy data
   if (state) {
 (state as Record<string, unknown>).discoveryIsLoading = {
 'trending': false, 'hot-release': false, 'most-popular': false, 'topic': false, 'x-tweet': false, 'telegram': false, 'weekly': false, 'search': false, 'code-search': false,
 };
-// discoveryScrollPositions 同样不应持久化，重置以避免 stale 滚动位置
+// discoveryScrollPositions also should not be persisted; reset to avoid stale scroll positions
 (state as Record<string, unknown>).discoveryScrollPositions = {
 'trending': 0, 'hot-release': 0, 'most-popular': 0, 'topic': 0, 'x-tweet': 0, 'telegram': 0, 'weekly': 0, 'search': 0, 'code-search': 0,
 };
   }
 
-  // v14: 周刊频道过滤器偏好兜底
+  // v14: Fallback for weekly channel filter preference
   if (state && typeof (state as Record<string, unknown>).weeklyOnlyCollected !== 'boolean') {
     (state as Record<string, unknown>).weeklyOnlyCollected = false;
   }
 
-  // v14→v15: X 推文频道选项兜底（关注列表默认含 geekbb）
+  // v14->v15: Fallback for X tweet channel options (follow list includes geekbb by default)
   if (state) {
     const stateRecord = state as Record<string, unknown>;
     stateRecord.xTweetFollows = normalizeXTweetFollows(stateRecord.xTweetFollows);
-    // 旧快照可能含明文 xTweetAuth：直接删除（不删除整个快照），内存态置 null；
-    // 清理后的快照随下次持久化写回 IndexedDB/localStorage。
+    // Legacy snapshots might contain plaintext xTweetAuth: delete directly (without dropping whole snapshot), set in-memory state to null;
+    // the cleaned snapshot is written back to IndexedDB/localStorage on the next persist.
     if ('xTweetAuth' in stateRecord) delete stateRecord.xTweetAuth;
     if (typeof stateRecord.xTweetAuthRevision !== 'number' || !Number.isFinite(stateRecord.xTweetAuthRevision)) {
       stateRecord.xTweetAuthRevision = 0;
@@ -347,17 +347,17 @@ state.discoverySortOrder = 'Descending';
     );
   }
 
-  // v5→v6: 初始化 proxyConfig
+  // v5->v6: Initialize proxyConfig
   if (state && !(state as Record<string, unknown>).proxyConfig) {
 (state as Record<string, unknown>).proxyConfig = { enabled: false, type: 'http', host: '', port: 7890 };
   }
 
-  // 初始化 rpcDownloadConfig
+  // Initialize rpcDownloadConfig
   if (state && !(state as Record<string, unknown>).rpcDownloadConfig) {
 (state as Record<string, unknown>).rpcDownloadConfig = { enabled: false, host: '', port: 6800 };
   }
 
-  // v12→v13: 初始化 routeMode（纯本地偏好，缺失或非法时回退 auto，不参与后端/autoSync 同步）
+  // v12->v13: Initialize routeMode (purely local preference, falls back to auto if missing or invalid, not synced with backend/autoSync)
   if (state) {
     const stateRecord = state as Record<string, unknown>;
     if (stateRecord.routeMode !== 'backend' && stateRecord.routeMode !== 'browser') {
@@ -365,17 +365,17 @@ state.discoverySortOrder = 'Descending';
     }
   }
 
-  // v8→v9: 初始化 headerMenuConfig
+  // v8->v9: Initialize headerMenuConfig
   if (state && !Array.isArray((state as Record<string, unknown>).headerMenuConfig)) {
 (state as Record<string, unknown>).headerMenuConfig = defaultHeaderMenuConfig;
   }
 
-  // v9→v10: 初始化 backendApiSecret（旧版仅存 sessionStorage；migrate 前置为 null）
+  // v9->v10: Initialize backendApiSecret (legacy only stored in sessionStorage; set to null before migrate)
   if (state && typeof (state as Record<string, unknown>).backendApiSecret !== 'string') {
 (state as Record<string, unknown>).backendApiSecret = null;
   }
 
-  // v11→v12: 仓库问答设置只存非敏感字段；旧快照使用安全默认值。
+  // v11->v12: Repository chat settings only store non-sensitive fields; legacy snapshots use safe defaults.
   if (state) {
     const stateRecord = state as Record<string, unknown>;
     stateRecord.repositoryChatSettings = normalizeRepositoryChatSettings(
@@ -383,7 +383,7 @@ state.discoverySortOrder = 'Descending';
     );
   }
 
-  // 初始化 embeddingConfigs
+  // Initialize embeddingConfigs
   if (state && !Array.isArray((state as Record<string, unknown>).embeddingConfigs)) {
 (state as Record<string, unknown>).embeddingConfigs = [];
   }
@@ -391,7 +391,7 @@ state.discoverySortOrder = 'Descending';
 (state as Record<string, unknown>).activeEmbeddingConfig = null;
   }
 
-  // 初始化/迁移 vectorSearchConfig
+  // Initialize/migrate vectorSearchConfig
   if (state) {
 const stateRecord = state as Record<string, unknown>;
 stateRecord.vectorSearchConfig = normalizeVectorSearchConfig(

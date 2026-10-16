@@ -100,7 +100,7 @@ describe('insecure endpoint guard', () => {
 
   it('allows plain http only for local addresses', async () => {
     const service = new AIService(baseConfig('http://localhost:11434/v1'), 'en');
-    // 守卫放行后请求会继续（测试环境 fetch 未实现），但绝不抛 HTTPS 守卫错误。
+    // Once the guard passes, the request proceeds (fetch is unimplemented in test env) without throwing HTTPS guard errors.
     await expect(service.generateChatText({ system: 's', user: 'u' })).rejects.not.toThrow(/HTTPS/);
   });
 
@@ -150,13 +150,13 @@ describe('redirect and sniff safety', () => {
       ok: true,
       status: 200,
       headers: { get: () => null },
-      text: async () => 'SSE 协议示例：\ndata: {"not":"a real frame"}',
+      text: async () => 'SSE protocol example:\ndata: {"not":"a real frame"}',
     });
     vi.stubGlobal('fetch', fetchMock);
     try {
       const full = await service.generateChatTextStream({ system: 's', user: 'u', onChunk: () => {} });
-      // 未识别出有效 SSE 帧：整段原文走纯文本回退（含 data: 字样的说明文字）。
-      expect(full).toBe('SSE 协议示例：\ndata: {"not":"a real frame"}');
+      // No valid SSE frame identified: entire raw text falls back to plain text (including explanatory prose with data: prefix).
+      expect(full).toBe('SSE protocol example:\ndata: {"not":"a real frame"}');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -166,7 +166,7 @@ describe('redirect and sniff safety', () => {
 describe('missing Content-Type sniffing', () => {
   it('parses SSE frames even when the Content-Type header is missing', async () => {
     const service = new AIService(baseConfig('https://api.example.com/v1'), 'en');
-    // undici 的 Response 构造器会自动补 Content-Type，用最小 stub 模拟真正无头的响应。
+    // undici's Response constructor automatically fills Content-Type; use a minimal stub to simulate a truly headerless response.
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,

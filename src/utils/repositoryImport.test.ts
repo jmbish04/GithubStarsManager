@@ -7,7 +7,7 @@ import {
   toLocalRepositoryNameSet,
 } from './repositoryImport';
 
-/** 便捷断言：取候选的 `repositoryFullName` 列表。 */
+/** Convenience assertion helper: retrieves candidate repositoryFullName list. */
 const names = (input: string, source: 'text' | 'json' = 'text') =>
   extractRepositoryCandidates(input, { source }).candidates.map((c) => c.repositoryFullName);
 
@@ -79,7 +79,7 @@ describe('resolveRepositoryFromGitHubUrl', () => {
   });
 });
 
-describe('extractRepositoryCandidates — GitHub URL 形态', () => {
+describe('extractRepositoryCandidates — GitHub URL forms', () => {
   it('handles scheme, www, bare host, trailing slash and .git', () => {
     const input = [
       'https://github.com/deskflow/deskflow',
@@ -105,7 +105,7 @@ describe('extractRepositoryCandidates — GitHub URL 形态', () => {
       'https://github.com/foo/bar/blob/main/index.ts',
     ].join('\n');
 
-    // 五条都指向同一个仓库：首条 pending，其余为 duplicate
+    // All five point to the same repo: first is pending, remainder are duplicate
     expect(names(input)).toEqual(['foo/bar', 'foo/bar', 'foo/bar', 'foo/bar', 'foo/bar']);
     const result = extractRepositoryCandidates(input);
     expect(result.stats).toEqual({ scanned: 1, valid: 1, duplicates: 4, invalid: 0 });
@@ -147,12 +147,12 @@ describe('extractRepositoryCandidates — GitHub URL 形态', () => {
   });
 
   it('does not treat a lookalike host as GitHub', () => {
-    // `notgithub.com` 内部含有 `github.com`，若不做主机边界检查会被当成高可信度候选
+    // 'notgithub.com' contains 'github.com'; without host boundary checks it would be treated as high confidence
     expect(extractRepositoryCandidates('see https://notgithub.com/acme/tool').candidates).toEqual([]);
     expect(extractRepositoryCandidates('see https://mygithub.com/acme/tool').candidates).toEqual([]);
     expect(extractRepositoryCandidates('see https://github.com.evil.example/acme/tool').candidates).toEqual([]);
     expect(extractRepositoryCandidates('see https://example.com/github.com/acme/tool').candidates).toEqual([]);
-    // 正常主机仍然能识别，包括 www 与省略 scheme 的写法
+    // Normal hosts are still recognized, including www and omitted scheme
     expect(names('https://www.github.com/acme/tool')).toEqual(['acme/tool']);
   });
 
@@ -163,7 +163,7 @@ describe('extractRepositoryCandidates — GitHub URL 形态', () => {
     expect(candidate.confidence).toBe('high');
   });
 
-  it('marks site功能 paths as invalid with a reason instead of dropping them', () => {
+  it('marks site feature paths as invalid with a reason instead of dropping them', () => {
     const result = extractRepositoryCandidates(
       'https://github.com/orgs/foo/repositories\nhttps://github.com/topics/react',
     );
@@ -181,7 +181,7 @@ describe('extractRepositoryCandidates — GitHub URL 形态', () => {
   });
 });
 
-describe('extractRepositoryCandidates — 裸 owner/repo', () => {
+describe('extractRepositoryCandidates — bare owner/repo', () => {
   it('accepts plausible bare slugs and marks them low confidence', () => {
     const result = extractRepositoryCandidates('facebook/react and deskflow/deskflow');
 
@@ -201,16 +201,16 @@ describe('extractRepositoryCandidates — 裸 owner/repo', () => {
   });
 
   it.each([
-    ['src/utils', '代码目录名'],
-    ['docs/plans', '代码目录名'],
-    ['src/utils.ts', '文件扩展名'],
-    ['docs/guide.md', '文件扩展名'],
-    ['and/or', '常见词组'],
-    ['TCP/IP', '常见词组'],
-    ['read/write', '常见词组'],
-    ['topics/react', '站点保留字'],
-    ['24/7', '单字符段'],
-    ['i/o', '单字符段'],
+    ['src/utils', 'code directory name'],
+    ['docs/plans', 'code directory name'],
+    ['src/utils.ts', 'file extension'],
+    ['docs/guide.md', 'file extension'],
+    ['and/or', 'common phrase'],
+    ['TCP/IP', 'common phrase'],
+    ['read/write', 'common phrase'],
+    ['topics/react', 'site reserved keyword'],
+    ['24/7', 'single-character segment'],
+    ['i/o', 'single-character segment'],
   ])('rejects the false positive %s (%s)', (slug) => {
     expect(extractRepositoryCandidates(`see ${slug} for details`).candidates).toEqual([]);
   });
@@ -220,7 +220,7 @@ describe('extractRepositoryCandidates — 裸 owner/repo', () => {
   });
 
   it('does not re-scan URL path segments as bare slugs', () => {
-    // 若不做 URL 屏蔽，`releases/tag` 与 `tag/v1.2.0` 会被误当成仓库
+    // Without URL masking, `releases/tag` and `tag/v1.2.0` would be mistaken for repositories
     const result = extractRepositoryCandidates('https://github.com/foo/bar/releases/tag/v1.2.0');
     expect(result.candidates.map((c) => c.matchedBy)).toEqual(['github-url']);
   });
@@ -239,7 +239,7 @@ describe('extractRepositoryCandidates — 裸 owner/repo', () => {
   });
 });
 
-describe('extractRepositoryCandidates — 去重', () => {
+describe('extractRepositoryCandidates — deduplication', () => {
   it('keeps the first occurrence as pending and marks the rest as duplicate', () => {
     const input = [
       'https://github.com/foo/bar',
@@ -249,7 +249,7 @@ describe('extractRepositoryCandidates — 去重', () => {
 
     const result = extractRepositoryCandidates(input);
     expect(result.candidates.map((c) => c.status)).toEqual(['pending', 'duplicate', 'duplicate']);
-    // 保留首次出现的大小写
+    // Preserves first seen casing
     expect(result.candidates[0].repositoryFullName).toBe('foo/bar');
     expect(result.stats).toEqual({ scanned: 1, valid: 1, duplicates: 2, invalid: 0 });
   });
@@ -271,7 +271,7 @@ describe('extractRepositoryCandidates — JSON', () => {
   it('scans string values recursively without requiring a schema', () => {
     const input = JSON.stringify([
       'https://github.com/foo/bar',
-      { repo: 'owner/repo', note: '值得看看' },
+      { repo: 'owner/repo', note: 'worth checking out' },
       { nested: { deeper: ['acme/tool'] } },
     ]);
 
@@ -315,7 +315,7 @@ describe('extractRepositoryCandidates — JSON', () => {
   });
 });
 
-describe('extractRepositoryCandidates — 边界与本地数据', () => {
+describe('extractRepositoryCandidates — boundary conditions and local data', () => {
   it('returns nothing for empty input', () => {
     expect(extractRepositoryCandidates('')).toEqual({
       candidates: [],

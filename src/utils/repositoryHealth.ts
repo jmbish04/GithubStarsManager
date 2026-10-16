@@ -1,14 +1,18 @@
 /**
- * Repository Health Core —— 从本地数据推导客观健康事实。
+ * Repository Health Core — derives objective health facts from local data.
  *
- * 纯函数、无副作用、无网络请求：输入 `Repository` + 本地 `Release[]`（+ 可选 enrichment），
- * 输出 {@link RepositoryHealthSnapshot}。因此 Repository 列表、筛选、排序、Discovery、
- * AI 提示、MCP 证据与插件快照可以复用同一份结果，并且离线可用。
+ * Pure function, zero side effects, no network calls: takes `Repository` + local `Release[]`
+ * (plus optional enrichment) and returns a {@link RepositoryHealthSnapshot}. As a result,
+ * repository lists, filtering, sorting, Discovery, AI prompts, MCP evidence, and plugin snapshots
+ * can all reuse the same results offline.
  *
- * 明确的非目标：
- * - 不输出 0–100 健康总分，不输出「健康 / 不健康」结论（主观评分属于插件）。
- * - 不因为「最近提交少」而把成熟稳定项目标记为异常：`no-recent-activity` 只是中性观测。
- * - 不猜测缺失事实：需要联网补全的字段在未补全时为 `undefined`（未知）。
+ * Explicit non-goals:
+ * - Do not compute a 0–100 overall health score; do not output "healthy / unhealthy" verdicts
+ *   (subjective scoring belongs in plugins).
+ * - Do not flag mature, stable projects as anomalous due to "few recent commits": `no-recent-activity`
+ *   is purely a neutral observation.
+ * - Do not guess missing facts: fields that require network enrichment remain `undefined` (unknown)
+ *   until enriched.
  */
 import type { Release, Repository } from '../types';
 import type {
@@ -26,16 +30,17 @@ const MS_PER_DAY = 86_400_000;
 const DAYS_PER_YEAR = 365.25;
 
 /**
- * 「近期无提交」观测阈值（天）。
- * 一年只是**展示**阈值：超过后 UI 显示中性文案「No pushes in the last 12 months」，
- * 而不是判定项目不健康（成熟稳定项目长期不更新属正常状态）。
+ * Observation threshold (in days) for "no recent commits".
+ * One year is merely a **display** threshold: once exceeded, the UI displays the neutral copy
+ * "No pushes in the last 12 months", rather than deeming the project unhealthy (mature and stable
+ * projects going long periods without updates is completely normal).
  */
 export const NO_RECENT_ACTIVITY_DAYS = 365;
 
-/** 发布频率的分母下限（月），避免新仓库出现「每年 365 个 release」这类噪声值。 */
+/** Minimum denominator window (in months) for release frequency to avoid noisy outliers like "365 releases/year" on brand-new repos. */
 const MIN_FREQUENCY_WINDOW_DAYS = 30;
 
-/** tag 中的一个 token 命中即视为预发布。按 token 比对，避免 `presto` 里的 `pre` 之类误判。 */
+/** Any matching token in a tag marks it as a prerelease. Tokenized matching avoids false positives like `pre` inside `presto`. */
 const PRERELEASE_TOKENS = new Set([
   'alpha',
   'beta',
@@ -53,27 +58,27 @@ const PRERELEASE_TOKENS = new Set([
   'unstable',
 ]);
 
-/** 把时间字符串解析为 epoch 毫秒；缺失或不可解析返回 null。 */
+/** Parses a date string into epoch milliseconds; returns null if missing or unparsable. */
 function toTimestamp(value?: string | null): number | null {
   if (!value) return null;
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-/** 把可能为 undefined/NaN 的计数收敛为非负整数。 */
+/** Coerces a potentially undefined/NaN count into a non-negative integer. */
 function toCount(value: unknown): number {
   const count = Number(value);
   return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
 }
 
-/** 保留一位小数，消除浮点尾差。 */
+/** Rounds to one decimal place to eliminate floating point artifacts. */
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
 /**
- * 判断单个 Release 是否为预发布。
- * 先信任 GitHub 的 `prerelease` 标记，再按 tag 词元兜底（许多维护者只用 tag 表达预发布）。
+ * Checks whether a single Release is a prerelease.
+ * First trusts GitHub's `prerelease` flag, then falls back to tag tokens (many maintainers only express prereleases via tags).
  */
 export function isPrereleaseRelease(release: Pick<Release, 'prerelease' | 'tag_name'>): boolean {
   if (release.prerelease === true) return true;
@@ -86,8 +91,8 @@ export function isPrereleaseRelease(release: Pick<Release, 'prerelease' | 'tag_n
 }
 
 /**
- * 取某个仓库的 Release，按发布时间降序（不可解析的条目丢弃）。
- * 只统计 `repository.id` 匹配的条目——调用方常传入全局 Release 数组。
+ * Retrieves releases for a given repository sorted in descending order of published date (unparsable entries discarded).
+ * Only counts entries matching `repository.id` — callers frequently pass a global Release array.
  */
 export function releasesForRepository<T extends Pick<Release, 'repository' | 'published_at'>>(
   releases: readonly T[] | undefined,
@@ -104,12 +109,12 @@ export function releasesForRepository<T extends Pick<Release, 'repository' | 'pu
 }
 
 /**
- * 推导仓库健康事实快照。
+ * Derives a repository health fact snapshot.
  *
- * @param repository 仓库实体（含 GitHub 原生状态字段与本地 AI/自定义字段）。
- * @param releases 本地已同步的 Release；可为全局数组，内部按 `repository.id` 过滤。
- * @param enrichment 可选联网补全结果；缺失字段在快照中保持 `undefined`（未知）。
- * @param now 计算「距今多久」的基准时间，便于测试注入。
+ * @param repository Repository entity (including GitHub native status fields and local AI/custom fields).
+ * @param releases Locally synced releases; can be a global array, filtered internally by `repository.id`.
+ * @param enrichment Optional network enrichment result; omitted fields remain `undefined` (unknown) in snapshot.
+ * @param now Reference timestamp for calculating elapsed time, injectable for testing.
  */
 export function deriveRepositoryHealthSnapshot(
   repository: Repository,
@@ -126,8 +131,9 @@ export function deriveRepositoryHealthSnapshot(
     ownReleases.find((release) => isPrereleaseRelease(release)) ?? null;
 
   const createdTimestamp = toTimestamp(repository.created_at);
-  // 与 `hasRecentActivity` 及 electron/server 两份镜像一致：pushed_at 缺失或不可解析时
-  // 回落到 updated_at，避免同一份数据在「最近活动」筛选与事实面板上给出不同答案。
+  // Consistent with `hasRecentActivity` and the electron/server mirrors: falls back to
+  // updated_at when pushed_at is missing or unparsable, avoiding conflicting results
+  // between the "recent activity" filter and the health fact panel on identical data.
   const pushedTimestamp =
     toTimestamp(repository.pushed_at) ?? toTimestamp(repository.updated_at);
   const ageDays =
@@ -139,11 +145,12 @@ export function deriveRepositoryHealthSnapshot(
       ? null
       : Math.max(0, Math.floor((now - pushedTimestamp) / MS_PER_DAY));
 
-  // 发布频率：以仓库年龄为窗口，分母下限一个月，避免新仓库出现噪声极值。
-  // 仓库年龄未知时无法换算「频率」：
-  // - 调用方没给 Release 数据 → null（不知道）
-  // - 给了数据但没有 Release → 0（确实从不发布）
-  // - 给了数据且有 Release → 也只能是 null：把「总数」当成「次/年」是错的
+  // Release frequency: uses repository age as the window with a minimum denominator of one month
+  // to prevent noisy extremes on new repositories.
+  // When repository age is unknown, frequency cannot be converted:
+  // - Caller provided no release data -> null (unknown)
+  // - Caller provided data but no releases -> 0 (repository never releases)
+  // - Caller provided data and releases exist -> must remain null: treating "total" as "releases/year" is invalid
   const releasesPerYear =
     ageDays === null
       ? releases !== undefined && releaseCount === 0
@@ -160,8 +167,9 @@ export function deriveRepositoryHealthSnapshot(
       : toCount(repository.forks);
 
   const snapshot: RepositoryHealthSnapshot = {
-    // 直接透传三态：字段缺失时保留 undefined（未知），不要用 `=== true` 收敛成 false
-    // ——那会把旧数据/后端未存储的仓库误报成「未归档 / 非 Fork / 非模板」。
+    // Pass through tri-state directly: preserve undefined (unknown) when fields are missing;
+    // do not coerce with `=== true` to false, which would falsely report legacy or unpersisted
+    // repositories as "not archived / not fork / not template".
     archived: repository.archived,
     disabled: repository.disabled,
     fork: repository.fork,
@@ -173,8 +181,8 @@ export function deriveRepositoryHealthSnapshot(
     recentCommitCount: enrichment?.recentCommitCount,
 
     hasReleases: releaseCount > 0,
-    // 只有调用方显式传入 Release 数组（哪怕是空数组）时才承认「已知该仓库的 Release 情况」；
-    // 完全不传表示调用方没有这项数据，此时 Release 相关事实保持「未知」。
+    // Acknowledge release status as "known" only if caller explicitly passed a releases array
+    // (even if empty); omitting it indicates caller lacks release data, keeping release facts unknown.
     releasesFetched: releases !== undefined && repository.has_fetched_releases === true,
     latestReleaseAt: latestRelease?.published_at ?? null,
     releaseCount,
@@ -207,11 +215,12 @@ export function deriveRepositoryHealthSnapshot(
 }
 
 /**
- * 推导 Core 允许提供的保守状态。
+ * Derives conservative signals supported by Core.
  *
- * 只有 4 种观测，且顺序固定（archived → disabled → no-releases → no-recent-activity）：
- * 顺序稳定可让 UI 与测试依赖它。`no-releases` 只在确认同步过 Release 后给出，
- * 否则「本地没有 Release」只代表尚未拉取。`since` 只在时间型观测上有值。
+ * Emits only 4 signals with a fixed order (archived -> disabled -> no-releases -> no-recent-activity)
+ * so UI and tests can rely on stable ordering. `no-releases` is emitted only once releases are
+ * confirmed synced; otherwise, an empty local release list simply means releases have not been fetched yet.
+ * `since` is populated only for time-based observations.
  */
 export function deriveRepositoryHealthSignals(
   snapshot: RepositoryHealthSnapshot,
@@ -241,7 +250,7 @@ export function deriveRepositoryHealthSignals(
   return signals;
 }
 
-/** 分组顺序固定，UI 与测试依赖它。 */
+/** Stable group ordering required by UI and tests. */
 export const REPOSITORY_HEALTH_GROUP_ORDER: readonly RepositoryHealthGroup[] = [
   'activity',
   'maintenance',
@@ -249,7 +258,7 @@ export const REPOSITORY_HEALTH_GROUP_ORDER: readonly RepositoryHealthGroup[] = [
   'maturity',
 ];
 
-/** 每个分组包含的事实 id 与顺序（固定）。 */
+/** Fact IDs and stable ordering for each group. */
 const GROUP_FACT_IDS: Record<RepositoryHealthGroup, readonly RepositoryHealthFactId[]> = {
   activity: ['pushedAt', 'latestCommitAt', 'recentCommitCount', 'hasReleases', 'latestReleaseAt'],
   maintenance: [
@@ -267,7 +276,7 @@ const GROUP_FACT_IDS: Record<RepositoryHealthGroup, readonly RepositoryHealthFac
   maturity: ['createdAt', 'ageDays', 'releaseCount', 'releasesPerYear', 'latestStableVersion'],
 };
 
-/** 每个事实的取值来源，供 UI 标注「需要联网补全」与筛选能力判断。 */
+/** Source of each fact, allowing UI to annotate "requires online enrichment" and filter capability. */
 const FACT_SOURCE: Record<RepositoryHealthFactId, RepositoryHealthFact['source']> = {
   pushedAt: 'repository',
   latestCommitAt: 'enrichment',
@@ -295,7 +304,7 @@ const FACT_SOURCE: Record<RepositoryHealthFactId, RepositoryHealthFact['source']
   latestStableVersion: 'releases',
 };
 
-/** 每个事实的数据类型，供 UI 选择格式化方式。 */
+/** Data type of each fact for UI formatting selection. */
 const FACT_KIND: Record<RepositoryHealthFactId, RepositoryHealthFact['kind']> = {
   pushedAt: 'date',
   latestCommitAt: 'date',
@@ -324,9 +333,9 @@ const FACT_KIND: Record<RepositoryHealthFactId, RepositoryHealthFact['kind']> = 
 };
 
 /**
- * 从快照取单个事实的原始值。
+ * Reads the raw fact value from the snapshot.
  *
- * 注意三态语义：`undefined` = 未知，`null` = 已知且为空（例如无 license / 无稳定版本）。
+ * Note the tri-state semantics: `undefined` = unknown, `null` = known and empty (e.g., no license / no stable release).
  */
 function readFactValue(
   snapshot: RepositoryHealthSnapshot,
@@ -334,17 +343,17 @@ function readFactValue(
 ): RepositoryHealthFact['value'] {
   switch (id) {
     case 'hasReleases':
-      // 尚未同步过 Release 时，「没有 Release」并不成立——保持未知。
+      // When releases have not been synced yet, "no releases" is not factual — keep unknown.
       if (!snapshot.releasesFetched && !snapshot.hasReleases) return undefined;
       return snapshot.hasReleases;
     case 'license':
-      // 空值统一收敛为「无 license」哨兵，避免 UI 把 '' 当成已声明。
+      // Empty value normalized to "no license" sentinel to prevent UI from treating '' as declared.
       if (snapshot.license === undefined) return undefined;
       return normalizeLicense(snapshot.license) === NO_LICENSE_SENTINEL
         ? null
         : snapshot.license;
     case 'template':
-      // 事实 id 用 `template`（GitHub 语义），快照字段用 `isTemplate`（避免与 JS 保留语义混淆）。
+      // Fact ID uses `template` (GitHub semantics); snapshot field uses `isTemplate` (avoids JS keyword confusion).
       return snapshot.isTemplate;
     default:
       return snapshot[id] as RepositoryHealthFact['value'];
@@ -352,8 +361,8 @@ function readFactValue(
 }
 
 /**
- * 把快照展开为 UI 分组视图（Activity / Maintenance / Community / Maturity）。
- * 不做任何格式化——标签、日期与数字格式由 UI 层决定（i18n 重构后归口语言包）。
+ * Expands the snapshot into UI group views (Activity / Maintenance / Community / Maturity).
+ * Performs no formatting — labels, dates, and number formats are determined by the UI layer (localized via i18n).
  */
 export function groupRepositoryHealthFacts(
   snapshot: RepositoryHealthSnapshot,
@@ -371,11 +380,11 @@ export function groupRepositoryHealthFacts(
 }
 
 /**
- * 判断仓库是否已归档，三态返回。
+ * Evaluates whether a repository is archived, returning a tri-state boolean.
  *
- * 字段缺失时返回 `undefined`（未知），调用方必须用严格相等比较，
- * 这样 `healthArchived: true` 与 `healthArchived: false` 都不会命中未知的仓库——
- * 否则「筛出未归档」会把本地根本没有该字段的仓库一并当成未归档列出。
+ * Returns `undefined` (unknown) if the field is missing. Callers must use strict equality checks
+ * so neither `healthArchived: true` nor `healthArchived: false` matches unknown repositories —
+ * otherwise filtering for "unarchived" would include repositories where the field was simply never stored locally.
  */
 export function isArchivedRepository(
   repository: Pick<Repository, 'archived'>,
@@ -384,8 +393,8 @@ export function isArchivedRepository(
 }
 
 /**
- * 判断仓库最近是否有 push 活动。
- * `now` 可注入以便测试；时间不可解析时返回 false（筛选语义：未知不算「近期活跃」）。
+ * Evaluates whether a repository has recent push activity.
+ * `now` can be injected for testing; returns false if timestamps cannot be parsed (filter semantics: unknown != active).
  */
 export function hasRecentActivity(
   repository: Pick<Repository, 'pushed_at' | 'updated_at'>,
@@ -396,7 +405,7 @@ export function hasRecentActivity(
   return now - pushed < NO_RECENT_ACTIVITY_DAYS * MS_PER_DAY;
 }
 
-/** 判断仓库是否声明了可识别的 license（复用既有归一化，保证与 license 过滤器一致）。 */
+/** Checks whether a repository declared a recognized license (reuses shared normalization for consistency with license filter). */
 export function hasDeclaredLicense(repository: Pick<Repository, 'license'>): boolean {
   return normalizeLicense(repository.license) !== NO_LICENSE_SENTINEL;
 }

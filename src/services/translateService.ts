@@ -17,25 +17,25 @@ export interface TranslateOptions {
   textType?: 'html' | 'plain';
 }
 
-/** 微软 Edge 翻译（免费、无需鉴权）。旧版 Bearer token 鉴权端点已下线（404）。 */
+/** Microsoft Edge Translate (free, no authentication required). Legacy Bearer token auth endpoint is defunct (404). */
 const MS_TRANSLATE_URL = 'https://edge.microsoft.com/translate/translatetext';
-/** Google 翻译免费接口（Chrome 扩展同款，CORS 全放行）。 */
+/** Google Translate free API (same as Chrome extension, fully CORS permissive). */
 const GOOGLE_TRANSLATE_URL = 'https://clients5.google.com/translate_a/t';
 
-/** 翻译请求超时：单批最多 50k 字符，慢网下放宽到 20s；超时同时覆盖响应体读取。 */
+/** Translation request timeout: max 50k characters per batch, relaxed to 20s on slow networks; timeout also covers reading response body. */
 const TRANSLATE_TIMEOUT_MS = 20_000;
-/** AI 翻译单次请求超时：LLM 生成较慢，给足余量。 */
+/** AI translation single request timeout: LLM generation is slower, allow ample headroom. */
 const AI_TRANSLATE_TIMEOUT_MS = 90_000;
 
-/** 单条 HTTP 请求的引擎分块参数：请求数 × 字符上限（微软引擎沿用外层 translateBatch 的 100 条 / 50k 字符上限）。 */
+/** Per-HTTP-request chunking parameters: request count × character limit (Microsoft engine follows outer translateBatch limit of 100 items / 50k characters). */
 const GOOGLE_BATCH_LIMITS = { texts: 20, chars: 1_800 };
 const AI_BATCH_LIMITS = { texts: 10 };
 
-/** 应用内语言代码 → 引擎语言代码映射（zh 在两家引擎里都不是合法目标码）。 */
+/** App language code -> engine language code mapping ('zh' is not a valid target code in either engine). */
 const MICROSOFT_LANG: Record<string, string> = { zh: 'zh-Hans', 'zh-TW': 'zh-Hant' };
 const GOOGLE_LANG: Record<string, string> = { zh: 'zh-CN', 'zh-TW': 'zh-TW' };
 
-/** 匹配行内 <code>…</code> 标签（可带属性）。注意以 /g 使用前需重置 lastIndex。 */
+/** Matches inline <code>…</code> tags (optionally with attributes). Note: lastIndex must be reset before use with /g. */
 const CODE_TAG_PATTERN = /<code(?:\s+[^>]*)?>[\s\S]*?<\/code>/g;
 
 interface MsTranslateItem {
@@ -43,10 +43,10 @@ interface MsTranslateItem {
 }
 
 /**
- * 带超时的请求：fetch 与响应体消费（response.json() 等）都在超时管控内，
- * 慢速 body 读取同样会被超时中止。超时转换为普通 Error（无 status →
- * isTransientError 视为瞬时，外层 withTranslateRetry 会重试）；
- * 调用方主动中止仍以 AbortError 抛出（不重试）。
+ * Request with timeout: both fetch and response body consumption (response.json(), etc.) are governed by the timeout;
+ * slow body reads will also be aborted by timeout. Timeouts are converted to standard Errors (no status ->
+ * isTransientError treats as transient, and outer withTranslateRetry will retry);
+ * caller-initiated aborts still throw as AbortError (no retry).
  */
 const fetchWithTimeout = async <T>(
   url: string,
@@ -68,9 +68,9 @@ const fetchWithTimeout = async <T>(
 };
 
 /**
- * 把单条文本中的 <code>…</code> 替换为 {0} {1} 占位符（机器翻译引擎会原样
- * 保留 .NET 风格占位符），翻译后再还原。任一占位符在译文中丢失时回退整条
- * 原文，避免向渲染层输出损坏的代码标签。
+ * Replaces <code>…</code> in a single text with {0}, {1} placeholders (machine translation engines preserve
+ * .NET style placeholders as-is), restoring them after translation. If any placeholder is lost in translation,
+ * falls back to the entire original text to avoid outputting broken code tags to the renderer.
  */
 const protectInlineCode = (text: string): { payload: string; restore: (translated: string) => string } => {
   const codes: string[] = [];
@@ -87,7 +87,7 @@ const protectInlineCode = (text: string): { payload: string; restore: (translate
         const token = `{${i}}`;
         if (!result.includes(token)) return text;
         const code = codes[i];
-        // 用替换函数插入，避免 code 中的 $& / $` / $' / $1 被解释为替换模式
+        // Insert using replacement function to avoid $& / $` / $' / $1 in code being interpreted as replacement patterns
         result = result.replace(token, () => code);
       }
       return result;
@@ -96,8 +96,9 @@ const protectInlineCode = (text: string): { payload: string; restore: (translate
 };
 
 /**
- * 批量包装：仅对 html 类型（含行内代码的段落）启用占位符保护；
- * 文本自身已含 {数字}（如格式化字符串文档）时无法安全区分占位符，退化为原文直发。
+ * Batch wrapper: enables placeholder protection only for html type (paragraphs containing inline code);
+ * when text already contains {digits} (e.g. format string documentation), placeholders cannot be safely distinguished,
+ * falling back to sending original text directly.
  */
 const protectBatch = (
   texts: string[],
@@ -116,8 +117,8 @@ const protectBatch = (
 };
 
 /**
- * 从错误对象中提取 HTTP 状态码：优先读 status/response.status 字段
- * （如 AIRequestError），否则从 message 里匹配 "failed: 429" 之类的片段。
+ * Extracts HTTP status code from error object: prefers status/response.status fields
+ * (e.g. AIRequestError), otherwise matches fragments like "failed: 429" from message.
  */
 const extractHttpStatus = (err: unknown): number | null => {
   const anyErr = err as Record<string, unknown>;
@@ -135,7 +136,7 @@ const extractHttpStatus = (err: unknown): number | null => {
   return null;
 };
 
-/** 判断错误是否值得重试：鉴权过期、无状态码（网络/超时/格式）、429 与 5xx 均视为瞬时。 */
+/** Determines if error is retryable: auth expiration, missing status code (network/timeout/format), 429 and 5xx are treated as transient. */
 const isTransientError = (err: unknown): boolean => {
   const status = extractHttpStatus(err);
   if (status === null) return true;
@@ -143,8 +144,8 @@ const isTransientError = (err: unknown): boolean => {
 };
 
 /**
- * 指数退避重试包装。AbortError / CanceledError（调用方主动取消）直接上抛；
- * 非瞬时错误（如 4xx）不重试。sleep 期间同样响应调用方取消。
+ * Exponential backoff retry wrapper. AbortError / CanceledError (caller cancellation) are rethrown directly;
+ * non-transient errors (such as 4xx) are not retried. Responds to caller cancellation during sleep as well.
  */
 const withTranslateRetry = async <T>(
   operation: () => Promise<T>,
@@ -178,7 +179,7 @@ const withTranslateRetry = async <T>(
   throw lastError!;
 };
 
-/** 可取消的 sleep：signal 已中止或中止时立即以 AbortError 拒绝。 */
+/** Cancellable sleep: rejects immediately with AbortError if signal is already aborted or becomes aborted. */
 const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -196,13 +197,13 @@ const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
     signal?.addEventListener('abort', onAbort, { once: true });
   });
 
-/** 读取当前生效的翻译引擎（设置页可切换，读取时机为每次翻译请求）。 */
+/** Reads currently active translation engine (switchable in settings, evaluated on every translation request). */
 const getTranslationEngine = (): TranslationEngine =>
   useAppStore.getState().translationEngine ?? 'microsoft';
 
 /**
- * 微软 Edge 翻译引擎：POST JSON 字符串数组到 translatetext 端点，
- * 无需鉴权。响应为 [{ translations: [{ text }] }]。
+ * Microsoft Edge translation engine: POST JSON string array to translatetext endpoint,
+ * no authentication required. Response format is [{ translations: [{ text }] }].
  */
 const translateWithMicrosoft = async (
   texts: string[],
@@ -242,9 +243,9 @@ const translateWithMicrosoft = async (
 };
 
 /**
- * Google 免费翻译引擎（clients5 dict-chrome-ex）：POST 表单 q=…（可重复），
- * 响应依 sl 参数有 [译文, 源语言] 二元组与裸字符串两种形态，统一归一化。
- * 单条 HTTP 请求按条数与字符数分块，避免超长请求被拒。
+ * Google free translation engine (clients5 dict-chrome-ex): POST form q=… (repeatable);
+ * response has two shapes depending on sl param: [translatedText, sourceLang] tuples or bare strings, normalized uniformly.
+ * Single HTTP request is chunked by item count and character count to avoid rejection of oversized requests.
  */
 const translateWithGoogle = async (
   texts: string[],
@@ -308,8 +309,8 @@ const translateWithGoogle = async (
 };
 
 /**
- * AI 翻译引擎：复用用户在设置中激活的 AI 配置（AIService.translateTexts），
- * 按小批量逐请求翻译，每个请求独立叠加超时（LLM 生成慢于直连 MT 接口）。
+ * AI translation engine: reuses active AI configuration from settings (AIService.translateTexts),
+ * translating in small request batches with independent timeouts per request (LLM generation is slower than direct MT APIs).
  */
 const translateWithAI = async (
   texts: string[],
@@ -320,11 +321,7 @@ const translateWithAI = async (
   const { aiConfigs, activeAIConfig, language } = useAppStore.getState();
   const config = aiConfigs.find((item) => item.id === activeAIConfig);
   if (!config) {
-    throw new Error(
-      language === 'zh'
-        ? 'AI 翻译引擎未就绪：请先在「设置 - AI 服务配置」中添加并激活 AI 配置'
-        : 'AI translation engine is not ready: please add and activate an AI configuration in Settings → AI Service Configuration first'
-    );
+    throw new Error('AI translation engine is not ready: please add and activate an AI configuration in Settings → AI Service Configuration first');
   }
 
   const aiService = new AIService(config, language);
@@ -350,7 +347,7 @@ const translateWithAI = async (
   return results;
 };
 
-/** 按当前设置分派到对应翻译引擎，返回与输入等长的译文数组。 */
+/** Dispatches to corresponding translation engine based on current settings, returning an array of translations matching input length. */
 const dispatchTranslation = async (
   texts: string[],
   to: string,
@@ -369,7 +366,7 @@ const dispatchTranslation = async (
   }
 };
 
-/** 单批翻译 + 重试（AI 引擎重试 2 次，直连引擎 3 次），结果映射为 TranslateResult。 */
+/** Single-batch translation + retry (AI engine retries 2 times, direct engines 3 times), results mapped to TranslateResult. */
 const translateBatchInternal = async (
   texts: string[],
   to: string,
@@ -384,7 +381,7 @@ const translateBatchInternal = async (
   }, signal, maxRetries);
 };
 
-/** 翻译单条文本（空文本原样返回，不发起请求）。 */
+/** Translates single text (empty text returned as-is without making requests). */
 export const translateText = async (options: TranslateOptions): Promise<TranslateResult> => {
   const { from, to, text, signal, textType } = options;
 
@@ -396,7 +393,7 @@ export const translateText = async (options: TranslateOptions): Promise<Translat
   return results[0];
 };
 
-/** 按段落与字符上限把超长文本切成多条（仅用于超过引擎单条上限的文本）。 */
+/** Splits oversized text into multiple segments by paragraphs and character limits (only used for text exceeding engine per-item limit). */
 function splitTextIntoChunks(text: string, maxChars: number): string[] {
   if (text.length <= maxChars) return [text];
 
@@ -431,8 +428,8 @@ function splitTextIntoChunks(text: string, maxChars: number): string[] {
 }
 
 /**
- * 批量翻译入口：多条文本合并为尽量少的请求（受引擎单请求上限约束），
- * 超长文本先切片再逐片翻译，最终结果与输入顺序一一对应。
+ * Batch translation entry point: merges multiple texts into as few requests as possible (bounded by engine per-request limits);
+ * oversized texts are sliced first and translated per slice, with final results matching input order 1:1.
  */
 export const translateBatch = async (
   texts: string[],

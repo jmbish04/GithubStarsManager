@@ -1,13 +1,15 @@
 /**
- * V1.5 页面网络能力的账号标签：宿主用它给插件页面的本地缓存做身份命名空间。
+ * V1.5 plugin page network account tag: used by the host to namespace local caches
+ * for plugin pages by identity.
  *
- * 取 Token 的 SHA-256 前 16 位十六进制（匿名请求为 'anon'）。页面只拿到这个
- * 标签、拿不到 Token；标签本身也不是凭据——它只用于「同一台机器切换 GitHub
- * 账号后，旧账号的缓存不再被新账号读到」。
+ * Takes the first 16 hex characters of the token's SHA-256 (or 'anon' for anonymous requests).
+ * The page only receives this tag and cannot access the token itself; the tag is not a credential
+ * either—it only ensures that when switching GitHub accounts on the same machine, caches from the
+ * previous account are not read by the new one.
  */
 const accountTagCache = new Map<string, string>();
 
-/** 解析 Token 对应的稳定账号标签（按 Token 记忆，避免重复计算）。 */
+/** Resolves the stable account tag corresponding to a token (memoized by token to avoid recomputation). */
 export async function resolvePluginAccountTag(token: string | null): Promise<string> {
   const key = token ?? '';
   const cached = accountTagCache.get(key);
@@ -20,7 +22,7 @@ export async function resolvePluginAccountTag(token: string | null): Promise<str
         .map((byte) => byte.toString(16).padStart(2, '0'))
         .join('');
     } catch {
-      // subtle 不可用（极旧环境）时退化为长度摘要——仍优于账号无关的缓存。
+      // Fall back to a length digest when subtle crypto is unavailable (very old environments)—still better than account-agnostic caching.
       tag = `len:${token.length}`;
     }
   }

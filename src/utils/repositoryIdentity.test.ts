@@ -32,7 +32,7 @@ const repo = (
   ...overrides,
 });
 
-/** 批量 Star 遗留合成 id 的样例（时间戳型）。 */
+/** Example legacy synthetic ID from batch Star imports (timestamp-based). */
 const SYNTHETIC_ID = 1_700_000_000_123;
 
 describe('repositoryIdentity helpers', () => {
@@ -50,7 +50,7 @@ describe('repositoryIdentity helpers', () => {
   it('separates synthetic ids from real GitHub ids', () => {
     expect(isLegacySyntheticIdRecord({ id: SYNTHETIC_ID })).toBe(true);
     expect(isLegacySyntheticIdRecord({ id: 5 })).toBe(false);
-    // 边界：阈值本身视为合成
+    // Edge case: threshold itself is treated as synthetic
     expect(isLegacySyntheticIdRecord({ id: SYNTHETIC_REPOSITORY_ID_FLOOR })).toBe(true);
     expect(isLegacySyntheticIdRecord({ id: SYNTHETIC_REPOSITORY_ID_FLOOR - 1 })).toBe(false);
   });
@@ -58,14 +58,14 @@ describe('repositoryIdentity helpers', () => {
   it('matches identity by id even when the name changed (rename)', () => {
     expect(matchesSameGitHubId(repo(5, 'owner/new'), repo(5, 'owner/old'))).toBe(true);
     expect(matchesSameGitHubId(repo(5, 'owner/old'), repo(999, 'owner/old'))).toBe(false);
-    // 入参 id 无效时不按 id 匹配（避免 0/NaN 误命中）
+    // Do not match by ID when incoming ID is invalid (prevents accidental 0/NaN matches)
     expect(matchesSameGitHubId(repo(0, 'owner/x'), repo(0, 'owner/x'))).toBe(false);
   });
 
   it('falls back to name only for legacy synthetic records, case-insensitively', () => {
     const legacy = repo(SYNTHETIC_ID, 'Owner/Legacy');
     expect(matchesLegacyNameFallback(repo(42, 'owner/legacy'), legacy)).toBe(true);
-    // 带真实 id 的记录不参与名称兜底（否则复用旧名的新仓库会错误继承）
+    // Records with genuine IDs do not participate in name fallback (preventing newly reusing repos from inheriting)
     expect(matchesLegacyNameFallback(repo(42, 'owner/legacy'), repo(5, 'owner/legacy'))).toBe(false);
     expect(matchesLegacyNameFallback(repo(42, 'owner/other'), legacy)).toBe(false);
     expect(matchesLegacyNameFallback(repo(42, ''), legacy)).toBe(false);
@@ -74,7 +74,7 @@ describe('repositoryIdentity helpers', () => {
   it('prefers the id match over the name fallback', () => {
     const legacy = repo(SYNTHETIC_ID, 'owner/keep');
     const renamed = repo(42, 'owner/renamed');
-    // 入参 id 42 命中 renamed；名称 owner/keep 又命中 legacy ⇒ 必须取 id 命中
+    // Incoming ID 42 matches renamed; name owner/keep matches legacy => ID match must take precedence
     const match = findIdentityMatch(repo(42, 'owner/keep'), [legacy, renamed]);
     expect(match?.id).toBe(42);
   });
@@ -100,7 +100,7 @@ describe('repositoryIdentity helpers', () => {
       [repo(1, 'owner/new'), repo(2, 'owner/old')],
       [old],
     );
-    // 改名的仓库按 id 认领；复用旧名的是新增
+    // Renamed repository is claimed by ID; repository reusing former name is treated as new
     expect(assignments[0]).toBe(old);
     expect(assignments[1]).toBeUndefined();
   });
@@ -109,7 +109,7 @@ describe('repositoryIdentity helpers', () => {
     const old = repo(1, 'owner/old');
     const forward = assignIdentityMatches([repo(1, 'owner/new'), repo(2, 'owner/old')], [old]);
     const reversed = assignIdentityMatches([repo(2, 'owner/old'), repo(1, 'owner/new')], [old]);
-    // 按 id 对齐后结果一致：id 1 认领旧记录，id 2 为新增
+    // Same result regardless of alignment order: ID 1 claims old record, ID 2 is new
     expect(forward[0]).toBe(old);
     expect(forward[1]).toBeUndefined();
     expect(reversed[0]).toBeUndefined();
@@ -117,7 +117,7 @@ describe('repositoryIdentity helpers', () => {
   });
 
   it('records real-id candidates so a name-reusing repo never inherits them', () => {
-    // 带真实 id 的旧记录（原仓库已改名/删除），其旧名被新仓库复用
+    // Legacy record with authentic ID (original repo renamed/deleted) whose previous name is reused by a new repo
     const stale = repo(5, 'owner/old');
     const assignments = assignIdentityMatches([repo(999, 'owner/old')], [stale]);
     expect(assignments[0]).toBeUndefined();

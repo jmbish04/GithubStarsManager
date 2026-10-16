@@ -132,8 +132,8 @@ describe('repositoryChatStorage local fallback', () => {
   });
 
   it('rejects fallback writes when localStorage persistence is unavailable', async () => {
-    // 直接把 window.localStorage 换成抛错桩：不同平台的 jsdom 对 Storage 原型/
-    // 实例方法的实现有差异，逐方法 spy 在 CI（Linux）上不可靠。
+    // Replace window.localStorage directly with a throwing stub: jsdom implementations of Storage prototype
+    // and instance methods vary across platforms, making per-method spying unreliable in CI (Linux).
     const storageError = () => { throw new DOMException('storage is unavailable'); };
     const throwingStorage = {
       getItem: storageError,

@@ -1,143 +1,143 @@
 # GitHub Stars Vectorize Worker
 
-极简 Cloudflare Worker，作为 Cloudflare Vectorize 的代理。前端负责 Embedding 生成，Worker 只负责向量的存/查/删。
+Minimal Cloudflare Worker acting as a proxy for Cloudflare Vectorize. The frontend generates embeddings, while the Worker handles vector storage, querying, and deletion.
 
-## 前置条件
+## Prerequisites
 
-- [Cloudflare 账号](https://dash.cloudflare.com/)
+- [Cloudflare Account](https://dash.cloudflare.com/)
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) (`npm install -g wrangler`)
-- 已登录 Wrangler (`wrangler login`)
+- Logged in to Wrangler (`wrangler login`)
 
-## 首次部署
+## Initial Deployment
 
-### 1. 创建 Vectorize 索引
+### 1. Create a Vectorize Index
 
-索引维度必须与你选择的 Embedding 模型一致：
+The index dimensions must match your chosen embedding model:
 
 ```bash
-# OpenAI text-embedding-3-small (1536维)
+# OpenAI text-embedding-3-small (1536 dimensions)
 npx wrangler vectorize create github-stars --dimensions=1536 --metric=cosine
 
-# Ollama nomic-embed-text (768维)
+# Ollama nomic-embed-text (768 dimensions)
 npx wrangler vectorize create github-stars --dimensions=768 --metric=cosine
 
-# Cohere embed-multilingual-v3.0 (1024维)
+# Cohere embed-multilingual-v3.0 (1024 dimensions)
 npx wrangler vectorize create github-stars --dimensions=1024 --metric=cosine
 
-# Gemini text-embedding-004 (768维)
+# Gemini text-embedding-004 (768 dimensions)
 npx wrangler vectorize create github-stars --dimensions=768 --metric=cosine
 
-# 硅基流动 BAAI/bge-large-zh-v1.5 (1024维)
+# SiliconFlow BAAI/bge-large-zh-v1.5 (1024 dimensions)
 npx wrangler vectorize create github-stars --dimensions=1024 --metric=cosine
 ```
 
-### 2. 安装依赖
+### 2. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 3. 设置认证令牌
+### 3. Set Up Auth Token
 
 ```bash
 wrangler secret put AUTH_TOKEN
-# 输入一个安全的随机字符串，例如：openssl rand -hex 32
+# Enter a secure random string, e.g., openssl rand -hex 32
 ```
 
-### 4. 部署
+### 4. Deploy
 
 ```bash
 npm run deploy
 ```
 
-部署成功后，Wrangler 会输出 Worker 的 URL，格式类似：
+After successful deployment, Wrangler will output the Worker URL, similar to:
 ```text
 https://github-stars-vectorize.<your-subdomain>.workers.dev
 ```
 
-### 5. 在 App 中配置
+### 5. Configure in the App
 
-在 GitHub Stars Manager 的 **设置 → 向量搜索** 中：
-- **Worker 地址**: 填入上一步的 URL
-- **认证 Token**: 填入你设置的 AUTH_TOKEN 值
+In GitHub Stars Manager under **Settings → Vector Search**:
+- **Worker URL**: Enter the URL from the previous step
+- **Auth Token**: Enter the AUTH_TOKEN value you set
 
-### 6. 测试连接
+### 6. Test the Connection
 
-在设置页点击 **测试 Worker 连接**，看到 "连接成功" 即可。
+Click **Test Worker Connection** on the settings page until you see "Connection successful".
 
 ---
 
-## 更新部署（代码变更后）
+## Updating the Deployment (After Code Changes)
 
-当你更新了 Worker 代码（例如从 GitHub 拉取了新版本），需要重新部署：
+When you update the Worker code (e.g., after pulling a new version from GitHub), redeploy it:
 
 ```bash
 cd cloudflare-worker
 
-# 如果依赖有变更（package.json 更新了）
+# If dependencies changed (package.json was updated)
 npm install
 
-# 重新部署
+# Redeploy
 npm run deploy
 ```
 
-> **注意**：更新部署**不需要**重新创建 Vectorize 索引，已有向量数据不受影响。
+> **Note**: Redeploying **does not** require recreating the Vectorize index; existing vector data remains intact.
 
 ---
 
-## 更换 Embedding 模型
+## Changing Embedding Models
 
-> ⚠️ **更换模型后必须重建索引！** 不同模型生成的向量维度不同，混用会导致查询失败。
+> ⚠️ **You must rebuild the index after changing models!** Different models generate vectors with different dimensions; mixing them will cause queries to fail.
 
-步骤：
-1. 在 App 设置中更换 Embedding 模型
-2. 如果新模型的维度与旧模型不同，需要**删除旧索引并创建新索引**：
+Steps:
+1. Change the embedding model in App settings
+2. If the new model's dimensions differ from the old one, **delete the old index and create a new one**:
    ```bash
-   # 删除旧索引
+   # Delete old index
    npx wrangler vectorize delete github-stars
 
-   # 创建新索引（维度与新模型一致）
+   # Create new index (matching the new model dimensions)
    npx wrangler vectorize create github-stars --dimensions=1024 --metric=cosine
    ```
-3. 在 App 中点击 **重建向量索引**
+3. In the App, click **Rebuild Vector Index**
 
 ---
 
-## 文件说明
+## File Descriptions
 
-| 文件 | 说明 |
-|------|------|
-| `src/index.ts` | Worker 源码（TypeScript，CLI 部署使用） |
-| `worker.js` | Worker 代码（纯 JS，备用） |
-| `wrangler.toml` | Wrangler 部署配置 |
-| `package.json` | 依赖声明 |
+| File | Description |
+|------|-------------|
+| `src/index.ts` | Worker source code (TypeScript, used for CLI deployment) |
+| `worker.js` | Worker code (plain JS, fallback) |
+| `wrangler.toml` | Wrangler deployment configuration |
+| `package.json` | Dependency declarations |
 
-## API 接口
+## API Endpoints
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/upsert` | 批量写入向量 |
-| POST | `/query` | 向量相似度查询 |
-| POST | `/delete` | 删除指定向量 |
-| POST | `/cleanup` | 清理不在 keepIds 列表中的向量 |
-| GET | `/status` | 获取索引状态 |
+| Method | Path | Description |
+|------|------|-------------|
+| POST | `/upsert` | Batch upsert vectors |
+| POST | `/query` | Vector similarity search |
+| POST | `/delete` | Delete specified vectors |
+| POST | `/cleanup` | Clean up vectors not in the `keepIds` list |
+| GET | `/status` | Get index status |
 
-所有请求需要 `Authorization: Bearer <AUTH_TOKEN>` 头。
+All requests require the `Authorization: Bearer <AUTH_TOKEN>` header.
 
-## 本地开发
+## Local Development
 
 ```bash
 npm run dev
 ```
 
-## 常见 Embedding 模型维度参考
+## Common Embedding Model Dimensions Reference
 
-| 模型 | 维度 | 多语言 | 价格 |
+| Model | Dimensions | Multilingual | Pricing |
 |------|------|--------|------|
 | OpenAI text-embedding-3-small | **1536** | ✅ | $0.02/M |
 | OpenAI text-embedding-3-large | **3072** | ✅ | $0.13/M |
-| Gemini text-embedding-004 | **768** | ✅ | 免费 |
+| Gemini text-embedding-004 | **768** | ✅ | Free |
 | Cohere embed-multilingual-v3.0 | **1024** | ✅ | $0.1/M |
-| Ollama nomic-embed-text | **768** | ✅ | 免费 |
-| Ollama bge-m3 | **1024** | ✅ | 免费 |
-| 硅基流动 BAAI/bge-large-zh-v1.5 | **1024** | ✅ | ¥0.5/M |
+| Ollama nomic-embed-text | **768** | ✅ | Free |
+| Ollama bge-m3 | **1024** | ✅ | Free |
+| SiliconFlow BAAI/bge-large-zh-v1.5 | **1024** | ✅ | ¥0.5/M |

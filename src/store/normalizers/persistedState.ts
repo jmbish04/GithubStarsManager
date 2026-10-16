@@ -53,8 +53,8 @@ export const normalizePersistedState = (
       enabled: persistedChannel?.enabled !== false,
     };
   }), ...normalizeExternalDiscoveryChannels(persistedDiscoveryChannels)];
-  // 抓取支持结论未落定（Web 启动探测中）时不做可见性决策，完整保留持久化的
-  // 启用标志，避免误启用「趋势」并被后续持久化写入固化（桌面端恒定已落定）
+  // While scrape support resolution is unsettled (web startup probe in progress), do not make visibility decisions;
+  // fully preserve persisted enabled flags to avoid mistakenly enabling "Trending" and having it persisted (desktop is constantly settled).
   const scrapeSupportSettled = isScrapeSupportSettled();
   if (scrapeSupportSettled && !normalizedDiscoveryChannels.some(channel => channel.enabled && isChannelScrapable(channel.id))) {
     normalizedDiscoveryChannels[0] = { ...normalizedDiscoveryChannels[0], enabled: true };
@@ -79,10 +79,11 @@ export const normalizePersistedState = (
   const releases = Array.isArray(safePersisted.releases) ? safePersisted.releases : [];
 
   // Migration for old users: mark repos with existing releases as already synced.
-  // 引用保留：无需回填时直接返回原数组——分片持久化按引用判脏，若 hydration
-  // 总是产生新数组引用，会在每次启动后触发一次全量重写。
-  // 用 String(id) 建索引：历史快照里 id 可能被持久化为字符串，与旧实现的
-  // `===` 宽松匹配历史数据保持等价；单次遍历建 Map，回填整体 O(R+L)。
+  // Reference preservation: return original array directly when no backfill is needed—sharded persistence
+  // detects dirty state by reference; if hydration always creates new array references,
+  // it triggers a full rewrite on every launch.
+  // Index by String(id): in legacy snapshots, id might have been persisted as a string;
+  // maintaining equivalence with the legacy loose match `===` on historical data; single-pass Map construction, backfill overall O(R+L).
   const latestReleaseTimeByRepoId = new Map<string, number>();
   for (const release of releases) {
     const repoId = release.repository?.id;
@@ -147,7 +148,7 @@ export const normalizePersistedState = (
     selectedGistCategory: safePersisted.selectedGistCategory === 'starred' || safePersisted.selectedGistCategory === 'mine'
       ? safePersisted.selectedGistCategory
       : 'all',
-    // 不恢复分析中状态：异步任务无法在页面重载后存活，恢复会导致卡片永久卡在“分析中”状态。
+    // Do not restore analyzing states: asynchronous tasks cannot survive a page reload, and restoring them would cause cards to remain permanently stuck in "analyzing" state.
     analyzingRepositoryIds: new Set<number>(),
     analyzingGistIds: new Set<string>(),
     releases,
@@ -166,7 +167,7 @@ export const normalizePersistedState = (
     includePreRelease,
     syncMode: safePersisted.syncMode === 'stars-and-lists' ? 'stars-and-lists' : 'stars',
     syncModeConfigured: safePersisted.syncModeConfigured === true,
-    // 分类 id → GitHub List id 映射：仅保留字符串键值对，防止损坏数据污染状态
+    // Category id -> GitHub List id mapping: retain only string key-value pairs to prevent corrupted data from polluting state
     categoryListIdMap: safePersisted.categoryListIdMap
       && typeof safePersisted.categoryListIdMap === 'object'
       ? Object.fromEntries(
@@ -218,9 +219,9 @@ export const normalizePersistedState = (
     collapsedSidebarCategoryCount: typeof safePersisted.collapsedSidebarCategoryCount === 'number' && safePersisted.collapsedSidebarCategoryCount > 0 ? safePersisted.collapsedSidebarCategoryCount : 20,
     categoryMatchMode: safePersisted.categoryMatchMode === 'legacy' ? 'legacy' : 'effective',
     assetFilters: normalizedAssetFilters.length > 0 ? normalizedAssetFilters : defaultPresetFilters,
-    // Trending 快照（开发守则 §7）：逐份校验并裁剪，坏快照不进内存
+    // Trending snapshots (Development Guidelines §7): validate and prune individually; bad snapshots do not enter memory
     trendingSnapshots: normalizeTrendingSnapshots((safePersisted as Record<string, unknown>).trendingSnapshots),
-    // 卡片可见字段（开发守则 §14）：逐项校验，非法值按默认（显示）处理
+    // Card visible fields (Development Guidelines §14): validate item by item; invalid values fall back to default (visible)
     repositoryCardFields: normalizeRepositoryCardFields((safePersisted as Record<string, unknown>).repositoryCardFields),
     repositoryCardActions: normalizeRepositoryCardActions((safePersisted as Record<string, unknown>).repositoryCardActions),
     language: isAppLanguage(safePersisted.language) ? safePersisted.language : currentState.language,
@@ -242,31 +243,30 @@ export const normalizePersistedState = (
     discoveryRepos: { 'trending': [], 'hot-release': [], 'most-popular': [], 'topic': [], 'x-tweet': [], 'telegram': [], 'weekly': [], 'search': [], 'code-search': [] } as Record<DiscoveryChannelId, DiscoveryRepo[]>,
     discoveryLastRefresh: { 'trending': null, 'hot-release': null, 'most-popular': null, 'topic': null, 'x-tweet': null, 'telegram': null, 'weekly': null, 'search': null, 'code-search': null },
     discoveryTotalCount: { 'trending': 0, 'hot-release': 0, 'most-popular': 0, 'topic': 0, 'x-tweet': 0, 'telegram': 0, 'weekly': 0, 'search': 0, 'code-search': 0 },
-    // 选中频道保留持久化值（存在且启用即可；未落定时 Visibility 判定延后，
-    // 由 DiscoveryView 在抓取支持结论落定后再纠偏，避免 Web+后端用户启动探测
-    // 未完成时丢失选择）
+    // Selected channel retains persisted value (as long as it exists and is enabled; while unsettled, visibility evaluation is deferred,
+    // and corrected by DiscoveryView after scrape support resolution settles, avoiding loss of selection for web + backend users before startup probe completes)
     selectedDiscoveryChannel: normalizedDiscoveryChannels.some(channel => channel.id === safePersisted.selectedDiscoveryChannel && channel.enabled && (!scrapeSupportSettled || isChannelScrapable(channel.id)))
       ? safePersisted.selectedDiscoveryChannel as DiscoveryChannelId
       : normalizedDiscoveryChannels.find(channel => channel.enabled && (!scrapeSupportSettled || isChannelScrapable(channel.id)))?.id ?? defaultDiscoveryChannels[0].id,
-    // discoveryIsLoading 不持久化，始终重置为 false（防止旧数据格式异常）
+    // discoveryIsLoading is not persisted and is always reset to false (prevents malformed legacy data)
     discoveryIsLoading: { 'trending': false, 'hot-release': false, 'most-popular': false, 'topic': false, 'x-tweet': false, 'telegram': false, 'weekly': false, 'search': false, 'code-search': false },
     discoveryIsLoadingMore: { 'trending': false, 'hot-release': false, 'most-popular': false, 'topic': false, 'x-tweet': false, 'telegram': false, 'weekly': false, 'search': false, 'code-search': false },
     discoveryLoadMoreError: { 'trending': null, 'hot-release': null, 'most-popular': null, 'topic': null, 'x-tweet': null, 'telegram': null, 'weekly': null, 'search': null, 'code-search': null },
     discoveryHasMore: { 'trending': false, 'hot-release': false, 'most-popular': false, 'topic': false, 'x-tweet': false, 'telegram': false, 'weekly': false, 'search': false, 'code-search': false },
     discoveryNextPage: { 'trending': 1, 'hot-release': 1, 'most-popular': 1, 'topic': 1, 'x-tweet': 1, 'telegram': 1, 'weekly': 1, 'search': 1, 'code-search': 1 },
-    // discoveryScrollPositions 不持久化，始终重置为 0
+    // discoveryScrollPositions is not persisted and is always reset to 0
     discoveryScrollPositions: { 'trending': 0, 'hot-release': 0, 'most-popular': 0, 'topic': 0, 'x-tweet': 0, 'telegram': 0, 'weekly': 0, 'search': 0, 'code-search': 0 },
   trendingTimeRange: 'weekly' as TrendingTimeRange,
     xTweetFollows: normalizeXTweetFollows(safePersisted.xTweetFollows),
-    // xTweetAuth 仅由桌面端 safeStorage 安全加密存储（Web 模式仅在内存），debouncedPersistStorage 不将其写入快照（CWE-922）。
-    // hydration 期间保留当前运行态 currentState.xTweetAuth，避免冲掉桌面端已恢复的鉴权状态。
+    // xTweetAuth is only stored securely via desktop safeStorage (memory-only in web mode); debouncedPersistStorage does not write it to snapshot (CWE-922).
+    // During hydration, preserve current runtime currentState.xTweetAuth to avoid overwriting desktop restored authentication state.
     xTweetAuth: normalizeXTweetAuth(currentState.xTweetAuth),
     xTweetAuthRevision: typeof (safePersisted as Record<string, unknown>).xTweetAuthRevision === 'number'
       && Number.isFinite((safePersisted as Record<string, unknown>).xTweetAuthRevision)
       ? (safePersisted as Record<string, unknown>).xTweetAuthRevision as number
       : 0,
     telegramFollows: normalizeTelegramFollows(safePersisted.telegramFollows),
-    // 确保 subscription 相关状态包含 trending 键
+    // Ensure subscription-related state contains trending key
     subscriptionRepos: {
       'most-stars': [],
       'most-forks': [],
@@ -288,19 +288,19 @@ export const normalizePersistedState = (
       'trending': false,
       ...((safePersisted as Record<string, unknown>).subscriptionIsLoading as Record<string, unknown> || {}),
     },
-    // 确保 subscriptionChannels 包含 trending，且所有频道都有 nameEn（兼容旧数据）
+    // Ensure subscriptionChannels contains trending, and all channels have nameEn (legacy data compatibility)
     subscriptionChannels: (() => {
       const persisted = (safePersisted as Record<string, unknown>).subscriptionChannels;
       const defaultChannelsMap = new Map(defaultSubscriptionChannels.map(ch => [ch.id, ch]));
       if (!Array.isArray(persisted)) return defaultSubscriptionChannels;
-      // 合并：使用 persisted 的频道，但补全缺失的字段（nameEn、trending 等）
+      // Merge: use persisted channels, but backfill missing fields (nameEn, trending, etc.)
       return persisted.map((ch: unknown) => {
         const chRecord = ch as Record<string, unknown>;
         const defaultCh = defaultChannelsMap.get(chRecord.id as string);
         if (defaultCh) {
           return {
             ...(chRecord as Partial<SubscriptionChannel>),
-            name: defaultCh.name, // 始终使用中文名称（默认定义）
+            name: defaultCh.name, // Always use default definition name
             nameEn: (chRecord.nameEn as string) || defaultCh.nameEn || (chRecord.name as string) || defaultCh.nameEn,
             icon: (chRecord.icon as string) || defaultCh.icon,
             description: (chRecord.description as string) || defaultCh.description,
@@ -349,8 +349,8 @@ export const normalizePersistedState = (
     headerMenuConfig: (() => {
       const persisted = (safePersisted as Record<string, unknown>).headerMenuConfig;
       if (!Array.isArray(persisted)) return defaultHeaderMenuConfig;
-      // 合并：确保所有默认菜单都存在，保留用户自定义的 visible/order
-      // 防御性过滤：跳过非对象或 null 的损坏数据
+      // Merge: ensure all default menus exist while preserving user-customized visible/order
+      // Defensive filtering: skip non-object or null corrupted data
       const persistedMap = new Map(
         persisted
           .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)

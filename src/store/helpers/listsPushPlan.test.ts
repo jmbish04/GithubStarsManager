@@ -18,11 +18,11 @@ const makeCategory = (overrides: Partial<Category> = {}): Category => ({
 });
 
 describe('listNameLength', () => {
-  it('中文等 BMP 字符按 1 计数', () => {
+  it('counts BMP characters such as Chinese as 1', () => {
     expect(listNameLength('AI/机器学习')).toBe(7);
   });
 
-  it('emoji 等增补平面字符按 UTF-16 码元计 2（从紧口径，保证两种服务端口径下都不超限）', () => {
+  it('counts supplementary plane characters such as emoji as 2 UTF-16 code units (conservative approach, ensuring neither server definition is exceeded)', () => {
     expect(listNameLength('🚀🚀')).toBe(4);
   });
 });
@@ -30,7 +30,7 @@ describe('listNameLength', () => {
 describe('buildListsPushPlan', () => {
   const overrides = {};
 
-  it('persistedId 命中远端 list 时记为 persisted', () => {
+  it('marks as persisted when persistedId matches a remote list', () => {
     const plan = buildListsPushPlan(
       [makeCategory()],
       [{ id: 'L_web', name: 'Web应用' }],
@@ -42,7 +42,7 @@ describe('buildListsPushPlan', () => {
     ]);
   });
 
-  it('无映射但名称变体（跨语言）匹配时记为 matched', () => {
+  it('marks as matched when there is no mapping but name variants match across languages', () => {
     const plan = buildListsPushPlan(
       [makeCategory({ name: 'Web Apps' })],
       [{ id: 'L_legacy', name: 'Web应用' }],
@@ -54,7 +54,7 @@ describe('buildListsPushPlan', () => {
     ]);
   });
 
-  it('远端不存在时记为 create（名称为当前语言分类名）', () => {
+  it('marks as create when the remote list does not exist (using current language category name)', () => {
     const plan = buildListsPushPlan(
       [makeCategory({ name: 'Web Apps' })],
       [],
@@ -66,7 +66,7 @@ describe('buildListsPushPlan', () => {
     ]);
   });
 
-  it('persistedId 指向的远端 list 已不存在时降级为名称匹配/新建', () => {
+  it('falls back to name match or create when the remote list pointed by persistedId no longer exists', () => {
     const plan = buildListsPushPlan(
       [makeCategory()],
       [{ id: 'L_other', name: '别的' }],
@@ -78,14 +78,14 @@ describe('buildListsPushPlan', () => {
 });
 
 describe('validateListsPushPlan', () => {
-  it('未触发限制时返回 null', () => {
+  it('returns null when limits are not triggered', () => {
     const plan: ListsPushPlanEntry[] = [
       { kind: 'create', categoryId: 'web', name: 'Web应用' },
     ];
     expect(validateListsPushPlan(plan, 10)).toBeNull();
   });
 
-  it('新建名称超过 32 字符时报告名称问题（同名去重）', () => {
+  it('reports name issue when new name exceeds 32 characters (deduplicated by name)', () => {
     const longName = 'a'.repeat(GITHUB_LISTS_NAME_MAX_LENGTH + 1);
     const plan: ListsPushPlanEntry[] = [
       { kind: 'create', categoryId: 'a', name: longName },
@@ -95,7 +95,7 @@ describe('validateListsPushPlan', () => {
     expect(issue.tooLongNames).toEqual([{ name: longName, length: GITHUB_LISTS_NAME_MAX_LENGTH + 1 }]);
   });
 
-  it('名称一致的复用项不检查长度（不会写入）', () => {
+  it('skips length check for reused items with matching names (no write performed)', () => {
     const longName = 'a'.repeat(GITHUB_LISTS_NAME_MAX_LENGTH + 1);
     const plan: ListsPushPlanEntry[] = [
       { kind: 'persisted', categoryId: 'a', listId: 'L_a', remoteName: longName, targetName: longName },
@@ -103,7 +103,7 @@ describe('validateListsPushPlan', () => {
     expect(validateListsPushPlan(plan, 1)).toBeNull();
   });
 
-  it('需改名的复用项按目标名检查长度', () => {
+  it('checks length against target name for reused items needing rename', () => {
     const longName = 'a'.repeat(GITHUB_LISTS_NAME_MAX_LENGTH + 1);
     const plan: ListsPushPlanEntry[] = [
       { kind: 'matched', categoryId: 'a', listId: 'L_a', remoteName: 'old', targetName: longName },
@@ -112,7 +112,7 @@ describe('validateListsPushPlan', () => {
     expect(issue.tooLongNames).toHaveLength(1);
   });
 
-  it('新建数量超出剩余额度时报告数量问题', () => {
+  it('reports count issue when number of creations exceeds remaining quota', () => {
     const plan: ListsPushPlanEntry[] = [
       { kind: 'create', categoryId: 'a', name: 'A' },
       { kind: 'create', categoryId: 'b', name: 'B' },
@@ -121,7 +121,7 @@ describe('validateListsPushPlan', () => {
     expect(issue.countExceeded).toEqual({ existing: GITHUB_LISTS_MAX_COUNT - 1, needed: 2, available: 1 });
   });
 
-  it('复用与改名不占用新建额度', () => {
+  it('does not consume creation quota for reused and renamed items', () => {
     const plan: ListsPushPlanEntry[] = [
       { kind: 'persisted', categoryId: 'a', listId: 'L_a', remoteName: 'A', targetName: 'A' },
       { kind: 'matched', categoryId: 'b', listId: 'L_b', remoteName: '旧名', targetName: 'B' },
@@ -129,7 +129,7 @@ describe('validateListsPushPlan', () => {
     expect(validateListsPushPlan(plan, GITHUB_LISTS_MAX_COUNT)).toBeNull();
   });
 
-  it('名称与数量问题可同时报告', () => {
+  it('reports both name and count issues simultaneously', () => {
     const longName = 'a'.repeat(GITHUB_LISTS_NAME_MAX_LENGTH + 1);
     const plan: ListsPushPlanEntry[] = [
       { kind: 'create', categoryId: 'a', name: longName },

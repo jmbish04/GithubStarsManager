@@ -92,7 +92,7 @@ const getLanguageLabel = (languageCode: string, uiLanguage: AppLanguage): string
   return normalized;
 };
 
-/** 各 UI 语言的 README 变体优先级：本语言源码优先，其次英文，再回退中文 */
+/** README variant priority by UI language: native source first, then English, then fallback to Chinese */
 const UI_LANGUAGE_README_PRIORITY: Record<AppLanguage, string[]> = {
   zh: ['zh', 'zh-cn', 'zh-hans', 'zh-tw', 'zh-hant', 'cn', 'en'],
   'zh-TW': ['zh-tw', 'zh-hant', 'zh-hk', 'zh', 'zh-cn', 'zh-hans', 'en'],

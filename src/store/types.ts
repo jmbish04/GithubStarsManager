@@ -58,7 +58,7 @@ export interface AppActions {
   // Repository actions
   setRepositories: (repos: Repository[], options?: { allowEmpty?: boolean }) => void;
   updateRepository: (repo: Repository) => void;
-  /** 批量更新多个仓库的指定字段，保留当前过滤的 searchResults 不被重置 */
+  /** Batch updates specified fields for multiple repositories without resetting currently filtered searchResults */
   updateRepositoriesMetadata: (updates: { id: number; patch: Partial<Repository> }[]) => void;
   addRepository: (repo: Repository) => void;
   setLoading: (loading: boolean) => void;
@@ -126,15 +126,15 @@ export interface AppActions {
   // Release actions
   setReleases: (releases: Release[], options?: { allowEmpty?: boolean }) => void;
   addReleases: (releases: Release[]) => void;
-  /** 按 id 合并更新已存在 Release 的资产/元数据；内容变化后重置为未读（is_read=false 并从 readReleases 移除） */
+  /** Merges and updates assets/metadata for existing Releases by id; resets to unread on content changes (is_read=false and removed from readReleases) */
   upsertReleases: (releases: Release[]) => void;
   toggleReleaseSubscription: (repoId: number) => void;
   batchUnsubscribeReleases: (repoIds: number[]) => void;
   removeReleasesByRepoId: (repoId: number) => void;
   removeReleasesByRepoFullName: (fullName: string) => void;
-  /** 标记 Release 已读；被标记的条目同时清空 updated_asset_ids（“资产已更新”标识随已读消失） */
+  /** Marks a Release as read; marked entries also clear updated_asset_ids ("asset updated" badges disappear upon reading) */
   markReleaseAsRead: (releaseId: number) => void;
-  /** 点击某条资产后清除其"资产已更新"标识（从 updated_asset_ids 移除），不影响 Release 级未读状态 */
+  /** Clears "asset updated" badge for a specific asset upon click (removes from updated_asset_ids) without affecting Release-level unread status */
   markAssetAsRead: (assetId: number) => void;
   markAllReleasesAsRead: () => void;
   setReleaseSourceSettings: (settings: ReleaseSourceSettings) => void;
@@ -258,25 +258,25 @@ export interface AppActions {
   setWeeklyOnlyCollected: (only: boolean) => void;
   setWeeklySyncStatus: (status: WeeklySyncStatus | null) => void;
   setXTweetSyncStatus: (status: WeeklySyncStatus | null) => void;
-  /** 添加 X 推文频道关注（接受 @handle / handle / x.com 链接，重复添加忽略） */
+  /** Follows an X tweet channel (accepts @handle / handle / x.com links, ignores duplicates) */
   addXTweetFollow: (handle: string) => void;
   removeXTweetFollow: (handle: string) => void;
-  /** 保存 X 推文频道登录鉴权 Cookie（覆盖旧值） */
+  /** Saves X tweet channel login authentication cookies (overwrites existing values) */
   setXTweetAuth: (auth: XTweetAuth) => void;
   clearXTweetAuth: () => void;
   setTelegramSyncStatus: (status: WeeklySyncStatus | null) => void;
-  /** 添加 Telegram 频道关注（接受 @channel / channel / t.me 链接，重复添加忽略） */
+  /** Follows a Telegram channel (accepts @channel / channel / t.me links, ignores duplicates) */
   addTelegramFollow: (channel: string) => void;
   removeTelegramFollow: (channel: string) => void;
   appendDiscoveryRepos: (channel: DiscoveryChannelId, repos: DiscoveryRepo[]) => void;
 
-  // Theme tokens（开发守则 §14）
-  /** 局部更新：内部与当前值合并，调用方不必自己展开（避免拿到过期的渲染值）。 */
+  // Theme tokens
+  /** Partial update: merged internally with current values; callers do not need to spread manually (avoids stale render values). */
   updateThemeTokens: (patch: Partial<ThemeTokens>) => void;
-  /** Trending 快照（开发守则 §7）：记一份榜单快照，去重与上限在 utils 里处理。 */
+  /** Trending snapshot: records a ranking snapshot; deduplication and limits are handled in utils. */
   recordTrendingSnapshot: (snapshot: TrendingSnapshot) => void;
-  // 仓库卡片可见字段（开发守则 §14）
-  /** 切换某个字段的显示；未提供的字段沿用当前值。 */
+  // Repository card visible fields
+  /** Toggles visibility of a specific field; omitted fields retain current values. */
   setRepositoryCardField: (id: RepositoryCardFieldId, visible: boolean) => void;
   setRepositoryCardActions: (actions: RepositoryCardActionPreference[]) => void;
 }

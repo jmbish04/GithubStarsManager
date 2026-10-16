@@ -10,8 +10,9 @@ export interface PluginPageRepositoryContext {
 }
 
 /**
- * 弹窗动作（V1.4 opensPage）打开时抓取仓库 README，随 plugin-page:init 一次性
- * 下发给插件页面。抓取失败返回 null，插件必须能只依赖元数据工作。
+ * Fetches the repository README when the modal action (V1.4 opensPage) opens, delivering it
+ * once to the plugin page via plugin-page:init. Returns null on fetch failure; plugins must
+ * be able to function using metadata alone.
  */
 export function usePluginPageReadme(repository: Repository): PluginPageRepositoryContext {
   const githubToken = useAppStore(useShallow((state) => state.githubToken));

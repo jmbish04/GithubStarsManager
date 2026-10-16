@@ -1,17 +1,17 @@
 /**
- * 应用支持的语言注册表。`zh` / `en` 是历史持久化值（保持不变以保证老用户
- * 数据无需迁移），其余为 i18n 扩展语言。语言代码同时作为 i18next 的语言键
- * 与 `src/locales/{code}/` 目录名。
+ * Registry of supported application languages. `zh` / `en` are legacy persisted values (kept unchanged
+ * so legacy user data requires no migration); the remainder are i18n extension languages. Language codes
+ * serve both as i18next language keys and as `src/locales/{code}/` directory names.
  */
 export type AppLanguage = 'zh' | 'en' | 'ja' | 'es' | 'pt-BR' | 'ru' | 'zh-TW' | 'fr' | 'de' | 'ko';
 
 export interface LanguageDefinition {
   code: AppLanguage;
-  /** 语言自称，用于语言选择器展示 */
+  /** Native language name, used for display in language picker */
   nativeName: string;
-  /** 英文名，用于 AI 输出语言指令等场景 */
+  /** English name, used for scenarios like AI output language directives */
   englishName: string;
-  /** BCP 47 tag，用于 <html lang> 与 Intl 格式化 */
+  /** BCP 47 tag, used for <html lang> and Intl formatting */
   intlLocale: string;
 }
 
@@ -40,12 +40,13 @@ export const languageDefinition = (code: AppLanguage): LanguageDefinition =>
   LANGUAGE_BY_CODE.get(code) ?? LANGUAGE_BY_CODE.get(DEFAULT_LANGUAGE)!;
 
 /**
- * 首次安装（无持久化语言）时的默认语言检测。仅影响新安装，老用户始终读取
- * 持久化值。命中支持列表 → 该语言；未命中（如 it-IT/sv-SE）→ 英文回退，
- * 让非中英文用户首屏即可读。无 navigator 的环境回退简体中文（历史默认）。
+ * Default language detection on first installation (no persisted language). Affects new installs only;
+ * existing users always read their persisted value. Matched in supported list -> that language; unmatched
+ * (e.g. it-IT/sv-SE) -> English fallback, making initial screen readable for non-Chinese/English users.
+ * Environments without navigator fall back to Simplified Chinese (legacy default).
  */
 const LANGUAGE_MATCHERS: Array<[AppLanguage, RegExp]> = [
-  // zh-TW 必须显式带地区/文字后缀；'zh'/'zh-CN'/'zh-Hans' 落到简体
+  // zh-TW must explicitly include region/script suffix; 'zh'/'zh-CN'/'zh-Hans' fall back to Simplified Chinese
   ['zh-TW', /^zh[-_](?:tw|hk|mo|hant)\b/i],
   ['ja', /^ja\b/i],
   ['ko', /^ko\b/i],

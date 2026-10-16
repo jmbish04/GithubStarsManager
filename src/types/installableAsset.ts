@@ -1,23 +1,23 @@
 /**
- * Installable Asset Detection 模型。
+ * Installable Asset Detection Model.
  *
- * 目标：统一回答「这个 Release 里哪一个资产可以在当前设备上安装」，
- * 供 Release 视图、Discovery、My Apps、AI、MCP 与插件复用同一份结果。
+ * Goal: Consistently determine which asset in a Release can be installed on the current device,
+ * allowing Release views, Discovery, My Apps, AI, MCP, and plugins to reuse the same result.
  *
- * 边界（roadmap §5.3）：
- * - 只做**识别**。不下载后执行、不自动选择来源不明的第三方镜像。
- * - 不因为扩展名像安装包就断言软件安全。
- * - 不确定时给出多个候选，而不是伪装成唯一正确答案。
- * - 用户始终可以手动选择其他 Release Asset。
+ * Boundaries (roadmap §5.3):
+ * - Detection only. Does not execute after download and does not auto-select unknown third-party mirrors.
+ * - Does not assume software safety merely because a file extension resembles an installer.
+ * - Provides multiple candidates when uncertain, rather than presenting a single false certainty.
+ * - Users can always manually choose other Release assets.
  */
 
-/** 当前支持识别的目标平台。 */
+/** Currently supported target platforms for detection. */
 export type InstallablePlatform = 'windows' | 'macos' | 'linux' | 'android';
 
-/** 设备/资产的 CPU 架构；`universal` 表示单一产物覆盖多种架构。 */
+/** Device/asset CPU architecture; `universal` indicates a single artifact covering multiple architectures. */
 export type InstallableArchitecture = 'x64' | 'arm64' | 'x86' | 'universal';
 
-/** 支持识别的安装包类型。 */
+/** Supported installer package types for detection. */
 export type InstallablePackageType =
   | 'exe'
   | 'msi'
@@ -33,10 +33,10 @@ export type InstallablePackageType =
   | 'aab';
 
 /**
- * 识别置信度。
- * - `high`：安装包类型与平台由决定性扩展名确定，且平台与目标平台一致。
- * - `medium`：安装包类型确定，平台靠文件名语义词推断，或架构无法确定。
- * - `low`：只能作为候选（例如通用 `.zip`、缺少平台标记的裸压缩包）。
+ * Detection confidence.
+ * - `high`: Package type and platform are determined by definitive extensions, and platform matches the target.
+ * - `medium`: Package type is certain, but platform is inferred from filename semantics or architecture cannot be determined.
+ * - `low`: Can only serve as a candidate (e.g. generic `.zip`, bare archive missing platform markers).
  */
 export type InstallableConfidence = 'high' | 'medium' | 'low';
 
@@ -51,27 +51,27 @@ export interface InstallableAsset {
   packageType: InstallablePackageType;
 
   confidence: InstallableConfidence;
-  /** 人类可读的判定依据，用于向用户解释「为什么推荐这个」。 */
+  /** Human-readable rationale explaining to the user why this was recommended. */
   reason: string;
 }
 
-/** 识别结果：候选按置信度与资产顺序稳定排序。 */
+/** Detection result: candidates stably sorted by confidence and asset order. */
 export interface InstallableAssetDetectionResult {
-  /** 与目标平台匹配的候选（可能多于一个——不确定时并列展示）。 */
+  /** Candidates matching target platform (may be multiple—shown side-by-side when uncertain). */
   matches: InstallableAsset[];
   /**
-   * 被显式排除的资产及其原因（source code、checksum、signature、symbols、debug、
-   * source archive、blockmap、非目标平台等）。用于回答「为什么某个资产没出现」。
+   * Explicitly excluded assets and reasons (source code, checksum, signature, symbols, debug,
+   * source archive, blockmap, non-target platform, etc.). Used to explain why an asset was omitted.
    */
   excluded: Array<{ assetId: number; fileName: string; reason: string }>;
 }
 
-/** 识别上下文。默认取当前设备，测试可显式注入。 */
+/** Detection context. Defaults to the current device; tests can inject explicitly. */
 export interface InstallableAssetDetectionOptions {
-  /** 目标平台；省略时表示「不按平台过滤」，返回所有平台的候选。 */
+  /** Target platform; when omitted, means "do not filter by platform", returning candidates for all platforms. */
   platform?: InstallablePlatform;
-  /** 目标架构；省略时不做架构过滤（架构信息仍会解析出来）。 */
+  /** Target architecture; when omitted, no architecture filtering is applied (architecture info is still resolved). */
   architecture?: InstallableArchitecture;
-  /** AAB 只识别、不作为可直接安装的推荐（Android）。 */
+  /** AAB is detected only and not recommended as directly installable (Android). */
   includeDetectOnly?: boolean;
 }

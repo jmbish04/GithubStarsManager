@@ -1,20 +1,20 @@
 /**
- * Telegram 频道数据服务（自研抓取器，直连 t.me 公开网页预览，不依赖第三方实例）。
+ * Telegram channel data service (custom scraper connecting directly to t.me public web previews without third-party instances).
  *
- * 数据管道：传输层（Electron 主进程 IPC 或 fullstack 服务端路由）代抓
- * https://t.me/s/<name> 公开预览 HTML → DOMParser 解析消息块（消息 ID 取自
- * data-post，正文在 tgme_widget_message_text，发布时间取 time[datetime]）→
- * 正文与链接预览中提取 GitHub 仓库链接（复用周刊提取规则）→ 按
- * `<channel>/<id>` 去重增量合并 → 仓库详情补全（GraphQL 批量优先，REST 逐仓
- * 回退）→ 独立 IndexedDB 持久化 → 按消息时间倒序分页切片。
+ * Data pipeline: Transport layer (Electron main process IPC or fullstack server route) proxies fetching of
+ * https://t.me/s/<name> public preview HTML → DOMParser parses message blocks (message ID from
+ * data-post, body in tgme_widget_message_text, timestamp from time[datetime]) →
+ * GitHub repo links extracted from text and link previews (reuses weekly issue extraction rules) →
+ * deduplicated incremental merge by `<channel>/<id>` → repo details enrichment (GraphQL batch preferred, REST per-repo
+ * fallback) → dedicated IndexedDB persistence → paginated slicing in reverse chronological order.
  *
- * 分页模型（2026-09 实测）：公开预览页每页返回最新起的 20 条消息，页内
- * <link rel="prev" href="?before=N"> 指向更早一页（before=N 返回 id < N 的
- * 消息），rel=prev 消失即频道历史取尽。与 X 频道不同，这里是真实的服务端
- * 翻页：每个"加载更多"对每个未取尽的关注频道拉取一页，游标（含取尽标记）
- * 随消息原子落盘跨会话续传；page 1 刷新始终重抓最新页且不回退已推进的
- * 游标。60 秒水位只用于 page 1 去抖，不拦"加载更多"（点了就该翻页）。
- * 纯浏览器（静态部署）受 CORS 限制不可用，需桌面版或服务端模式。
+ * Pagination model (verified 2026-09): The public preview page returns the latest 20 messages per page.
+ * Within the page, <link rel="prev" href="?before=N"> points to an earlier page (before=N returns messages with id < N);
+ * the absence of rel="prev" indicates that the channel history is exhausted. Unlike X channels, this is real server-side
+ * pagination: each "load more" fetches one page for each unexhausted followed channel. Cursors (including exhaustion flags)
+ * are atomically persisted with messages across sessions; page 1 refresh always refetches the latest page without rewinding
+ * advanced cursors. The 60-second watermark is only used for page 1 debouncing and does not block "load more" (clicking should paginate).
+ * Pure browser (static deployment) cannot be used due to CORS restrictions; desktop or server mode is required.
  */
 
 import type {
@@ -37,16 +37,16 @@ import {
 } from './telegramStorage';
 
 const TELEGRAM_CHANNEL: DiscoveryChannelId = 'telegram';
-/** 频道每页卡片数（UI 分页窗口） */
+/** Number of cards per page for channel (UI pagination window) */
 export const TELEGRAM_CARD_PAGE_SIZE = 20;
-/** 逐频道抓取之间的节流间隔 */
+/** Throttle interval between per-channel fetches */
 const CHANNEL_THROTTLE_MS = 500;
 const REST_ENRICH_THROTTLE_MS = 80;
-/** 仓库详情的刷新周期：30 天内的快照视为新鲜 */
+/** Refresh interval for repository details: snapshots within 30 days are considered fresh */
 const REPO_DETAIL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-/** 不可用仓库（404/私有）的重试周期 */
+/** Retry interval for unavailable repositories (404/private) */
 const UNAVAILABLE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
-/** 60 秒内同步过则跳过 page 1 刷新遍历（重复触发走缓存；不拦加载更多） */
+/** Skip page 1 refresh traversal if synced within 60 seconds (repeated triggers use cache; does not block load more) */
 const RECENT_SYNC_SKIP_MS = 60 * 1000;
 
 type StatusCallback = ((status: WeeklySyncStatus | null) => void) | undefined;
@@ -63,7 +63,7 @@ const isRateLimitError = (error: unknown): boolean =>
 const isTokenInvalidError = (error: unknown): boolean =>
   error instanceof Error && error.message.includes('token expired or invalid');
 
-/** 持久化失败标记：saveSyncBatch 拒绝必须中止整轮，不能按频道抓取失败跳过。 */
+/** Persistence failure marker: saveSyncBatch rejection must abort the entire cycle, cannot skip as channel fetch failure. */
 const markPersistenceError = (error: unknown): unknown => {
   if (error instanceof Error) {
     (error as Error & { isPersistenceError?: boolean }).isPersistenceError = true;
@@ -74,7 +74,7 @@ const markPersistenceError = (error: unknown): unknown => {
 const isPersistenceError = (error: unknown): boolean =>
   error instanceof Error && (error as Error & { isPersistenceError?: boolean }).isPersistenceError === true;
 
-/** 分页游标未前进：不能当普通抓取失败跳过，否则 hasMore 会永远为 true。 */
+/** Unadvanced pagination cursor: cannot be skipped as ordinary fetch failure, otherwise hasMore stays true forever. */
 const markStalledCursorError = (error: unknown): unknown => {
   if (error instanceof Error) {
     (error as Error & { isStalledCursorError?: boolean }).isStalledCursorError = true;
@@ -91,9 +91,9 @@ export const isValidTelegramChannel = (channel: string): boolean =>
 export type TelegramChannelTransport = (channel: string, before?: string) => Promise<string>;
 
 /**
- * 传输层：抓取 t.me/s/<name> 公开预览 HTML（before 为上一页游标）。桌面端走
- * 主进程 IPC（跟随应用代理），失败时回退 fullstack 服务端路由；两者都不可用
- * 时抛错（纯浏览器模式不支持）。
+ * Transport layer: fetch t.me/s/<name> public preview HTML (before is previous page cursor).
+ * Desktop uses main process IPC (following app proxy), falling back to fullstack server route on failure;
+ * throws if neither is available (pure browser mode is unsupported).
  */
 export const defaultTelegramChannelTransport: TelegramChannelTransport = async (channel, before) => {
   let desktopError: unknown = null;
@@ -113,21 +113,21 @@ export const defaultTelegramChannelTransport: TelegramChannelTransport = async (
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
-      throw new Error(`服务端抓取 t.me 失败 (${response.status})`);
+      throw new Error(`Server failed to fetch t.me (${response.status})`);
     }
     const data = await response.json();
     if (typeof data?.html === 'string') return data.html;
-    throw new Error('服务端返回数据无效');
+    throw new Error('Invalid data returned from server');
   }
   if (desktopError) throw desktopError;
-  throw new Error('当前运行模式不支持 Telegram 频道抓取：需要桌面版（Electron）或服务端模式');
+  throw new Error('Telegram channel scraping is not supported in current mode: requires desktop (Electron) or server mode');
 };
 
 /**
- * 解析 t.me/s/<name> 公开预览页：消息 + 下一页游标。服务消息（如"频道创建"）
- * 无正文，自然跳过；纯媒体消息无正文但可能在链接预览里带仓库链接，照样
- * 收录为仓库来源。正文中相对链接（?q=、/s/）改写为 t.me 绝对地址，供离线
- * 渲染时点击。
+ * Parse t.me/s/<name> public preview page: messages + next page cursor.
+ * Service messages (e.g., "channel created") have no body and are skipped naturally;
+ * media-only messages lack text but may include repo links in link previews, which are still recorded as repo sources.
+ * Relative links (?q=, /s/) in content are rewritten to absolute t.me URLs for offline clickability.
  */
 export function parseTelegramChannelHtml(
   html: string,
@@ -135,7 +135,7 @@ export function parseTelegramChannelHtml(
 ): { messages: TelegramStoredMessage[]; nextCursor: string | null; exhausted: boolean } {
   const doc = new DOMParser().parseFromString(html, 'text/html');
 
-  // <link rel="prev" href="/s/<name>?before=N"> 是官方翻页锚点；缺失即取尽
+  // <link rel="prev" href="/s/<name>?before=N"> is the official pagination anchor; missing means exhausted
   const prevHref = doc.querySelector('link[rel="prev"]')?.getAttribute('href') ?? null;
   const prevBefore = prevHref?.match(/[?&]before=(\d+)/)?.[1] ?? null;
 
@@ -161,7 +161,7 @@ export function parseTelegramChannelHtml(
     const textEl = block.querySelector('.tgme_widget_message_text');
     let content = '';
     if (textEl) {
-      // 相对链接改写为绝对地址（?q= 是频道内话题搜索，/开头是站内路径）
+      // Rewrite relative links to absolute URLs (?q= is channel topic search, / starts site paths)
       for (const anchor of textEl.querySelectorAll('a[href]')) {
         const href = anchor.getAttribute('href');
         if (href && /^[?/]/.test(href) && !href.startsWith('//')) {
@@ -172,7 +172,7 @@ export function parseTelegramChannelHtml(
       }
       content = textEl.innerHTML.trim();
     }
-    // 链接预览卡（无正文的纯分享消息也可能命中仓库链接）
+    // Link preview card (shared messages without text may also contain repo links)
     const previewHrefs = [...block.querySelectorAll('.tgme_widget_message_link_preview a[href], a.tgme_widget_message_link_preview[href]')]
       .map((anchor) => anchor.getAttribute('href') ?? '');
     const repoFullNames = [...new Set(
@@ -198,8 +198,8 @@ export function parseTelegramChannelHtml(
 }
 
 /**
- * 处理一轮解析结果：新消息进内存映射并登记，消息涉及的仓库 upsert
- * （原贴指向发布时间最新的消息），返回本轮需要补全详情的仓库键。
+ * Ingest parsed results: register new messages into memory map and upsert referenced repositories
+ * (source post points to the latest message by published time), returning repo keys that need details enriched this cycle.
  */
 export function ingestFeedMessages(
   feed: TelegramStoredMessage[],
@@ -220,7 +220,7 @@ export function ingestFeedMessages(
         sameRepos;
       if (isIdentical) continue;
 
-      // 若已存消息被编辑且删除了原有关联仓库，重新计算对应仓库的来源消息归属
+      // If an existing message was edited and previously referenced repos were removed, recompute the repo's source message
       const newRepoKeys = new Set(message.repoFullNames);
       for (const oldKey of existing.repoFullNames) {
         if (!newRepoKeys.has(oldKey)) {
@@ -268,7 +268,7 @@ export function ingestFeedMessages(
   return { newMessages, pendingRepoKeys };
 }
 
-/** 需要补全/维护详情的仓库：新触达（从未拉过）、过期快照、到期重试的不可用仓库。 */
+/** Repositories needing detail enrichment/maintenance: newly reached (never fetched), expired snapshots, or unavailable repos due for retry. */
 export function reposNeedingDetail(
   repos: Map<string, TelegramStoredRepo>,
   touchedKeys: Set<string>,
@@ -289,7 +289,7 @@ export function reposNeedingDetail(
   return targets;
 }
 
-/** REST 逐仓补全回退路径（GraphQL 不可用时），限流/鉴权错误直接上抛中止本轮。 */
+/** REST per-repo enrichment fallback (when GraphQL is unavailable); rate limit/auth errors are rethrown to abort this cycle. */
 async function enrichReposViaRest(
   api: GitHubApiService,
   targets: TelegramStoredRepo[],
@@ -305,7 +305,7 @@ async function enrichReposViaRest(
       repo.lastFetchedAt = new Date().toISOString();
     } catch (error) {
       if (isAbortError(error) || isRateLimitError(error) || isTokenInvalidError(error)) throw error;
-      // 404/410/其他 4xx：标记不可用，到期重试（makeRequest 已做过网络/5xx 重试）
+      // 404/410/other 4xx: mark unavailable and retry upon expiry (makeRequest already retried network/5xx errors)
       logger.warn('telegram', `Repo details unavailable: ${repo.fullName}`, error);
       repo.lastFetchedAt = new Date().toISOString();
     }
@@ -314,7 +314,7 @@ async function enrichReposViaRest(
   }
 }
 
-/** GraphQL 批量补全；部分批次失败时仅对未成功的仓库回退 REST。 */
+/** GraphQL batch enrichment; falls back to REST only for repositories that failed within the batch. */
 async function enrichRepos(
   api: GitHubApiService,
   targets: TelegramStoredRepo[],
@@ -353,7 +353,7 @@ async function enrichRepos(
   }
 }
 
-/** 由已补全详情的仓库构建频道卡片（未补全详情的条目暂不展示）。 */
+/** Build channel cards from repositories with completed details (items without details are temporarily hidden). */
 export function buildTelegramDiscoveryRepos(
   messages: Map<string, TelegramStoredMessage>,
   repos: Map<string, TelegramStoredRepo>,
@@ -389,8 +389,8 @@ let syncAbortController: AbortController | null = null;
 let syncInFlight: Promise<void> | null = null;
 
 /**
- * 中止并等待当前正在运行的 Telegram 频道同步完成。
- * 主要用于数据管理面板清理缓存前调用，防止并发写入导致清理后脏数据重新落盘。
+ * Abort and wait for currently running Telegram channel sync to complete.
+ * Primarily called before clearing cache in data management panel to prevent concurrent writes from re-persisting dirty data.
  */
 export async function abortTelegramSync(): Promise<void> {
   syncAbortController?.abort();
@@ -399,7 +399,7 @@ export async function abortTelegramSync(): Promise<void> {
   }
 }
 
-/** 互斥执行：先登记新一轮再等待旧轮，避免重叠请求并发执行 body。 */
+/** Mutually exclusive execution: register new cycle before waiting for previous cycle to avoid overlapping requests executing body concurrently. */
 async function runExclusiveSync(
   body: (signal: AbortSignal) => Promise<void>,
   onStatus: StatusCallback,
@@ -409,13 +409,13 @@ async function runExclusiveSync(
   const prevController = syncAbortController;
   let resolveSlot: () => void = () => {};
   const slot = new Promise<void>((resolve) => { resolveSlot = resolve; });
-  // 先登记：后续请求等待的是本轮 slot，不会与本轮同时进入 body
+  // Register first: subsequent requests wait for this cycle's slot, preventing concurrent body execution
   syncAbortController = controller;
   syncInFlight = slot;
   prevController?.abort();
-  // 等待被中止轮次完成落盘，避免旧快照覆盖新一轮刚写入的结果
+  // Wait for aborted cycle to finish persisting to prevent old snapshots from overwriting newly written results
   if (prev) await prev.catch(() => {});
-  // 等待期间可能已被更新的请求取代：直接退出，不执行 body
+  // May have been superseded by a newer request during wait: exit directly without executing body
   if (syncAbortController !== controller) {
     resolveSlot();
     return;
@@ -425,7 +425,7 @@ async function runExclusiveSync(
     await run;
   } finally {
     resolveSlot();
-    // 仅在仍持有同步权时清空状态，避免被中止的旧轮次清掉新一轮的进度显示
+    // Only clear status if still holding sync ownership to avoid aborted old cycles wiping out new progress display
     if (syncAbortController === controller) {
       syncAbortController = null;
       syncInFlight = null;
@@ -435,9 +435,9 @@ async function runExclusiveSync(
 }
 
 /**
- * 60 秒水位需同时满足：时间在窗口内 + 关注列表签名一致。
- * 只看时间戳会让"同步后 60 秒内新添加的关注"被跳过、直到窗口结束才被抓取。
- * 水位只用于 page 1 刷新去抖；"加载更多"每点击一次就该翻一页，不受它拦截。
+ * 60-second watermark requires both: time within window + matching follows list signature.
+ * Checking only the timestamp would cause follows added within 60 seconds after sync to be skipped until the window expires.
+ * Watermark only debounces page 1 refresh; "load more" should paginate on every click and is not blocked.
  */
 const isRecentlySynced = (meta: TelegramSyncMeta, signature: string): boolean =>
   meta.followsSignature === signature
@@ -445,11 +445,11 @@ const isRecentlySynced = (meta: TelegramSyncMeta, signature: string): boolean =>
   && Number.isFinite(Date.parse(meta.lastSyncedAt))
   && Date.now() - Date.parse(meta.lastSyncedAt) < RECENT_SYNC_SKIP_MS;
 
-/** 关注列表签名：规范化频道名排序拼接（大小写不敏感去重后的集合身份） */
+/** Follows list signature: sorted concatenation of normalized channel names (case-insensitive deduplicated set identity) */
 const followsSignatureOf = (channels: string[]): string =>
   [...new Set(channels.map((channel) => channel.toLowerCase()))].sort().join(',');
 
-/** 仍有历史页可拉的频道（pages 无记录视为未翻过页） */
+/** Channels that still have history pages to fetch (no record in pages is treated as not yet paginated) */
 const channelsWithMore = (meta: TelegramSyncMeta, channels: string[]): string[] =>
   channels.filter((channel) => {
     const state = meta.pages[channel.toLowerCase()];
@@ -457,8 +457,8 @@ const channelsWithMore = (meta: TelegramSyncMeta, channels: string[]): string[] 
   });
 
 /**
- * 单频道一页的抓取-解析-落盘（消息+仓库+游标同一事务）。返回本轮新增的
- * 仓库键。抓取/解析失败向上抛出，由调用方按"跳过该频道"处理。
+ * Single-channel single-page fetch-parse-persist cycle (messages + repos + cursor in same transaction).
+ * Returns newly added repo keys. Fetch/parse failures are rethrown for caller to handle as "skip this channel".
  */
 async function fetchAndIngestChannelPage(
   channel: string,
@@ -475,21 +475,21 @@ async function fetchAndIngestChannelPage(
   const key = channel.toLowerCase();
   const known = meta.pages[key];
   if (before === null || before === undefined) {
-    // page 1 刷新：游标只在从未翻过页时初始化，绝不回退已推进的位置
+    // page 1 refresh: cursor is only initialized if never paginated, never rewinding advanced positions
     if (!known) {
       meta.pages[key] = { cursor: parsed.nextCursor, exhausted: parsed.exhausted };
     }
   } else {
-    // 请求游标与下一页游标相同且非空：上游未前进，落盘会让 hasMore 永远为 true
+    // Requested cursor is identical to next cursor and non-empty: upstream has not advanced, persisting would make hasMore stay true forever
     if (before && parsed.nextCursor === before) {
-      throw markStalledCursorError(new Error(`Telegram 分页游标未前进（@${channel} before=${before}）`));
+      throw markStalledCursorError(new Error(`Telegram pagination cursor did not advance (@${channel} before=${before})`));
     }
     meta.pages[key] = { cursor: parsed.nextCursor, exhausted: parsed.exhausted };
   }
   const { newMessages, pendingRepoKeys } = ingestFeedMessages(parsed.messages, messages, repos);
-  // 逐频道原子落盘（消息+仓库+游标同一事务，水位此时不推进）。
-  // 写失败必须上抛中止整轮：内存合并态无法安全回滚，带着脏状态继续会让
-  // 未持久化的合并混入末轮落盘（调用方按 isPersistenceError 识别并直接抛出）
+  // Per-channel atomic persistence (messages + repos + cursor in same transaction; watermark is not advanced yet).
+  // Write failure must rethrow to abort entire cycle: in-memory merged state cannot safely roll back, and continuing with
+  // dirty state would allow unpersisted merges into final persistence (caller identifies via isPersistenceError and throws).
   try {
     await telegramStorage.saveSyncBatch({
       messages: newMessages,
@@ -506,13 +506,13 @@ async function fetchAndIngestChannelPage(
 }
 
 /**
- * 频道抓取入口（refreshChannel 调用）：
- * - page 1（手动刷新/首次进入）：距上次同步超 60 秒时，逐频道重抓最新页
- *   （增量，已知消息按 `<channel>/<id>` 跳过），新触达仓库批量补全详情；
- * - page N（加载更多）：对每个未取尽的频道按落盘游标拉取下一页（一次点击
- *   每频道翻一页），随后整体重建切片；频道全部取尽后纯切片直至缓存耗尽。
- * 每页返回累积前缀（前 page × 20 张卡片，调用方整体替换），因为 page 1
- * 刷新新增的卡片会落进已消费的窗口内，append 切片永远补不到。
+ * Channel sync entry point (called by refreshChannel):
+ * - page 1 (manual refresh/initial visit): when last sync was > 60s ago, refetch latest page per channel
+ *   (incremental, known messages skipped by `<channel>/<id>`), batch-enrich newly reached repos;
+ * - page N (load more): fetch next page for each unexhausted channel using persisted cursor (one click
+ *   advances one page per channel), then rebuild slices; once all channels are exhausted, pure slicing until cache depleted.
+ * Each page returns cumulative prefix (first page × 20 cards, replaced as a whole by caller) because new cards
+ * from page 1 refresh fall into already consumed windows that append slices would never reach.
  */
 export async function syncTelegramChannel(
   api: GitHubApiService,
@@ -532,7 +532,7 @@ export async function syncTelegramChannel(
   const signature = followsSignatureOf(channels);
   const meta0 = await telegramStorage.getSyncMeta();
   const recent = isRecentlySynced(meta0, signature);
-  // 预读快照：不触网时直接复用为结算数据，避免同一次调用里重复全量遍历
+  // Pre-read snapshot: reuse directly as settled data when not hitting network, avoiding duplicate full scans in same call
   let snapshot: { messages: Map<string, TelegramStoredMessage>; repos: Map<string, TelegramStoredRepo> } | null = null;
   let needsSync = page <= 1 && !recent;
   if (!needsSync) {
@@ -548,7 +548,7 @@ export async function syncTelegramChannel(
 
   if (needsSync) {
     await runExclusiveSync(async (signal) => {
-      // 上一轮可能已落盘新数据，重读最新状态
+      // Previous cycle may have persisted new data, re-read latest state
       const meta = await telegramStorage.getSyncMeta();
       if (page <= 1 && isRecentlySynced(meta, signature)) return;
       meta.followsSignature = signature;
@@ -558,7 +558,7 @@ export async function syncTelegramChannel(
       const touchedRepoKeys = new Set<string>();
       let succeeded = 0;
       let firstError: unknown = null;
-      // page N 只翻未取尽的频道；page 1 始终重抓全部频道最新页
+      // page N only advances unexhausted channels; page 1 always refetches latest page for all channels
       const targets = page <= 1 ? channels : channelsWithMore(meta, channels);
       for (const channel of targets) {
         if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -571,7 +571,7 @@ export async function syncTelegramChannel(
           for (const key of pendingKeys) touchedRepoKeys.add(key);
         } catch (error) {
           if (isAbortError(error) || isPersistenceError(error) || isStalledCursorError(error)) throw error;
-          // 抓取/解析失败只跳过该频道（频道不可达/网络抖动不拖垮整轮）
+          // Fetch/parse failure only skips this channel (unreachable channel/network jitter won't fail the whole cycle)
           logger.warn('telegram', `Channel page fetch failed for @${channel}`, error);
           firstError = firstError ?? error;
           await sleep(CHANNEL_THROTTLE_MS);
@@ -583,7 +583,7 @@ export async function syncTelegramChannel(
       if (succeeded === 0 && targets.length > 0) {
         throw firstError instanceof Error
           ? firstError
-          : new Error('Telegram 频道抓取失败：所有频道均不可达');
+          : new Error('Telegram channel sync failed: all channels are unreachable');
       }
 
       const enrichTargets = reposNeedingDetail(repos, touchedRepoKeys, Date.now());
@@ -592,22 +592,22 @@ export async function syncTelegramChannel(
         .filter((repo): repo is TelegramStoredRepo => Boolean(repo));
       try {
         await enrichRepos(api, enrichTargets, onStatus, signal);
-        // 成功路径：详情与水位同一事务提交——若失败回滚，下轮会重抓而不是
-        // 带着新水位跳过、把缺详情的仓库晾到 TTL 才补
+        // Success path: details and watermark committed in same transaction—if rolled back on failure, next cycle refetches
+        // instead of skipping with new watermark and leaving unenriched repos until TTL
         meta.lastSyncedAt = new Date().toISOString();
         await telegramStorage.saveSyncBatch({ messages: [], repos: touchedRepos(), meta });
       } catch (error) {
         if (isAbortError(error)) {
-          // 取消：保留已获取的详情，但不推进水位（下轮继续补全）
+          // Canceled: keep fetched details, but do not advance watermark (continue enrichment next cycle)
           await telegramStorage.saveSyncBatch({ messages: [], repos: touchedRepos(), meta });
         }
-        // 限流/令牌错误：不提交部分或降级详情，也不推进水位
+        // Rate limit/token error: do not commit partial or degraded details, nor advance watermark
         throw error;
       }
     }, onStatus);
   }
 
-  // 触网轮次内部已有原子落盘，结算读最新；未触网轮次复用预读快照
+  // Network cycles already persist atomically internally, read latest on settle; non-network cycles reuse pre-read snapshot
   const settled = needsSync
     ? {
         messages: await telegramStorage.getAllMessages(),
@@ -625,13 +625,13 @@ export async function syncTelegramChannel(
   };
 }
 
-/** 设置弹窗"测试连接"：真实抓取一个频道最新页并解析，返回可验证的结果。 */
+/** Settings modal "Test Connection": fetches latest page of a channel and parses it, returning verifiable results. */
 export async function probeTelegramSource(
   channel: string,
   transport: TelegramChannelTransport = defaultTelegramChannelTransport,
 ): Promise<{ ok: boolean; messageCount?: number; repoCount?: number; error?: string }> {
   if (!isValidTelegramChannel(channel)) {
-    return { ok: false, error: '无效的频道名' };
+    return { ok: false, error: 'Invalid channel name' };
   }
   try {
     const html = await transport(channel);
@@ -639,7 +639,7 @@ export async function probeTelegramSource(
     if (parsed.messages.length === 0) {
       return {
         ok: false,
-        error: '未解析到公开消息：频道可能不存在、已转为私有，或没有公开消息',
+        error: 'No public messages found: channel may not exist, has been made private, or has no public messages',
       };
     }
     return {

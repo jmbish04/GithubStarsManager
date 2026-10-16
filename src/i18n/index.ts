@@ -8,9 +8,9 @@ import {
 } from './languages';
 
 /**
- * i18next 初始化。语言包经 import.meta.glob 懒加载（每个语言独立 chunk，
- * 不占主包预算）；zustand 的 `language` 是唯一事实源，本模块只负责资源
- * 装载与语言切换副作用。
+ * i18next initialization. Language bundles are lazy-loaded via import.meta.glob
+ * (each language in a separate chunk, keeping main bundle size lean); zustand's `language`
+ * is the single source of truth, and this module handles resource loading and language-switch side effects.
  */
 export const I18N_NAMESPACES = [
   'common',
@@ -44,7 +44,7 @@ void i18next.init({
   returnEmptyString: false,
 });
 
-/** 装载某语言的全部命名空间资源（幂等）。 */
+/** Loads all namespace resources for a language (idempotent). */
 export async function ensureLanguageLoaded(language: AppLanguage): Promise<void> {
   if (loadedLanguages.has(language)) return;
   const prefix = `/locales/${language}/`;
@@ -60,22 +60,22 @@ export async function ensureLanguageLoaded(language: AppLanguage): Promise<void>
   loadedLanguages.add(language);
 }
 
-/** 同步读取当前已装载语言（供 React 外的调用方使用）。 */
+/** Synchronously reads currently loaded language (for callers outside React). */
 export function getCurrentAppLanguage(): AppLanguage {
   const current = i18next.language;
   return isAppLanguage(current) ? current : FALLBACK_LANGUAGE;
 }
 
 /**
- * 切换应用语言：装载目标语言与回退语言包 → 切换 i18next → 更新 <html lang>。
- * 由 App 的 language 副作用调用；zustand 仍是事实源。
+ * Switches application language: loads target and fallback bundles -> switches i18next -> updates <html lang>.
+ * Called by App's language side-effect; zustand remains the single source of truth.
  */
 let languageSwitchSeq = 0;
 
 export async function changeAppLanguage(language: AppLanguage): Promise<void> {
   const requestId = ++languageSwitchSeq;
   await Promise.all([ensureLanguageLoaded(language), ensureLanguageLoaded(FALLBACK_LANGUAGE)]);
-  // 快速连续切换时仅应用最后一次请求，避免旧请求晚到覆盖新语言
+  // During rapid consecutive switches, only apply the latest request to prevent stale requests from overwriting newer language choices
   if (requestId !== languageSwitchSeq) return;
   await i18next.changeLanguage(language);
   if (requestId !== languageSwitchSeq) return;

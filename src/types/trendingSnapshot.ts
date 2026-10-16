@@ -1,39 +1,43 @@
 /**
- * Trending 快照（开发守则 §7）。
+ * Trending Snapshots (Development Guidelines §7).
  *
- * 现有 Trending 只是"即时展示"：刷新一次就覆盖，看不出排名变化、看不出谁是新上榜的。
- * 这里把每次看到的榜单按「周期 × 平台 × 自然日」存一份快照，历史只在本地保留有限条数。
+ * Current Trending is only a "point-in-time display": refreshed data overwrites the view,
+ * making rank changes and new entries invisible.
+ * Here, each viewed leaderboard is stored as a snapshot keyed by "period × platform × calendar day",
+ * retaining a limited number of historical entries locally.
  *
- * 不维护独立的 Trending 详情模型：快照只记仓库名、排名与当时的 star 数，展示时统一回到
- * Repository 模型（与开发守则 §7 的要求一致）。
+ * An independent Trending details model is not maintained: snapshots record only repository name,
+ * rank, and star count at capture time, standardizing back to the Repository model for display
+ * (consistent with Development Guidelines §7).
  */
 import type { TrendingTimeRange } from './index';
 
 export interface TrendingSnapshotEntry {
   repositoryFullName: string;
-  /** 该快照里的名次（1 起）。 */
+  /** Rank within this snapshot (1-indexed). */
   rank: number;
-  /** 抓取时的总 star 数；拿来算"自我们开始记录以来的新增"，不是 GitHub 的"今日新增"。 */
+  /** Total star count when captured; used to compute "delta since our tracking started", not GitHub's "today's stars". */
   stars: number;
 }
 
 export interface TrendingSnapshot {
   period: TrendingTimeRange;
-  /** 'All' 或平台 id；与 Trending 请求使用的平台筛选一致。 */
+  /** 'All' or platform id; matches the platform filter used by Trending requests. */
   platform: string;
-  /** ISO 时间戳。 */
+  /** ISO timestamp. */
   capturedAt: string;
   entries: TrendingSnapshotEntry[];
 }
 
-/** 每个「周期 × 平台」桶最多保留多少份快照。 */
+/** Maximum number of snapshots retained per "period × platform" bucket. */
 export const MAX_TRENDING_SNAPSHOTS_PER_BUCKET = 30;
 
-/** 单份快照只保留榜单头部，避免损坏的持久化数据无限扩张。 */
+/** Each snapshot retains only the top entries of the leaderboard to prevent unbounded expansion of corrupted persisted data. */
 export const MAX_TRENDING_ENTRIES_PER_SNAPSHOT = 50;
 
-/** 超过这个天数的快照在写入时清掉。 */
+/** Snapshots older than this number of days are purged on write. */
 export const TRENDING_SNAPSHOT_MAX_AGE_DAYS = 90;
 
-/** 判定"连续上榜"时最多回溯多少天。 */
+/** Maximum lookback window (in days) when calculating consecutive appearances (streaks). */
 export const TRENDING_STREAK_WINDOW_DAYS = 30;
+

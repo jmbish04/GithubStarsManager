@@ -2,7 +2,7 @@ name = "github-stars-vectorize"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
-# AUTH_TOKEN 通过 wrangler secret put AUTH_TOKEN 设置，不要写在 [vars] 中
+# Set AUTH_TOKEN using 'wrangler secret put AUTH_TOKEN'; do not set it in [vars]
 
 [[vectorize]]
 binding = "VECTORIZE"

@@ -90,7 +90,7 @@ describe('hasAssetsChanged', () => {
   });
 
   it('returns false when only download_count changed across refreshes', () => {
-    // download_count 在每次下载时会 +1；若纳入指纹会导致刷新必然“资产已更新”的噪声。
+    // download_count increments with each download; including it in fingerprints would cause false "assets updated" notifications.
     const before = [makeAsset({ id: 1, download_count: 0 })];
     const after = [makeAsset({ id: 1, download_count: 12345 })];
     expect(hasAssetsChanged(before, after)).toBe(false);
@@ -165,7 +165,7 @@ describe('findReleasesWithChangedAssets', () => {
     const updated = findReleasesWithChangedAssets(incoming, local);
     expect(updated.map(r => r.id)).toEqual([1]);
     expect(updated[0].body).toBe('## What changed');
-    // 仅正文变化时不产生资产级标识，避免误挂“资产已更新”
+    // Body-only change does not produce asset-level badges, preventing false "assets updated" indicator
     expect(updated[0].updated_asset_ids).toEqual([]);
   });
 
@@ -182,8 +182,8 @@ describe('findReleasesWithChangedAssets', () => {
   });
 
   it('ignores legacy null names covered by the tag_name fallback (no false update)', () => {
-    // 后端旧数据 name 可能为 null，而 API 层映射为 name || tag_name；
-    // 两侧展示名一致时不得误判，避免升级后首次刷新批量重置已读。
+    // Legacy backend data may store null for name, while API layer maps to name || tag_name;
+    // when display names match on both sides, do not trigger false updates, avoiding mass read-state resets on upgrade.
     const local = [makeRelease({ id: 1, tag_name: 'v1', name: null })];
     const incoming = [makeRelease({ id: 1, tag_name: 'v1', name: 'v1' })];
     expect(findReleasesWithChangedAssets(incoming, local)).toHaveLength(0);
@@ -290,8 +290,8 @@ describe('shouldShowAssetsUpdatedIndicator', () => {
   });
 
   it('does not infer the indicator from asset timestamps being newer than published_at', () => {
-    // 回归：GitHub 资产几乎都在 Release 创建后上传，updated_at > published_at 恒常见。
-    // 该条件不代表“资产相对用户上次拉取发生了变化”，不得作为标识依据。
+    // Regression: GitHub assets are almost always uploaded after Release creation, so updated_at > published_at is typical.
+    // This condition does not mean "assets changed relative to user's last fetch" and must not be used as an indicator signal.
     const release: Pick<Release, 'published_at' | 'assets' | 'updated_asset_ids'> = {
       published_at: '2026-01-01T00:00:00Z',
       assets: [makeAsset({ updated_at: '2026-01-02T00:00:00Z' })],
@@ -305,7 +305,7 @@ describe('detectAssetPlatform', () => {
   it('detects macOS from decisive extensions', () => {
     expect(detectAssetPlatform('MyApp-1.2.0-arm64.dmg')).toBe('macos');
     expect(detectAssetPlatform('installer.pkg')).toBe('macos');
-    // Tauri 的 macOS 更新包
+    // Tauri macOS updater archive
     expect(detectAssetPlatform('MyApp.app.tar.gz')).toBe('macos');
   });
 
@@ -341,7 +341,7 @@ describe('detectAssetPlatform', () => {
   it('reads OS tokens from Rust triple and bare binary names', () => {
     expect(detectAssetPlatform('x86_64-pc-windows-msvc.zip')).toBe('windows');
     expect(detectAssetPlatform('aarch64-apple-darwin.tar.xz')).toBe('macos');
-    // 裸二进制（无扩展名）
+    // Bare binary (no extension)
     expect(detectAssetPlatform('tool-linux-amd64')).toBe('linux');
   });
 
@@ -353,7 +353,7 @@ describe('detectAssetPlatform', () => {
   it('does not mistake substrings for OS words (darwin contains win, archive contains arch)', () => {
     expect(detectAssetPlatform('search-tool.zip')).toBeNull();
     expect(detectAssetPlatform('app-arch64.zip')).toBeNull();
-    // darwin 内部的 "win" 不是 windows
+    // "win" inside darwin is not windows
     expect(detectAssetPlatform('alist-darwin-amd64.tar.gz')).toBe('macos');
   });
 

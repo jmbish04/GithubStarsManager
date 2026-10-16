@@ -199,8 +199,8 @@ export async function tryRestoreAuthFromBackend(): Promise<boolean> {
     const latest = useAppStore.getState();
     if (latest.user || latest.githubToken) return false;
 
-    // 直连校验待恢复的 token 本身再采纳其身份；走代理时服务端用的是库里
-    // 当前 token，校验的就不是即将写入本地的这份凭据了。
+    // Directly validate the token to be restored before adopting its identity; if routed through
+    // a proxy, the server would use its stored token rather than the credentials being restored.
     const githubApi = createGitHubApiService(restored.github_token, { direct: true });
     const user = await githubApi.getCurrentUser();
 

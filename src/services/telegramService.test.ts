@@ -22,9 +22,9 @@ import {
 import type { TelegramFollow } from '../types';
 
 /**
- * fixture 是从 https://t.me/s/geekhub23 公开预览页真实响应中截取的
- * （内联脚本/自定义 emoji 与 CDN 图片已裁剪，DOM 结构与消息、rel=prev
- * 翻页锚点保持原样），解析器直接对着真实上游格式测。
+ * Fixture captured from actual https://t.me/s/geekhub23 public preview responses
+ * (inline scripts, custom emoji, and CDN images pruned; DOM structure, messages, and rel=prev
+ * pagination anchors preserved as-is). The parser is tested directly against real upstream formats.
  */
 const PAGE1_HTML = readFileSync(
   path.join(__dirname, '__fixtures__', 'telegram-channel-geekhub23-page1.html'),
@@ -35,7 +35,7 @@ const PAGE2_HTML = readFileSync(
   'utf-8',
 );
 
-// 内存版存储替身（jsdom 无 IndexedDB）
+// In-memory storage stub (jsdom lacks IndexedDB)
 const storage = vi.hoisted(() => {
   const messagesStore = new Map<string, unknown>();
   const reposStore = new Map<string, unknown>();
@@ -99,8 +99,8 @@ const makeApi = (
   graphqlFetchRepositories: vi.fn(async (fullNames: string[]) => {
     if (graphqlError) throw graphqlError;
     const result = new Map<string, GitHubRepoDetailRead | null>();
-    // 与真实 GraphQL 语义一致：不存在的仓库不产生键（而非显式 null），
-    // 这样 REST 回退分支（restTargets）才可能被覆盖
+    // Consistent with real GraphQL semantics: non-existent repositories produce no keys (rather than explicit null),
+    // allowing the REST fallback branch (restTargets) to be exercised
     for (const fullName of fullNames) {
       const key = fullName.toLowerCase();
       if (details.has(key)) result.set(key, details.get(key) ?? null);
@@ -114,7 +114,7 @@ const makeApi = (
   }),
 } as unknown as GitHubApiService);
 
-/** 传输替身：按 `<channel>|<before|''>` 返回预设 HTML（或抛错），记录每次调用 */
+/** Transport stub: returns canned HTML (or throws) by `<channel>|<before|''>` and records each call */
 const stubTransport = (pages: Record<string, string | Error>): { transport: TelegramChannelTransport; calls: string[] } => {
   const calls: string[] = [];
   const transport: TelegramChannelTransport = async (channel, before) => {
@@ -138,8 +138,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('parseTelegramChannelHtml（真实 t.me/s/geekhub23 公开预览 fixture）', () => {
-  it('解析出最新页 20 条真实消息（ID 589-608），游标与取尽标记来自 rel=prev', () => {
+describe('parseTelegramChannelHtml (real t.me/s/geekhub23 public preview fixture)', () => {
+  it('parses the latest page of 20 real messages (IDs 589-608), cursor and exhausted flag from rel=prev', () => {
     const parsed = parseTelegramChannelHtml(PAGE1_HTML, 'geekhub23');
     expect(parsed.messages).toHaveLength(20);
     const ids = parsed.messages.map((message) => Number(message.messageId.split('/')[1]));
@@ -148,7 +148,7 @@ describe('parseTelegramChannelHtml（真实 t.me/s/geekhub23 公开预览 fixtur
     expect(parsed.exhausted).toBe(false);
   });
 
-  it('第二页（?before=589）解析出更早的 20 条（ID 569-588），游标推进到 569', () => {
+  it('parses page 2 (?before=589) for 20 earlier messages (IDs 569-588), advancing cursor to 569', () => {
     const parsed = parseTelegramChannelHtml(PAGE2_HTML, 'geekhub23');
     const ids = parsed.messages.map((message) => Number(message.messageId.split('/')[1]));
     expect(ids).toEqual(Array.from({ length: 20 }, (_, i) => 569 + i));
@@ -156,7 +156,7 @@ describe('parseTelegramChannelHtml（真实 t.me/s/geekhub23 公开预览 fixtur
     expect(parsed.exhausted).toBe(false);
   });
 
-  it('消息字段完整：复合 ID、频道名、显示名、消息链接、发布时间', () => {
+  it('populates complete message fields: composite ID, channel, display name, message URL, created time', () => {
     const parsed = parseTelegramChannelHtml(PAGE1_HTML, 'geekhub23');
     const first = parsed.messages[0];
     expect(first.messageId).toBe('geekhub23/589');
@@ -166,7 +166,7 @@ describe('parseTelegramChannelHtml（真实 t.me/s/geekhub23 公开预览 fixtur
     expect(first.createdAt).toBe('2026-08-28T02:32:35.000Z');
   });
 
-  it('从正文提取 GitHub 仓库链接（geekhub23 真实分享的仓库，去重小写）', () => {
+  it('extracts GitHub repository links from body text (real repositories shared in geekhub23, deduped lowercase)', () => {
     const parsed = parseTelegramChannelHtml(PAGE1_HTML, 'geekhub23');
     const first = parsed.messages.find((message) => message.messageId === 'geekhub23/589');
     expect(first?.repoFullNames).toContain('microsoft/powertoys');
@@ -174,7 +174,7 @@ describe('parseTelegramChannelHtml（真实 t.me/s/geekhub23 公开预览 fixtur
     expect(allRepos.has('shubhamsaboo/awesome-llm-apps')).toBe(true);
   });
 
-  it('正文中的相对链接改写为 t.me 绝对地址（频道内话题搜索）', () => {
+  it('rewrites relative links in body text to absolute t.me URLs (in-channel hashtag searches)', () => {
     const parsed = parseTelegramChannelHtml(PAGE1_HTML, 'geekhub23');
     const withTagLink = parsed.messages.find((message) => message.content.includes('?q=%23'));
     expect(withTagLink).toBeDefined();
@@ -182,7 +182,7 @@ describe('parseTelegramChannelHtml（真实 t.me/s/geekhub23 公开预览 fixtur
     expect(withTagLink!.content).not.toMatch(/href="\?q=/);
   });
 
-  it('无 rel=prev 的页面标记频道历史取尽（末页语义）', () => {
+  it('marks channel history exhausted when page lacks rel=prev (last page semantics)', () => {
     const html = PAGE1_HTML.replace(/<link rel="prev"[^>]*>/, '');
     const parsed = parseTelegramChannelHtml(html, 'geekhub23');
     expect(parsed.nextCursor).toBeNull();
@@ -190,13 +190,13 @@ describe('parseTelegramChannelHtml（真实 t.me/s/geekhub23 公开预览 fixtur
     expect(parsed.messages).toHaveLength(20);
   });
 
-  it('非频道页（空 HTML）返回空消息与取尽标记', () => {
+  it('returns empty messages and exhausted flag for non-channel pages (empty HTML)', () => {
     const parsed = parseTelegramChannelHtml('<html></html>', 'geekhub23');
     expect(parsed.messages).toEqual([]);
     expect(parsed.exhausted).toBe(true);
   });
 
-  it('无正文的消息保留为来源候选：正文为空、链接预览中的仓库链接仍被提取', () => {
+  it('retains textless messages as source candidates: empty body, repository links in link preview still extracted', () => {
     const html = `<html><head><link rel="prev" href="/s/chan?before=9"></head><body>
       <div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="chan/9">
         <a class="tgme_widget_message_date" href="/chan/9"><time datetime="2026-09-01T10:00:00+00:00"></time></a>
@@ -214,7 +214,7 @@ describe('parseTelegramChannelHtml（真实 t.me/s/geekhub23 公开预览 fixtur
 });
 
 describe('ingestFeedMessages', () => {
-  it('按复合 ID 去重；同仓库多消息时原贴指向最新消息', () => {
+  it('deduplicates by composite ID; points repository origin to latest message on multiple mentions', () => {
     const messages = new Map<string, TelegramStoredMessage>();
     const repos = new Map<string, TelegramStoredRepo>();
     const mk = (id: number, createdAt: string, repo: string): TelegramStoredMessage => ({
@@ -233,7 +233,7 @@ describe('ingestFeedMessages', () => {
     expect(repos.get('foo/one')!.messageCreatedAt).toBe('2026-09-02T00:00:00.000Z');
   });
 
-  it('正确更新已编辑消息的正文与仓库关联，重新计算来源归属', () => {
+  it('properly updates body and repository associations for edited messages, recalculating source attribution', () => {
     const messages = new Map<string, TelegramStoredMessage>();
     const repos = new Map<string, TelegramStoredRepo>();
 
@@ -250,7 +250,7 @@ describe('ingestFeedMessages', () => {
     expect(messages.get('chan/10')!.content).toBe('old text https://github.com/foo/old');
     expect(repos.has('foo/old')).toBe(true);
 
-    // 编辑消息：改为了 foo/new，移除了 foo/old
+    // Edited message: changed to foo/new, removed foo/old
     const editedMsg1: TelegramStoredMessage = {
       ...msg1,
       content: 'new text https://github.com/foo/new',
@@ -267,7 +267,7 @@ describe('ingestFeedMessages', () => {
 });
 
 describe('reposNeedingDetail', () => {
-  it('新触达必补全；新鲜快照跳过；过期快照与到期不可用仓库重试', () => {
+  it('enriches newly seen repos; skips fresh snapshots; retries stale snapshots and expired unavailable repos', () => {
     const now = Date.now();
     const repos = new Map<string, TelegramStoredRepo>([
       ['a/b', { fullName: 'a/b', detail: null, lastFetchedAt: '', sourceMessageId: 'c/1', messageCreatedAt: '' }],
@@ -281,7 +281,7 @@ describe('reposNeedingDetail', () => {
 });
 
 describe('buildTelegramDiscoveryRepos', () => {
-  it('只展示当前关注 + 已补全详情的仓库，按消息时间倒序并赋 rank', () => {
+  it('displays only followed + enriched repos, sorted descending by message time with ranks assigned', () => {
     const messages = new Map<string, TelegramStoredMessage>([
       ['a/1', { messageId: 'a/1', channel: 'chan1', displayName: 'C1', content: 'x', htmlUrl: '', createdAt: '2026-09-01T00:00:00.000Z', repoFullNames: ['o/one'] }],
       ['b/2', { messageId: 'b/2', channel: 'chan2', displayName: 'C2', content: 'x', htmlUrl: '', createdAt: '2026-09-02T00:00:00.000Z', repoFullNames: ['o/two'] }],
@@ -302,7 +302,7 @@ describe('buildTelegramDiscoveryRepos', () => {
 });
 
 describe('syncTelegramChannel', () => {
-  it('首页逐频道真实抓取：解析消息、初始化游标、补全仓库详情、返回前缀切片', async () => {
+  it('fetches home page per channel against live format: parses messages, initializes cursor, enriches repos, returns prefix slice', async () => {
     const { transport, calls } = stubTransport({ 'geekhub23|': PAGE1_HTML });
     const details = new Map<string, GitHubRepoDetailRead | null>([['microsoft/powertoys', makeDetail('microsoft/PowerToys')]]);
     const result = await syncTelegramChannel(makeApi(details), 1, follows, undefined, transport);
@@ -311,7 +311,7 @@ describe('syncTelegramChannel', () => {
     expect(result.repos.length).toBeGreaterThan(0);
     expect(result.repos[0].telegram?.channel).toBe('geekhub23');
     expect(result.totalCount).toBe(result.repos.length);
-    // 20 条消息不足以填满 20 张卡片窗口且频道未取尽 → 还有更多
+    // 20 messages are insufficient to fill 20 card slots and channel not exhausted -> hasMore is true
     expect(result.hasMore).toBe(true);
     expect(result.nextPageIndex).toBe(2);
 
@@ -320,7 +320,7 @@ describe('syncTelegramChannel', () => {
     expect(meta.pages['geekhub23']).toEqual({ cursor: '589', exhausted: false });
   });
 
-  it('加载更多按落盘游标拉下一页（一次点击翻一页），返回累积前缀', async () => {
+  it('loads more by fetching next page via persisted cursor (one click advances one page), returning accumulated prefix', async () => {
     const { transport, calls } = stubTransport({
       'geekhub23|': PAGE1_HTML,
       'geekhub23|589': PAGE2_HTML,
@@ -336,7 +336,7 @@ describe('syncTelegramChannel', () => {
     const page2 = await syncTelegramChannel(api, 2, follows, undefined, transport);
     expect(calls).toEqual(['geekhub23|', 'geekhub23|589']);
     expect(page2.totalCount).toBeGreaterThanOrEqual(page1Count);
-    // 累积前缀语义：窗口内是全量列表的前 page × 20 张
+    // Accumulated prefix semantics: window contains first page * 20 cards of the full list
     expect(page2.repos).toEqual(
       buildTelegramDiscoveryRepos(
         await telegramStorage.getAllMessages(),
@@ -348,7 +348,7 @@ describe('syncTelegramChannel', () => {
     expect(meta.pages['geekhub23']).toEqual({ cursor: '569', exhausted: false });
   });
 
-  it('page 1 刷新重抓最新页但不回退已推进的游标', async () => {
+  it('refreshes page 1 by refetching latest page without rewinding advanced cursors', async () => {
     const { transport } = stubTransport({
       'geekhub23|': PAGE1_HTML,
       'geekhub23|589': PAGE2_HTML,
@@ -358,7 +358,7 @@ describe('syncTelegramChannel', () => {
     await syncTelegramChannel(api, 2, follows, undefined, transport);
     expect((await telegramStorage.getSyncMeta()).pages['geekhub23']).toEqual({ cursor: '569', exhausted: false });
 
-    // 让 60 秒水位失效，强制 page 1 重新触网
+    // Invalidate 60-second watermark to force page 1 network fetch
     const meta = await telegramStorage.getSyncMeta();
     meta.lastSyncedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     await telegramStorage.saveSyncMeta(meta);
@@ -367,7 +367,7 @@ describe('syncTelegramChannel', () => {
     expect((await telegramStorage.getSyncMeta()).pages['geekhub23']).toEqual({ cursor: '569', exhausted: false });
   });
 
-  it('加载更多不受 60 秒水位拦截：刚同步过仍按游标翻页', async () => {
+  it('load more is not blocked by 60-second watermark: paginates by cursor even immediately after sync', async () => {
     const { transport, calls } = stubTransport({
       'geekhub23|': PAGE1_HTML,
       'geekhub23|589': PAGE2_HTML,
@@ -378,7 +378,7 @@ describe('syncTelegramChannel', () => {
     expect(calls).toEqual(['geekhub23|', 'geekhub23|589']);
   });
 
-  it('频道历史取尽后：纯切片不触网，缓存耗尽即 hasMore=false', async () => {
+  it('when channel history is exhausted: slices without network requests, hasMore=false once cache depleted', async () => {
     const lastPageHtml = PAGE2_HTML.replace(/<link rel="prev"[^>]*>/, '');
     const { transport, calls } = stubTransport({
       'geekhub23|': PAGE1_HTML,
@@ -396,8 +396,8 @@ describe('syncTelegramChannel', () => {
     expect(page3.hasMore).toBe(false);
   });
 
-  it('加载更多时游标未前进入上抛，不落盘停滞游标', async () => {
-    const stalledHtml = PAGE1_HTML; // rel=prev 仍是 before=589
+  it('throws when cursor does not advance during load more, avoiding persisting stalled cursor', async () => {
+    const stalledHtml = PAGE1_HTML; // rel=prev is still before=589
     const { transport } = stubTransport({
       'geekhub23|': PAGE1_HTML,
       'geekhub23|589': stalledHtml,
@@ -405,11 +405,11 @@ describe('syncTelegramChannel', () => {
     const api = makeApi(new Map([['microsoft/powertoys', makeDetail('microsoft/PowerToys')]]));
     await syncTelegramChannel(api, 1, follows, undefined, transport);
     await expect(syncTelegramChannel(api, 2, follows, undefined, transport))
-      .rejects.toThrow('分页游标未前进');
+      .rejects.toThrow('Telegram pagination cursor did not advance');
     expect((await telegramStorage.getSyncMeta()).pages['geekhub23']).toEqual({ cursor: '589', exhausted: false });
   });
 
-  it('60 秒内重复刷新走缓存，不再调用传输层', async () => {
+  it('serves repeated refreshes within 60 seconds from cache without calling transport layer', async () => {
     const { transport, calls } = stubTransport({ 'geekhub23|': PAGE1_HTML });
     const api = makeApi(new Map([['microsoft/powertoys', makeDetail('microsoft/PowerToys')]]));
     await syncTelegramChannel(api, 1, follows, undefined, transport);
@@ -417,7 +417,7 @@ describe('syncTelegramChannel', () => {
     expect(calls).toEqual(['geekhub23|']);
   });
 
-  it('单个频道失败不拖垮整轮；全部失败才抛出传输层错误', async () => {
+  it('single channel failure does not fail entire run; throws transport error only when all fail', async () => {
     const multiFollows: TelegramFollow[] = [
       { channel: 'broken', addedAt: '2026-09-13T00:00:00.000Z' },
       { channel: 'geekhub23', addedAt: '2026-09-13T00:00:00.000Z' },
@@ -435,7 +435,7 @@ describe('syncTelegramChannel', () => {
       .rejects.toThrow('upstream 502');
   });
 
-  it('无效频道名的关注被过滤，不发请求', async () => {
+  it('filters out invalid channel names without sending requests', async () => {
     const { transport, calls } = stubTransport({ 'geekhub23|': PAGE1_HTML });
     const api = makeApi(new Map());
     await syncTelegramChannel(api, 1, [
@@ -445,7 +445,7 @@ describe('syncTelegramChannel', () => {
     expect(calls).toEqual(['geekhub23|']);
   });
 
-  it('取消关注后其仓库不再出现在列表中（消息缓存保留）', async () => {
+  it('removes unfollowed channel repos from list while preserving cached messages', async () => {
     const { transport } = stubTransport({ 'geekhub23|': PAGE1_HTML });
     const api = makeApi(new Map([['microsoft/powertoys', makeDetail('microsoft/PowerToys')]]));
     await syncTelegramChannel(api, 1, follows, undefined, transport);
@@ -454,7 +454,7 @@ describe('syncTelegramChannel', () => {
     expect((await telegramStorage.getAllMessages()).size).toBe(20);
   });
 
-  it('GraphQL 整批失败时逐仓回退 REST 补全', async () => {
+  it('falls back to per-repo REST enrichment when GraphQL batch fails completely', async () => {
     const { transport } = stubTransport({ 'geekhub23|': PAGE1_HTML });
     const api = makeApi(new Map([['microsoft/powertoys', makeDetail('microsoft/PowerToys')]]), new Error('graphql down'));
     const result = await syncTelegramChannel(api, 1, follows, undefined, transport);
@@ -463,7 +463,7 @@ describe('syncTelegramChannel', () => {
     expect(api.getRepositoryDetails).toHaveBeenCalled();
   });
 
-  it('onStatus 上报 syncing 与 enriching 进度', async () => {
+  it('reports syncing and enriching progress via onStatus', async () => {
     const { transport } = stubTransport({ 'geekhub23|': PAGE1_HTML });
     const api = makeApi(new Map([['microsoft/powertoys', makeDetail('microsoft/PowerToys')]]));
     const statuses: (import('../types').WeeklySyncStatus | null)[] = [];
@@ -472,7 +472,7 @@ describe('syncTelegramChannel', () => {
     expect(statuses.some((status) => status?.phase === 'enriching')).toBe(true);
   });
 
-  it('abortTelegramSync 可中断进行中的同步任务', async () => {
+  it('aborts in-progress sync task via abortTelegramSync', async () => {
     let transportCalled = false;
     const slowTransport: TelegramChannelTransport = async () => {
       transportCalled = true;
@@ -488,21 +488,21 @@ describe('syncTelegramChannel', () => {
 });
 
 describe('probeTelegramSource', () => {
-  it('真实解析返回消息数与仓库链接数', async () => {
+  it('returns parsed message and repository counts', async () => {
     const { transport } = stubTransport({ 'geekhub23|': PAGE1_HTML });
     const result = await probeTelegramSource('geekhub23', transport);
     expect(result).toMatchObject({ ok: true, messageCount: 20 });
     expect(result.repoCount).toBeGreaterThan(0);
   });
 
-  it('公开预览无消息（频道不存在/私有/无公开消息）返回可读错误', async () => {
+  it('returns readable error when public preview has no messages (channel nonexistent/private/empty)', async () => {
     const { transport } = stubTransport({ 'ghost|': '<html><body>Telegram: Contact @ghost</body></html>' });
     const result = await probeTelegramSource('ghost', transport);
     expect(result.ok).toBe(false);
-    expect(result.error).toContain('未解析到公开消息');
+    expect(result.error).toContain('No public messages found');
   });
 
-  it('无效频道名与抓取失败均返回可展示错误', async () => {
+  it('returns displayable error for invalid channel names and fetch failures', async () => {
     expect((await probeTelegramSource('bad name!', async () => PAGE1_HTML)).ok).toBe(false);
     expect((await probeTelegramSource('geekhub23', async () => { throw new Error('network down'); })).error).toBe('network down');
   });
