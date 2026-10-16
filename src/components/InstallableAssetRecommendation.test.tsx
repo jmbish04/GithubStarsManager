@@ -82,7 +82,10 @@ describe('InstallableAssetRecommendation', () => {
     expect(onDownload).not.toHaveBeenCalled();
     expect(screen.getByText('App-1.2.0-x64-setup.exe')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /\u4e0b\u8f7d\u6b64\u7248\u672c/ })); // Chinese for "Download this release"
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Download this build' })).toBeEnabled(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Download this build' }));
 
     expect(onDownload).toHaveBeenCalledTimes(1);
     expect(onDownload).toHaveBeenCalledWith(
@@ -101,11 +104,11 @@ describe('InstallableAssetRecommendation', () => {
 
     expect(
       screen.getByText(
-        '\u6309\u6587\u4ef6\u540d\u4e0e Release \u5143\u6570\u636e\u8bc6\u522b\uff0c\u672a\u9a8c\u8bc1\u5b89\u88c5\u5305\u5b89\u5168\u6027\uff0c\u4e5f\u4e0d\u4f1a\u81ea\u52a8\u8fd0\u884c\u3002\u4f60\u59cb\u7ec8\u53ef\u4ee5\u5728\u4e0b\u65b9\u8d44\u4ea7\u5217\u8868\u4e2d\u624b\u52a8\u9009\u62e9\u5176\u4ed6\u8d44\u4ea7\u3002', // Chinese disclaimer for unverified installer safety
+        'Detected from filenames and release metadata. No safety check is performed and nothing runs automatically. You can always pick another asset in the list below.',
       ),
     ).toBeInTheDocument();
     // Must never contain conclusions like "passed security verification"
-    expect(screen.queryByText(/\u5df2\u901a\u8fc7\u5b89\u5168|\u5b89\u5168\u53ef\u9760|\u5df2\u9a8c\u8bc1\u5b89\u5168/)).not.toBeInTheDocument(); // Chinese for "passed security verification|safe and reliable|verified safe"
+    expect(screen.queryByText(/passed security verification|safe and reliable|verified safe/i)).not.toBeInTheDocument();
   });
 
   it('does not render the block when there are no matching assets', () => {
@@ -153,14 +156,17 @@ describe('InstallableAssetRecommendation', () => {
       />,
     );
 
-    expect(screen.getByText('\u5176\u4ed6\u53ef\u9009\u8d44\u4ea7\uff081\uff09')).toBeInTheDocument(); // Chinese for "Other candidate assets (1)"
+    expect(screen.getByText('Other candidates (1)')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '\u4e0b\u8f7d' })); // Chinese for "Download"
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Download' }));
     expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ assetId: 2 }));
 
     // Exclusion explanation explicitly names non-installable asset types so users know they did not disappear
-    expect(screen.getByText(/\u8c03\u8bd5\u7b26\u53f7/)).toBeInTheDocument(); // Chinese for "debug symbols"
-    expect(screen.getByText(/\u5176\u4ed6\u5e73\u53f0\/\u67b6\u6784/)).toBeInTheDocument(); // Chinese for "other platforms/architectures"
+    expect(screen.getByText(/debug symbols/)).toBeInTheDocument();
+    expect(screen.getByText(/other platforms or architectures/)).toBeInTheDocument();
   });
 
   it('lists candidates side by side without claiming "matches current device" when platform is unknown', () => {
@@ -172,11 +178,11 @@ describe('InstallableAssetRecommendation', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: '\u53ef\u5b89\u88c5\u5019\u9009' })).toBeInTheDocument(); // Chinese for "Installable candidates"
-    expect(screen.getByText('\u672a\u8bc6\u522b\u51fa\u5e73\u53f0')).toBeInTheDocument(); // Chinese for "Platform not identified"
+    expect(screen.getByRole('heading', { name: 'Installable candidates' })).toBeInTheDocument();
+    expect(screen.getByText('Platform not detected')).toBeInTheDocument();
     // When platform is unknown, candidates come from all platforms, so cannot claim to match current device
-    expect(screen.queryByText('\u9002\u914d\u5f53\u524d\u8bbe\u5907')).not.toBeInTheDocument(); // Chinese for "Matches current device"
-    expect(screen.getByText('\u5176\u4ed6\u53ef\u9009\u8d44\u4ea7\uff081\uff09')).toBeInTheDocument(); // Chinese for "Other candidate assets (1)"
+    expect(screen.queryByText('Matches this device')).not.toBeInTheDocument();
+    expect(screen.getByText('Other candidates (1)')).toBeInTheDocument();
   });
 
   it('does not enable download before architecture detection completes', async () => {
@@ -196,10 +202,10 @@ describe('InstallableAssetRecommendation', () => {
     );
 
     // Download cannot be enabled yet; otherwise an arm64 device might download an x64 package before detection finishes
-    const primary = screen.getByRole('button', { name: /\u4e0b\u8f7d\u6b64\u7248\u672c/ }); // Chinese for "Download this release"
+    const primary = screen.getByRole('button', { name: 'Download this build' });
     expect(primary).toBeDisabled();
-    expect(screen.getByRole('button', { name: '\u4e0b\u8f7d' })).toBeDisabled(); // Chinese for "Download"
-    expect(screen.getByText('\u6b63\u5728\u8bc6\u522b\u67b6\u6784\u2026')).toBeInTheDocument(); // Chinese for "Detecting architecture..."
+    expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled();
+    expect(screen.getByText('Detecting architecture…')).toBeInTheDocument();
 
     await user.click(primary);
     expect(onDownload).not.toHaveBeenCalled();
@@ -219,9 +225,9 @@ describe('InstallableAssetRecommendation', () => {
 
     // Detection is asynchronous: button becomes available only after settlement
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /\u4e0b\u8f7d\u6b64\u7248\u672c/ })).toBeEnabled(), // Chinese for "Download this release"
+      expect(screen.getByRole('button', { name: 'Download this build' })).toBeEnabled(),
     );
-    await user.click(screen.getByRole('button', { name: /\u4e0b\u8f7d\u6b64\u7248\u672c/ })); // Chinese for "Download this release"
+    await user.click(screen.getByRole('button', { name: 'Download this build' }));
     expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ assetId: 7 }));
   });
 
@@ -246,8 +252,8 @@ describe('InstallableAssetRecommendation', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /\u4e0b\u8f7d\u6b64\u7248\u672c/ })).toBeDisabled(), // Chinese for "Download this release"
+      expect(screen.getByRole('button', { name: 'Download this build' })).toBeDisabled(),
     );
-    expect(screen.getByRole('button', { name: '\u4e0b\u8f7d' })).toBeDisabled(); // Chinese for "Download"
+    expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled();
   });
 });

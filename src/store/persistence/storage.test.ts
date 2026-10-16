@@ -79,7 +79,7 @@ const buildState = (): Record<string, unknown> => ({
   // state.gistSearchFilters.sortBy); handwritten sparse objects will throw errors.
   ...(createInitialState() as unknown as Record<string, unknown>),
   theme: 'dark',
-  language: 'zh',
+  language: 'en',
   repositories: [{ id: 1, name: 'repo-one' }],
   lastSync: '2026-01-01T00:00:00.000Z',
   gists: [{ id: 'gist-1' }],
@@ -390,7 +390,7 @@ describe('sharded persist storage', () => {
 
     expect((await readShardState('core')).theme).toBe('dark');
     const rehydrated = await debouncedPersistStorage.getItem(KEY);
-    expect(rehydrated?.state).toMatchObject({ theme: 'dark', language: 'zh' });
+    expect(rehydrated?.state).toMatchObject({ theme: 'dark', language: 'en' });
   });
 
   it('rebuilds the full shard set when removeItem follows a write still in flight', async () => {
@@ -423,12 +423,12 @@ describe('sharded persist storage', () => {
     await indexedDBStorage.setItem(KEY, JSON.stringify({ state: legacyState, version: 16 }));
     await setStorageEntries(KEY, [
       [metaKeyFor(KEY), JSON.stringify({ format: 1, version: 16, shards: [...PERSISTENCE_SHARD_NAMES], savedAt: 't0' })],
-      [shardKeyFor(KEY, 'core'), JSON.stringify({ format: 1, version: 16, state: { theme: 'dark', language: 'zh' } })],
+      [shardKeyFor(KEY, 'core'), JSON.stringify({ format: 1, version: 16, state: { theme: 'dark', language: 'en' } })],
     ]);
 
     const hydrated = await debouncedPersistStorage.getItem(KEY);
     // Present shard contents (newer) overwrite legacy snapshot, missing shards fall back to legacy snapshot
-    expect(hydrated?.state).toMatchObject({ theme: 'dark', language: 'zh', gists: [{ id: 'legacy-gist' }] });
+    expect(hydrated?.state).toMatchObject({ theme: 'dark', language: 'en', gists: [{ id: 'legacy-gist' }] });
 
     // Next write forcibly commits all shards and retires legacy key (converged migration)
     debouncedPersistStorage.setItem(KEY, { state: buildState(), version: 16 });
@@ -488,7 +488,7 @@ describe('sharded persist storage', () => {
 
   it('salvages readable orphaned shards when meta and legacy are both gone', async () => {
     await setStorageEntries(KEY, [
-      [shardKeyFor(KEY, 'core'), JSON.stringify({ format: 1, version: 16, state: { theme: 'dark', language: 'zh' } })],
+      [shardKeyFor(KEY, 'core'), JSON.stringify({ format: 1, version: 16, state: { theme: 'dark', language: 'en' } })],
       [shardKeyFor(KEY, 'repositories'), JSON.stringify({ format: 1, version: 16, state: { repositories: [{ id: 7 }] } })],
     ]);
 
@@ -565,7 +565,7 @@ describe('sharded persist storage', () => {
 
     // Self-healing: once a batch write overwrites core and succeeds via IDB, LS mirror is cleared and no derived keys remain;
     // only then is the marker cleared; subsequent reads return to IDB priority
-    const healedCore = JSON.stringify({ format: 1, version: 16, state: { theme: 'dark', language: 'zh' } });
+    const healedCore = JSON.stringify({ format: 1, version: 16, state: { theme: 'dark', language: 'en' } });
     await setStorageEntries(KEY, [[shardKeyFor(KEY, 'core'), healedCore]]);
     expect(window.localStorage.getItem(`${KEY}#fallback`)).toBeNull();
     expect(await readStrict(shardKeyFor(KEY, 'core'))).toBe(healedCore);

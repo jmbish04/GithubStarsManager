@@ -18,7 +18,7 @@ vi.mock('../../../services/webdavService', () => ({
 }));
 
 const storeState = {
-  language: 'zh',
+  language: 'en',
   webdavConfigs: [],
   addWebDAVConfig: vi.fn(),
   updateWebDAVConfig: vi.fn(),
@@ -44,7 +44,7 @@ describe('useWebDAVActions', () => {
     });
 
     expect(saved).toBe(false);
-    expect(mocks.toast).toHaveBeenCalledWith('WebDAV URL\u5fc5\u987b\u4ee5 http:// \u6216 https:// \u5f00\u5934', 'error');
+    expect(mocks.toast).toHaveBeenCalledWith('WebDAV URL must start with http:// or https://', 'error');
     expect(storeState.addWebDAVConfig).not.toHaveBeenCalled();
   });
 });

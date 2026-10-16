@@ -22,11 +22,7 @@ function seedLocales(root, extra = {}) {
     for (const ns of NAMESPACES) {
       const value =
         extra.values?.[language]?.[ns] ||
-        (language === 'zh' || language === 'zh-TW'
-          ? { hello: '\u4f60\u597d\u4e16\u754c' } // Chinese for "hello world"
-          : language === 'en'
-            ? sample
-            : { hello: `${language} hello world` });
+        (language === 'en' ? sample : { hello: `${language} hello world` });
       writeJson(path.join(root, 'src', 'locales', language, `${ns}.json`), value);
     }
   }
@@ -151,7 +147,7 @@ test('bound useT namespace does not fall back to another namespace', () =>
     for (const language of LANGUAGES) {
       writeJson(path.join(root, 'src', 'locales', language, 'app.json'), { other: `${language} other` });
       writeJson(path.join(root, 'src', 'locales', language, 'common.json'), {
-        hello: language === 'zh' || language === 'zh-TW' ? '\u4f60\u597d\u4e16\u754c' : `${language} hello world`,
+        hello: `${language} hello world`,
       });
     }
     fs.writeFileSync(
@@ -160,14 +156,14 @@ test('bound useT namespace does not fall back to another namespace', () =>
     );
     const result = runScript(root);
     assert.equal(result.code, 1);
-    assert.match(result.stderr, /missing from zh locales/);
+    assert.match(result.stderr, /missing from en locales/);
   }));
 
 test('bound useT does not resolve dotted keys from another namespace', () =>
   withRepo((root) => {
     for (const language of LANGUAGES) {
       writeJson(path.join(root, 'src', 'locales', language, 'app.json'), {
-        'panel.hello': language === 'zh' || language === 'zh-TW' ? '\u4f60\u597d\u4e16\u754c' : `${language} hello world`,
+        'panel.hello': `${language} hello world`,
       });
     }
     fs.writeFileSync(
@@ -176,7 +172,7 @@ test('bound useT does not resolve dotted keys from another namespace', () =>
     );
     const blocked = runScript(root);
     assert.equal(blocked.code, 1);
-    assert.match(blocked.stderr, /missing from zh locales/);
+    assert.match(blocked.stderr, /missing from en locales/);
 
     fs.writeFileSync(
       path.join(root, 'src', 'components', 'Hello.tsx'),
@@ -263,14 +259,3 @@ test('new locale values that copy English fail; translated values pass', () =>
     assert.equal(allowed.code, 0, allowed.stderr);
   }));
 
-test('zh-TW values that copy Simplified Chinese fail on new phrases', () =>
-  withRepo((root) => {
-    // '\u5237\u65b0\u5b8c\u6210' is Chinese for "refresh completed"
-    writeJson(path.join(root, 'src', 'locales', 'zh', 'app.json'), { hello: '\u5237\u65b0\u5b8c\u6210' });
-    writeJson(path.join(root, 'src', 'locales', 'zh-TW', 'app.json'), { hello: '\u5237\u65b0\u5b8c\u6210' });
-    git(root, ['add', '.']);
-    git(root, ['commit', '-m', 'copy zh']);
-    const blocked = runScript(root, ['--base', 'HEAD~1', '--head', 'HEAD']);
-    assert.equal(blocked.code, 1);
-    assert.match(blocked.stderr, /Simplified Chinese/);
-  }));

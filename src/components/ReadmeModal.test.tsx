@@ -31,7 +31,7 @@ vi.mock('../services/githubApi', () => ({
 }));
 
 let mockStoreState: { language: 'zh' | 'en'; githubToken: string | null; routeMode: RouteMode; setReadmeModalOpen: () => void } = {
-  language: 'zh',
+  language: 'en',
   githubToken: null,
   routeMode: 'auto',
   setReadmeModalOpen: vi.fn(),
@@ -49,7 +49,7 @@ const mockGitHubApi = {
 
 const setMockStore = (githubToken: string | null = null) => {
   mockStoreState = {
-    language: 'zh',
+    language: 'en',
     githubToken,
     routeMode: 'auto' as RouteMode,
     setReadmeModalOpen: vi.fn(),
@@ -107,7 +107,7 @@ describe('ReadmeModal multilingual README switching', () => {
     expect(backend.getRepositoryReadme).toHaveBeenCalledWith('owner', 'demo', expect.any(AbortSignal));
 
     const user = userEvent.setup();
-    const selector = await screen.findByRole('combobox', { name: '\u5207\u6362 README \u8bed\u8a00' }); // Chinese for "Switch README language"
+    const selector = await screen.findByRole('combobox', { name: 'Switch README language' });
     expect(selector).toBeInTheDocument();
     await user.click(selector);
     expect(await screen.findByRole('option', { name: 'Default README' })).toBeInTheDocument();
@@ -120,7 +120,7 @@ describe('ReadmeModal multilingual README switching', () => {
 
     await screen.findByText('Default README content');
     const user = userEvent.setup();
-    const selector = await screen.findByRole('combobox', { name: '\u5207\u6362 README \u8bed\u8a00' }); // Chinese for "Switch README language"
+    const selector = await screen.findByRole('combobox', { name: 'Switch README language' });
 
     await user.click(selector);
     await user.click(await screen.findByRole('option', { name: 'Chinese · README_zh.md' }));
@@ -142,7 +142,7 @@ describe('ReadmeModal multilingual README switching', () => {
     await waitFor(() => {
       expect(backend.listRepositoryReadmeCandidates).toHaveBeenCalled();
     });
-    expect(screen.queryByLabelText('\u5207\u6362 README \u8bed\u8a00')).not.toBeInTheDocument(); // Chinese for "Switch README language"
+    expect(screen.queryByLabelText('Switch README language')).not.toBeInTheDocument();
   });
 
   it('shows backend README errors instead of treating them as missing README', async () => {
@@ -154,7 +154,7 @@ describe('ReadmeModal multilingual README switching', () => {
 
       expect(await screen.findByText('GitHub token not configured')).toBeInTheDocument();
       expect(mockGitHubApi.getRepositoryReadme).not.toHaveBeenCalled();
-      expect(screen.queryByText('\u8be5\u4ed3\u5e93\u6ca1\u6709 README \u6587\u4ef6')).not.toBeInTheDocument(); // Chinese for "This repository has no README file"
+      expect(screen.queryByText('This repository has no README file')).not.toBeInTheDocument();
     } finally {
       consoleErrorSpy.mockRestore();
     }
@@ -183,7 +183,7 @@ describe('ReadmeModal multilingual README switching', () => {
 
     render(<ReadmeModal isOpen onClose={vi.fn()} repository={mockRepository} />);
 
-    expect(await screen.findByText('\u8be5\u4ed3\u5e93\u6ca1\u6709 README \u6587\u4ef6')).toBeInTheDocument(); // Chinese for "This repository has no README file"
+    expect(await screen.findByText('This repository has no README file')).toBeInTheDocument();
     expect(mockGitHubApi.getRepositoryReadme).not.toHaveBeenCalled();
   });
 
@@ -198,7 +198,7 @@ describe('ReadmeModal multilingual README switching', () => {
 
       await screen.findByText('Default README content');
       const user = userEvent.setup();
-      const selector = await screen.findByRole('combobox', { name: '\u5207\u6362 README \u8bed\u8a00' }); // Chinese for "Switch README language"
+      const selector = await screen.findByRole('combobox', { name: 'Switch README language' });
       await user.click(selector);
       await user.click(await screen.findByRole('option', { name: 'Chinese · README_zh.md' }));
 
@@ -223,7 +223,7 @@ describe('ReadmeModal multilingual README switching', () => {
 
       expect(await screen.findByText('Default README content')).toBeInTheDocument();
       const user = userEvent.setup();
-      const selector = await screen.findByRole('combobox', { name: '\u5207\u6362 README \u8bed\u8a00' }); // Chinese for "Switch README language"
+      const selector = await screen.findByRole('combobox', { name: 'Switch README language' });
       expect(selector).toBeInTheDocument();
       await user.click(selector);
       expect(await screen.findByRole('option', { name: 'Chinese · README_zh.md' })).toBeInTheDocument();

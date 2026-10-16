@@ -12,7 +12,7 @@ const { getPage, requestPageCapability, getSearchEndpoint, searchWeb, confirm, g
 }));
 vi.mock('../plugins/pluginClient', () => ({ pluginClient: { getPage, requestPageCapability, getSearchEndpoint, searchWeb } }));
 vi.mock('../hooks/useDialog', () => ({ useDialog: () => ({ confirm }) }));
-const storeState: Record<string, unknown> = { language: 'zh', getState };
+const storeState: Record<string, unknown> = { language: 'en', getState };
 
 vi.mock('../store/useAppStore', () => ({
   useAppStore: Object.assign(
@@ -26,7 +26,7 @@ import { makeT } from '../i18n/useT';
 import { PluginPageViewer } from './PluginPageViewer';
 import { validatePluginPageMessage } from '../plugins/pluginPageMessages';
 
-const t = makeT('zh', 'app');
+const t = makeT('en', 'app');
 
 describe('PluginPageViewer', () => {
   afterEach(() => {
@@ -41,7 +41,7 @@ describe('PluginPageViewer', () => {
     requestPageCapability.mockResolvedValue({ success: true, value: null });
     getState.mockReturnValue({
       aiConfigs: [{ id: 'provider', name: 'Example AI', model: 'sample-model', baseUrl: 'https://ai.example/v1', apiKey: 'test-secret' }],
-      activeAIConfig: 'provider', language: 'zh',
+      activeAIConfig: 'provider', language: 'en',
     });
     confirm.mockResolvedValue(true);
     generateChatText.mockResolvedValue('Generated answer');
@@ -59,7 +59,7 @@ describe('PluginPageViewer', () => {
         origin: 'plugin-page://com.example.page', source: frame.contentWindow,
       }));
     });
-    expect(confirm).toHaveBeenCalledWith('\u5141\u8bb8\u63d2\u4ef6\u8c03\u7528 AI\uff1f', expect.stringContaining('Example repository'), expect.any(Object)); // Chinese for "Allow plugin to call AI?"
+    expect(confirm).toHaveBeenCalledWith('Allow plugin AI request?', expect.stringContaining('Example repository'), expect.any(Object));
     expect(requestPageCapability).toHaveBeenCalledTimes(2);
     expect(generateChatText).toHaveBeenCalledWith({ system: 'System instructions', user: 'Example repository', maxTokens: undefined, signal: expect.any(AbortSignal) });
     const response = postMessage.mock.calls.find(([message]) => (message as { requestId?: string }).requestId === 'ai-1')?.[0];
@@ -73,7 +73,7 @@ describe('PluginPageViewer', () => {
     requestPageCapability.mockResolvedValue({ success: true, value: null });
     getState.mockReturnValue({
       aiConfigs: [{ id: 'provider', name: 'Example AI', model: 'sample-model', baseUrl: 'https://ai.example/v1' }],
-      activeAIConfig: 'provider', language: 'zh',
+      activeAIConfig: 'provider', language: 'en',
     });
     confirm.mockResolvedValue(false);
     render(<PluginPageViewer pluginId="com.example.page" pluginName="Example" pageId="dashboard"
@@ -116,7 +116,7 @@ describe('PluginPageViewer', () => {
         origin: 'plugin-page://com.example.page', source: frame.contentWindow,
       }));
     });
-    expect(confirm).toHaveBeenCalledWith('\u5141\u8bb8\u63d2\u4ef6\u8054\u7f51\u641c\u7d22\uff1f', expect.stringContaining('https://search.example.com'), expect.any(Object)); // Chinese for "Allow plugin to search the web?"
+    expect(confirm).toHaveBeenCalledWith('Allow plugin web search?', expect.stringContaining('https://search.example.com'), expect.any(Object));
     expect(searchWeb).toHaveBeenCalledWith({ pluginId: 'com.example.page', pageId: 'dashboard', args: { query: 'Example', limit: 2 } });
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'search-1', success: true }), 'plugin-page://com.example.page');
   });
@@ -229,17 +229,17 @@ describe('PluginPageViewer init context (V1.4 modal actions)', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'session-token' });
     getPage.mockResolvedValue({ success: true, url: 'plugin-page://com.example.page/dashboard/index.html' });
     requestPageCapability.mockResolvedValue({ success: true, value: null });
-    const t = makeT('zh', 'app');
+    const t = makeT('en', 'app');
     render(<PluginPageViewer pluginId="com.example.page" pluginName="Example" pageId="dashboard"
       pageTitle="Dashboard" onClose={() => {}} t={t}
       variant="modal"
-      initContext={{ repository: { id: 7, full_name: 'a/b' }, readme: null, language: 'zh' }} />);
+      initContext={{ repository: { id: 7, full_name: 'a/b' }, readme: null, language: 'en' }} />);
     const frame = await screen.findByTitle('Example: Dashboard') as HTMLIFrameElement;
     const postMessage = vi.spyOn(frame.contentWindow!, 'postMessage');
     fireEvent.load(frame);
     expect(postMessage).toHaveBeenCalledWith({
       type: 'plugin-page:init', pluginId: 'com.example.page', pageId: 'dashboard', token: 'session-token',
-      context: { repository: { id: 7, full_name: 'a/b' }, readme: null, language: 'zh', accountTag: 'anon' },
+      context: { repository: { id: 7, full_name: 'a/b' }, readme: null, language: 'en', accountTag: 'anon' },
     }, 'plugin-page://com.example.page');
     // Standard bridge methods still go through IPC capability bridge and are unaffected by context.
     await act(async () => {
@@ -259,28 +259,28 @@ describe('PluginPageViewer init context (V1.4 modal actions)', () => {
   it('re-sends init with the same token when the context arrives later', async () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'session-token' });
     getPage.mockResolvedValue({ success: true, url: 'plugin-page://com.example.page/dashboard/index.html' });
-    const t = makeT('zh', 'app');
+    const t = makeT('en', 'app');
     const { rerender } = render(<PluginPageViewer pluginId="com.example.page" pluginName="Example"
       pageId="dashboard" pageTitle="Dashboard" onClose={() => {}} t={t} variant="modal"
-      initContext={{ repository: { id: 7, full_name: 'a/b' }, readme: null, language: 'zh' }} />);
+      initContext={{ repository: { id: 7, full_name: 'a/b' }, readme: null, language: 'en' }} />);
     const frame = await screen.findByTitle('Example: Dashboard') as HTMLIFrameElement;
     const postMessage = vi.spyOn(frame.contentWindow!, 'postMessage');
     fireEvent.load(frame);
 
     rerender(<PluginPageViewer pluginId="com.example.page" pluginName="Example" pageId="dashboard"
       pageTitle="Dashboard" onClose={() => {}} t={t} variant="modal"
-      initContext={{ repository: { id: 7, full_name: 'a/b' }, readme: '# readme', language: 'zh' }} />);
+      initContext={{ repository: { id: 7, full_name: 'a/b' }, readme: '# readme', language: 'en' }} />);
 
     await waitFor(() => expect(postMessage).toHaveBeenCalledWith({
       type: 'plugin-page:init', pluginId: 'com.example.page', pageId: 'dashboard', token: 'session-token',
-      context: { repository: { id: 7, full_name: 'a/b' }, readme: '# readme', language: 'zh', accountTag: 'anon' },
+      context: { repository: { id: 7, full_name: 'a/b' }, readme: '# readme', language: 'en', accountTag: 'anon' },
     }, 'plugin-page://com.example.page'));
   });
 
   it('renders without a header row in the modal variant', async () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'session-token' });
     getPage.mockResolvedValue({ success: true, url: 'plugin-page://com.example.page/dashboard/index.html' });
-    const t = makeT('zh', 'app');
+    const t = makeT('en', 'app');
     render(<PluginPageViewer pluginId="com.example.page" pluginName="Example" pageId="dashboard"
       pageTitle="Dashboard" onClose={() => {}} t={t} variant="modal" />);
     await screen.findByTitle('Example: Dashboard');
@@ -294,7 +294,7 @@ describe('PluginPageViewer init context (V1.4 modal actions)', () => {
     requestPageCapability.mockResolvedValue({ success: true, value: null });
     // Renderer-side hook reads token via mocked useAppStore selector and must be attached to module-level storeState.
     storeState.githubToken = 'gh-token-sample';
-    getState.mockReturnValue({ language: 'zh', githubToken: 'gh-token-sample' });
+    getState.mockReturnValue({ language: 'en', githubToken: 'gh-token-sample' });
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ total: 42 }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     render(<PluginPageViewer pluginId="com.example.page" pluginName="Example" pageId="dashboard"
@@ -330,7 +330,7 @@ describe('PluginPageViewer init context (V1.4 modal actions)', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'session-token' });
     getPage.mockResolvedValue({ success: true, url: 'plugin-page://com.example.page/dashboard/index.html' });
     requestPageCapability.mockResolvedValue({ success: true, value: null });
-    getState.mockReturnValue({ language: 'zh', githubToken: null });
+    getState.mockReturnValue({ language: 'en', githubToken: null });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 })));
     render(<PluginPageViewer pluginId="com.example.page" pluginName="Example" pageId="dashboard"
       pageTitle="Dashboard" onClose={() => {}} t={t} />);
@@ -381,7 +381,7 @@ describe('PluginPageViewer init context (V1.4 modal actions)', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'session-token' });
     getPage.mockResolvedValue({ success: true, url: 'plugin-page://com.example.page/dashboard/index.html' });
     requestPageCapability.mockResolvedValue({ success: true, value: null });
-    getState.mockReturnValue({ language: 'zh', githubToken: null });
+    getState.mockReturnValue({ language: 'en', githubToken: null });
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     render(<PluginPageViewer pluginId="com.example.page" pluginName="Example" pageId="dashboard"

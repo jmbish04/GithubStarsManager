@@ -459,7 +459,7 @@ describe('MarkdownRenderer', () => {
         .spyOn(HTMLAnchorElement.prototype, 'click')
         .mockImplementation(() => undefined);
       try {
-        const downloadButton = overlay?.querySelector('button[title="\u4e0b\u8f7d\u56fe\u7247"]') as HTMLButtonElement; // Chinese for "Download image"
+        const downloadButton = overlay?.querySelector('button[title="Download image"]') as HTMLButtonElement;
         expect(downloadButton).toBeInTheDocument();
 
         fireEvent.click(downloadButton);
