@@ -6,6 +6,7 @@ import type { Category, Repository } from '../../../types';
 import { useAppStore } from '../../../store/useAppStore';
 import { useDialog } from '../../../hooks/useDialog';
 import { EmbeddingClient, VectorSearchService, findSimilarRepositories } from '../../../services/vectorSearchService';
+import { usesWorkerBackend, WorkerBackendService } from '../../../services/workerBackendService';
 import { analyzeRepository, createFailedAnalysisResult } from '../../../services/aiAnalysisHelper';
 import { forceSyncToBackend } from '../../../services/autoSync';
 import { createGitHubApiService } from '../../../services/githubApiFactory';
@@ -94,6 +95,8 @@ export const useRepositoryCardActions = ({
   }, [repoId, setAnalyzingRepository]);
 
   const vectorSearchAvailable = useMemo(() => {
+    // The Worker backend embeds by itself: it needs only its URL and passcode.
+    if (usesWorkerBackend(vectorSearchConfig)) return !!vectorSearchConfig.authToken;
     const activeConfig = embeddingConfigs.find((config) => config.id === activeEmbeddingConfig);
     const configComplete = !!activeConfig
       && !!activeConfig.baseUrl
@@ -276,11 +279,23 @@ export const useRepositoryCardActions = ({
       return;
     }
 
+    const workerBackend = usesWorkerBackend(vectorSearchConfig);
     const activeConfig = embeddingConfigs.find((config) => config.id === activeEmbeddingConfig);
-    if (!activeConfig) return;
+    if (!workerBackend && !activeConfig) return;
 
     setIsFindingSimilar(true);
     try {
+      if (workerBackend) {
+        const similar = await new WorkerBackendService(vectorSearchConfig).similar(repository, repositories, {
+          limit: vectorSearchConfig.searchTopK ?? 30,
+        });
+        enterSimilarView(similar, repository);
+        if (similar.length === 0) {
+          toast(t('useRepositoryCardActions.no-similar-repositories-found'), 'info');
+        }
+        return;
+      }
+      if (!activeConfig) return;
       const embeddingClient = new EmbeddingClient({
         ...activeConfig,
         apiType: activeConfig.apiType,

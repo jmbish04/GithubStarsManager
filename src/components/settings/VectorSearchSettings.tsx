@@ -74,6 +74,7 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
   const [showApiKey, setShowApiKey] = useState(false);
   const [formWorkerUrl, setFormWorkerUrl] = useState(vectorSearchConfig.workerUrl || '');
   const [formAuthToken, setFormAuthToken] = useState(vectorSearchConfig.authToken || '');
+  const [formBackend, setFormBackend] = useState<'vectorize' | 'worker'>(vectorSearchConfig.backend ?? 'vectorize');
   const [showAuthToken, setShowAuthToken] = useState(false);
   const [formIndexMode, setFormIndexMode] = useState<'description' | 'readme'>(vectorSearchConfig.indexMode || 'readme');
   const [formReadmeMaxChars, setFormReadmeMaxChars] = useState(vectorSearchConfig.readmeMaxChars || 6000);
@@ -115,21 +116,24 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
   };
   const handleSaveWorkerConfig = () => {
     setVectorSearchConfig({
-      workerUrl: formWorkerUrl, authToken: formAuthToken, embeddingConfigId: activeEmbeddingConfig || '',
+      workerUrl: formWorkerUrl, authToken: formAuthToken, backend: formBackend, embeddingConfigId: activeEmbeddingConfig || '',
       indexMode: formIndexMode, readmeMaxChars: formReadmeMaxChars, searchThreshold: formSearchThreshold,
       searchTopK: formSearchTopK, enableHyDE: formEnableHyDE, enableReranking: formEnableReranking,
     });
     setWorkerSaved(true);
     setTimeout(() => setWorkerSaved(false), 2000);
   };
-  const draft = () => ({ apiType: formApiType, baseUrl: formBaseUrl, apiKey: formApiKey, model: formModel, dimensions: formDimensions, workerUrl: formWorkerUrl, authToken: formAuthToken, indexMode: formIndexMode, readmeMaxChars: formReadmeMaxChars });
+  const draft = () => ({ apiType: formApiType, baseUrl: formBaseUrl, apiKey: formApiKey, model: formModel, dimensions: formDimensions, workerUrl: formWorkerUrl, authToken: formAuthToken, backend: formBackend, indexMode: formIndexMode, readmeMaxChars: formReadmeMaxChars });
   const handleTestEmbedding = () => testEmbedding(draft());
-  const handleTestWorker = () => testWorker({ workerUrl: formWorkerUrl, authToken: formAuthToken });
+  const handleTestWorker = () => testWorker({ workerUrl: formWorkerUrl, authToken: formAuthToken, backend: formBackend });
   const handleRebuildIndex = () => rebuildIndex(draft());
   const handleIncrementalIndex = () => incrementalIndex(draft());
   const handleAbortIndexing = () => abortIndexing();
   const { isIndexing, phase, phaseDone, phaseTotal, result: indexResult } = vectorIndexingState;
-  const isConfigComplete = !!(activeConfig && formBaseUrl && formModel && (formApiType === 'ollama' || formApiKey) && formWorkerUrl && formAuthToken);
+  // The Worker backend embeds by itself, so it needs only its URL and passcode.
+  const isConfigComplete = formBackend === 'worker'
+    ? !!(formWorkerUrl && formAuthToken)
+    : !!(activeConfig && formBaseUrl && formModel && (formApiType === 'ollama' || formApiKey) && formWorkerUrl && formAuthToken);
 
   return (
     <div className="space-y-6">
@@ -428,6 +432,18 @@ export const VectorSearchSettings: React.FC<VectorSearchSettingsProps> = ({ t })
           <span className="text-xs bg-accent dark:bg-muted px-2 py-0.5 rounded">②</span>
           {t('vectorSearchSettings.cloudflare-vectorize-connection')}
         </h3>
+
+        <div className="flex items-start justify-between gap-4 rounded-md border border-border p-3">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">{t('vectorSearchSettings.use-worker-backend')}</p>
+            <p className="text-xs text-muted-foreground">{t('vectorSearchSettings.use-worker-backend-hint')}</p>
+          </div>
+          <Switch
+            checked={formBackend === 'worker'}
+            onCheckedChange={(on) => setFormBackend(on ? 'worker' : 'vectorize')}
+            aria-label={t('vectorSearchSettings.use-worker-backend')}
+          />
+        </div>
 
         {/* Worker URL */}
         <div>

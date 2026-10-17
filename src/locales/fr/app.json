@@ -613,7 +613,11 @@
     "auto-translate-repo-descriptions": "Traduire automatiquement les descriptions de dépôts",
     "when-enabled-card-repository-description": "Une fois activé, les descriptions d’origine des dépôts sur les cartes des pages dépôts et découverte sont automatiquement traduites dans la langue de l’interface. Les descriptions déjà dans cette langue restent inchangées, et le texte d’origine s’affiche en cas d’échec de la traduction.",
     "free-google-endpoint-no-configuration-needed-may": "L'interface gratuite de Google ne nécessite aucune configuration ; certaines zones peuvent ne pas être directement connectées.",
-    "free-microsoft-edge-endpoint-no-configuration-ne": "Interface gratuite Microsoft Edge, aucune configuration requise, la vitesse de connexion directe est rapide."
+    "free-microsoft-edge-endpoint-no-configuration-ne": "Interface gratuite Microsoft Edge, aucune configuration requise, la vitesse de connexion directe est rapide.",
+    "worker-preset-name": "Backend GitHub Stars (core-guardian)",
+    "add-worker-preset": "Ajouter le backend GitHub Stars",
+    "route-by-feature-through-core-guardian": "Router par fonction via core-guardian",
+    "route-by-feature-hint": "Envoie le cas d'usage de chaque requête (chat, recherche, analyse) pour que core-guardian choisisse un modèle gratuit adapté. À utiliser avec le backend GitHub Stars ; la clé d'API est son code d'accès."
   },
   "backendPanel": {
     "auto": "intelligent",
@@ -1302,7 +1306,9 @@
     "connection-failed-detail": "Échec de la connexion : {{error}}",
     "connection-successful-vectors": "Connexion réussie – vecteur : {{vectorCount}}, dimensions : {{dimensions}}",
     "dimensions": "Dimensions",
-    "text": ")"
+    "text": ")",
+    "use-worker-backend": "Utiliser le backend GitHub Stars (Postgres pgvector)",
+    "use-worker-backend-hint": "Le backend calcule les embeddings et recherche dans vos étoiles lui-même, via core-guardian. Les réglages d'embedding ci-dessus ne sont pas utilisés. Saisissez ci-dessous l'URL du backend et son code d'accès."
   },
   "webDAVPanel": {
     "webdav-configuration": "Configuration WebDAV",

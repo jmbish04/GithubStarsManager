@@ -5,6 +5,7 @@ import type { Category, Repository } from '../../../types';
 import { useAppStore, getAllCategories } from '../../../store/useAppStore';
 import { AIService, isAbortError } from '../../../services/aiService';
 import { EmbeddingClient, VectorSearchService } from '../../../services/vectorSearchService';
+import { usesWorkerBackend, WorkerBackendService } from '../../../services/workerBackendService';
 import { createGitHubApiService, createGitHubListsApiService } from '../../../services/githubApiFactory';
 import { forceSyncToBackend } from '../../../services/autoSync';
 import { useDialog } from '../../../hooks/useDialog';
@@ -364,8 +365,18 @@ export const useSearchActions = (): SearchActions => {
       const embConfigs = useAppStore.getState().embeddingConfigs;
       const activeEmbConfig = embConfigs.find(c => c.id === vsConfig?.embeddingConfigId);
 
-      if (vsConfig?.enabled && vsConfig?.workerUrl && activeEmbConfig) {
+      const workerBackend = usesWorkerBackend(vsConfig);
+      if (vsConfig?.enabled && vsConfig?.workerUrl && (workerBackend || activeEmbConfig)) {
         try {
+          let vectorResults: VectorQueryResult[] = [];
+          if (workerBackend) {
+            // The Worker embeds the query and searches pgvector + BM25 itself (through core-guardian).
+            setSearchPhase(t('useSearchActions.searching-vector-index'));
+            vectorResults = await new WorkerBackendService(vsConfig).search(query, {
+              limit: vsConfig.searchTopK ?? 30,
+              signal: controller.signal,
+            });
+          } else if (activeEmbConfig) {
           const embeddingClient = new EmbeddingClient(activeEmbConfig);
           const vectorService = new VectorSearchService(vsConfig);
 
@@ -404,10 +415,12 @@ export const useSearchActions = (): SearchActions => {
           if (queryVectors && queryVectors.length > 0) {
             // 2. Frontend sends query vector to Worker
             setSearchPhase(t('useSearchActions.searching-vector-index'));
-            const vectorResults = await vectorService.query(queryVectors[0], {
+            vectorResults = await vectorService.query(queryVectors[0], {
               topK: vsConfig.searchTopK ?? 30,
               threshold: vsConfig.searchThreshold ?? 0.35,
             });
+          }
+          }
 
             if (vectorResults.length > 0) {
               // 3. Lightweight keyword boosting: fine-tune scores for exact matching fields
@@ -462,7 +475,6 @@ export const useSearchActions = (): SearchActions => {
                 return;
               }
             }
-          }
           // Vector search returned no results -> continue to keyword search
           console.log('⚠️ Vector search returned no results, falling back to keyword search');
         } catch (vectorError) {

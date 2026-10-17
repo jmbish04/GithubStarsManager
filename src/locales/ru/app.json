@@ -613,7 +613,11 @@
     "auto-translate-repo-descriptions": "Автоматически переводить описания репозиториев",
     "when-enabled-card-repository-description": "Если включено, исходные описания репозиториев на карточках страниц репозиториев и обзора автоматически переводятся на язык интерфейса. Описания, уже написанные на этом языке, остаются без изменений, а при сбое перевода отображается исходный текст.",
     "free-google-endpoint-no-configuration-needed-may": "Бесплатный интерфейс Google не требует настройки; некоторые области могут быть не связаны напрямую.",
-    "free-microsoft-edge-endpoint-no-configuration-ne": "Бесплатный интерфейс Microsoft Edge, настройка не требуется, скорость прямого соединения высокая."
+    "free-microsoft-edge-endpoint-no-configuration-ne": "Бесплатный интерфейс Microsoft Edge, настройка не требуется, скорость прямого соединения высокая.",
+    "worker-preset-name": "Бэкенд GitHub Stars (core-guardian)",
+    "add-worker-preset": "Добавить бэкенд GitHub Stars",
+    "route-by-feature-through-core-guardian": "Маршрутизация по функциям через core-guardian",
+    "route-by-feature-hint": "Передаёт сценарий каждого запроса (чат, поиск, анализ), чтобы core-guardian выбрал подходящую бесплатную модель. Используйте с бэкендом GitHub Stars; API-ключ — это его код доступа."
   },
   "backendPanel": {
     "auto": "разумный",
@@ -1302,7 +1306,9 @@
     "for-detailed-instructions-see": "Пожалуйста, обратитесь к подробному руководству по развертыванию.",
     "connection-successful-dimensions": "Соединение успешно выполнено – Размер: {{dimensions}}",
     "connection-failed-detail": "Не удалось подключиться: {{error}}",
-    "connection-successful-vectors": "Соединение успешно — вектор: {{vectorCount}}, размеры: {{dimensions}}"
+    "connection-successful-vectors": "Соединение успешно — вектор: {{vectorCount}}, размеры: {{dimensions}}",
+    "use-worker-backend": "Использовать бэкенд GitHub Stars (Postgres pgvector)",
+    "use-worker-backend-hint": "Бэкенд сам создаёт эмбеддинги и ищет по вашим звёздам через core-guardian. Настройки эмбеддингов выше не используются. Укажите ниже URL бэкенда и его код доступа."
   },
   "webDAVPanel": {
     "webdav-configuration": "Конфигурация WebDAV",

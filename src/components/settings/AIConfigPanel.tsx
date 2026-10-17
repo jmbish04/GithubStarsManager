@@ -1,4 +1,5 @@
 
+import { WORKER_BACKEND_URL } from '../../constants/project';
 import { TranslateFn } from '../../i18n/useT';
 import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
@@ -33,6 +34,7 @@ type AIFormState = {
   reasoningEffort: '' | AIReasoningEffort;
   mimoPlan: MiMoPlan;
   supportsToolCalls: boolean;
+  guardianRouting: boolean;
 };
 
 /** aiService is the single source of truth for capability determination, preventing drift between UI checkboxes and runtime decisions. */
@@ -102,6 +104,7 @@ export const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ t }) => {
     deleteAIConfig,
     setActiveAIConfig,
     setCurrentView,
+    vectorSearchConfig,
   } = useAppStore(useShallow((state) => ({
     aiConfigs: state.aiConfigs,
     activeAIConfig: state.activeAIConfig,
@@ -117,6 +120,7 @@ export const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ t }) => {
     deleteAIConfig: state.deleteAIConfig,
     setActiveAIConfig: state.setActiveAIConfig,
     setCurrentView: state.setCurrentView,
+    vectorSearchConfig: state.vectorSearchConfig,
   })));
 
   const { toast, confirm } = useDialog();
@@ -157,6 +161,7 @@ export const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ t }) => {
     reasoningEffort: '',
     mimoPlan: 'api',
     supportsToolCalls: false,
+    guardianRouting: false,
   });
 
   // Auto-fill baseUrl when API type changes
@@ -202,6 +207,7 @@ export const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ t }) => {
       reasoningEffort: '',
       mimoPlan: 'api',
       supportsToolCalls: false,
+      guardianRouting: false,
     });
     setShowForm(false);
     setEditingId(null);
@@ -232,6 +238,7 @@ export const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ t }) => {
           reasoningEffort: form.reasoningEffort || undefined,
           mimoPlan: form.apiType === 'mimo' ? form.mimoPlan : undefined,
           supportsToolCalls: form.supportsToolCalls && isToolCallCapable(form.apiType) ? true : undefined,
+          guardianRouting: form.guardianRouting || undefined,
           isActive: existingConfig.isActive,
         };
         updateAIConfig(editingId, updates);
@@ -251,6 +258,7 @@ export const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ t }) => {
         reasoningEffort: form.reasoningEffort || undefined,
         mimoPlan: form.apiType === 'mimo' ? form.mimoPlan : undefined,
         supportsToolCalls: form.supportsToolCalls && isToolCallCapable(form.apiType) ? true : undefined,
+        guardianRouting: form.guardianRouting || undefined,
       };
       addAIConfig(config);
       if (!activeAIConfig) setActiveAIConfig(config.id);
@@ -280,6 +288,7 @@ export const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ t }) => {
       reasoningEffort: config.reasoningEffort || '',
       mimoPlan: config.mimoPlan || 'api',
       supportsToolCalls: config.supportsToolCalls || false,
+      guardianRouting: config.guardianRouting || false,
     });
     setEditingId(config.id);
     setShowForm(true);
@@ -287,6 +296,28 @@ export const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ t }) => {
   };
 
   const handleTest = (config: AIConfig) => testConfig(config);
+
+  /** Prefill the form for the Worker's OpenAI door: core-guardian picks a free model per feature. */
+  const handleAddWorkerPreset = () => {
+    const workerUrl = (vectorSearchConfig.backend === 'worker' && vectorSearchConfig.workerUrl) || WORKER_BACKEND_URL;
+    prevApiTypeRef.current = 'openai-compatible';
+    setEditingId(null);
+    setForm({
+      name: t('aIConfigPanel.worker-preset-name'),
+      apiType: 'openai-compatible',
+      baseUrl: `${workerUrl.replace(/\/+$/, '')}/v1/chat/completions`,
+      apiKey: vectorSearchConfig.backend === 'worker' ? vectorSearchConfig.authToken : '',
+      model: 'auto',
+      customPrompt: '',
+      useCustomPrompt: false,
+      concurrency: 2,
+      reasoningEffort: '',
+      mimoPlan: 'api',
+      supportsToolCalls: false,
+      guardianRouting: true,
+    });
+    setShowForm(true);
+  };
 
   const handleTestForm = async () => {
     if (!form.baseUrl || !form.apiKey || !form.model) {
@@ -445,13 +476,19 @@ Repository information:
             {t('aIConfigPanel.ai-service-configuration')}
           </h3>
         </div>
-        <Button
-          onClick={() => setShowForm(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground dark:bg-primary dark:text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{t('aIConfigPanel.add-ai-config')}</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={handleAddWorkerPreset} className="flex items-center space-x-2">
+            <Plus className="w-4 h-4" />
+            <span>{t('aIConfigPanel.add-worker-preset')}</span>
+          </Button>
+          <Button
+            onClick={() => setShowForm(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground dark:bg-primary dark:text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t('aIConfigPanel.add-ai-config')}</span>
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -584,6 +621,20 @@ Repository information:
                 {t('aIConfigPanel.only-applies-to-openai-compatible-apis-leave-emp')}
               </p>
             </div>
+
+            {form.apiType === 'openai-compatible' && (
+              <div>
+                <label className="flex items-start gap-2 text-sm text-foreground">
+                  <Checkbox checked={form.guardianRouting} onCheckedChange={(checked) => setForm(prev => ({ ...prev, guardianRouting: checked === true }))} />
+                  <span>
+                    {t('aIConfigPanel.route-by-feature-through-core-guardian')}
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {t('aIConfigPanel.route-by-feature-hint')}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
 
             {isToolCallCapable(form.apiType) && (
               <div>
