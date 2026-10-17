@@ -21,6 +21,8 @@
     // Every inference and embedding call: routed, metered and budgeted.
     // No `ai` binding on purpose (see AGENTS-cloudflare-workers.md, section 2).
     { "binding": "GUARDIAN", "service": "core-guardian", "entrypoint": "GuardianRpc" },
+    // Default entrypoint: core-guardian's HTTP /v1 routes, used by the OpenAI-compatible door.
+    { "binding": "GUARDIAN_HTTP", "service": "core-guardian" },
     // Projects, plans, epics and tasks. Default entrypoint; called with WORKER_API_KEY.
     { "binding": "MAESTRO", "service": "colby-maestro" }
   ],

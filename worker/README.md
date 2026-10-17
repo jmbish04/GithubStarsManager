@@ -53,6 +53,23 @@ curl -s https://github-stars-manager.hacolby.workers.dev/health
 | `POST /api/research/{id}/maestro-export` | Colby Maestro plan + epic + one task per finding |
 | `POST /api/maestro/auto-research` | The daily Maestro job now (`dryRun` to preview) |
 
+## OpenAI-compatible door (`/v1`)
+
+The desktop app (or any OpenAI client) can use this Worker as its AI endpoint:
+
+| Setting | Value |
+|---|---|
+| Base URL | `https://github-stars-manager.hacolby.workers.dev/v1` |
+| API key | the passcode (`WORKER_API_KEY`) |
+| Model | `auto` |
+
+- `POST /v1/chat/completions`, `POST /v1/embeddings`, `GET /v1/models` forward to core-guardian over the `GUARDIAN_HTTP` service binding. The guardian token never leaves the Worker.
+- Send `x-guardian-use-case` (`general`, `chat`, `rag`, `agentic`, `coding`, `web_search`, `deep_research`) to route by use case. Unknown or missing means `general`.
+- Attempts, in order: free models on the use case, free models on `general`, then paid with a $0.01 cap. The answer's `x-guardian-route` header says which one answered (`free`, `free-general`, `paid-fallback`), and `x-guardian-provider` / `x-guardian-model` / `x-guardian-cost-usd` say where it went.
+- Embeddings default to `workers-ai/@cf/baai/bge-small-en-v1.5` (384 dimensions), the same model the Worker stores in pgvector.
+- CORS allows any origin (the Electron app loads from `file://`). Auth is a bearer header, never a cookie.
+- `/health` checks this link as `core-guardian-openai` by listing models (no inference).
+
 ## Daily cron (13:00 UTC)
 
 1. Star sync (200 READMEs, 500 embeddings at most).
