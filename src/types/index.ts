@@ -288,6 +288,9 @@ export interface VectorSearchConfig {
   enableReranking?: boolean;  // Whether to enable LLM semantic reranking, default true
   // Embedding text format version, incremented when buildEmbeddingText format changes
   embeddingFormatVersion?: number;
+  // 'vectorize' (default): the legacy Cloudflare Vectorize proxy; the app embeds with an embedding config.
+  // 'worker': the GitHub Stars Manager Worker; it embeds and searches in Postgres (pgvector) through core-guardian.
+  backend?: 'vectorize' | 'worker';
 }
 
 export interface VectorSearchStatus {
@@ -349,6 +352,7 @@ export interface AIConfig {
   reasoningEffort?: AIReasoningEffort; // Optional reasoning effort for OpenAI GPT-5/Responses
   mimoPlan?: MiMoPlan; // MiMo channel: api (pay-as-you-go) or token-plan (subscription)
   supportsToolCalls?: boolean; // Endpoint/model supports OpenAI-style function calling (used for repository Q&A tool loop, default false)
+  guardianRouting?: boolean; // Endpoint is the Worker's OpenAI door: send x-guardian-use-case so core-guardian routes by feature (default false)
   apiKeyStatus?: SecretStatus;
 }
 

@@ -1300,7 +1300,7 @@ export const runEvidenceDrivenRepositoryChatTurn = async (input: RepositoryChatT
 
   const [owner, repo] = splitOwnerAndRepo(input.repository.full_name);
   const github = createGitHubApiService(input.githubToken);
-  const ai = new AIService(input.aiConfig, input.language);
+  const ai = new AIService(input.aiConfig, input.language).withUseCase('rag');
   const { budget, answerMaxTokens } = resolveTurnLimits(input);
   const ctx = createEvidenceToolbox(input, budget, ai);
   const evidences: ToolEvidence[] = [];

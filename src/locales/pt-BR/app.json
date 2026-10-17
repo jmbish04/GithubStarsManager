@@ -613,7 +613,11 @@
     "auto-translate-repo-descriptions": "Traduzir automaticamente as descrições de repositórios",
     "when-enabled-card-repository-description": "Quando ativado, as descrições originais dos repositórios nos cartões das páginas de repositórios e descoberta são traduzidas automaticamente para o idioma da interface. Descrições que já estão nesse idioma permanecem inalteradas, e o texto original é exibido se a tradução falhar.",
     "free-google-endpoint-no-configuration-needed-may": "A interface gratuita do Google não requer configuração; algumas áreas podem não estar diretamente conectadas.",
-    "free-microsoft-edge-endpoint-no-configuration-ne": "Interface gratuita do Microsoft Edge, sem necessidade de configuração, a velocidade de conexão direta é rápida."
+    "free-microsoft-edge-endpoint-no-configuration-ne": "Interface gratuita do Microsoft Edge, sem necessidade de configuração, a velocidade de conexão direta é rápida.",
+    "worker-preset-name": "Backend do GitHub Stars (core-guardian)",
+    "add-worker-preset": "Adicionar backend do GitHub Stars",
+    "route-by-feature-through-core-guardian": "Rotear por recurso via core-guardian",
+    "route-by-feature-hint": "Envia o caso de uso de cada solicitação (chat, busca, análise) para que o core-guardian escolha um modelo gratuito adequado. Use com o backend do GitHub Stars; a chave de API é a senha de acesso dele."
   },
   "backendPanel": {
     "auto": "inteligente",
@@ -1302,7 +1306,9 @@
     "connection-successful-dimensions": "Conexão bem-sucedida - Dimensão: {{dimensions}}",
     "connection-failed-detail": "Falha na conexão: {{error}}",
     "connection-successful-vectors": "Conexão bem-sucedida — vetor: {{vectorCount}}, dimensões: {{dimensions}}",
-    "text": ")"
+    "text": ")",
+    "use-worker-backend": "Usar o backend do GitHub Stars (Postgres pgvector)",
+    "use-worker-backend-hint": "O backend gera os embeddings e pesquisa suas estrelas sozinho, via core-guardian. As configurações de embedding acima não são usadas. Informe abaixo a URL do backend e sua senha de acesso."
   },
   "webDAVPanel": {
     "webdav-configuration": "Configuração WebDAV",

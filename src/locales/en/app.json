@@ -613,7 +613,11 @@
     "auto-translate-repo-descriptions": "Auto-translate repository descriptions",
     "when-enabled-card-repository-description": "When enabled, repository descriptions on the repositories and discovery cards are automatically translated into the interface language. Descriptions already in that language stay unchanged, and the original text is shown if translation fails.",
     "free-google-endpoint-no-configuration-needed-may": "Free Google endpoint, no configuration needed; may be unreachable in some regions.",
-    "free-microsoft-edge-endpoint-no-configuration-ne": "Free Microsoft Edge endpoint, no configuration needed, fast direct connection."
+    "free-microsoft-edge-endpoint-no-configuration-ne": "Free Microsoft Edge endpoint, no configuration needed, fast direct connection.",
+    "worker-preset-name": "GitHub Stars backend (core-guardian)",
+    "add-worker-preset": "Add GitHub Stars backend",
+    "route-by-feature-through-core-guardian": "Route by feature through core-guardian",
+    "route-by-feature-hint": "Sends each request's use case (chat, search, analysis) so core-guardian picks a free model that fits. Use with the GitHub Stars backend; the API key is its passcode."
   },
   "backendPanel": {
     "auto": "Auto",
@@ -1302,7 +1306,9 @@
     "for-detailed-instructions-see": "For detailed instructions, see",
     "connection-successful-dimensions": "Connection successful — dimensions: {{dimensions}}",
     "connection-failed-detail": "Connection failed: {{error}}",
-    "connection-successful-vectors": "Connection successful — vectors: {{vectorCount}}, dimensions: {{dimensions}}"
+    "connection-successful-vectors": "Connection successful — vectors: {{vectorCount}}, dimensions: {{dimensions}}",
+    "use-worker-backend": "Use the GitHub Stars backend (Postgres pgvector)",
+    "use-worker-backend-hint": "The backend embeds and searches your stars itself, through core-guardian. The embedding settings above are not used. Enter the backend URL and its passcode below."
   },
   "webDAVPanel": {
     "webdav-configuration": "WebDAV Configuration",

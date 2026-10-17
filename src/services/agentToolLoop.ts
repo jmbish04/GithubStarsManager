@@ -157,7 +157,7 @@ export const runToolLoopRepositoryChatTurn = async (input: RepositoryChatTurnInp
   const zh = input.language === 'zh';
   const [owner, repo] = splitOwnerAndRepo(input.repository.full_name);
   const github = createGitHubApiService(input.githubToken);
-  const ai = new AIService(input.aiConfig, input.language);
+  const ai = new AIService(input.aiConfig, input.language).withUseCase('agentic');
   const { budget, answerMaxTokens } = resolveTurnLimits(input);
   const ctx = createEvidenceToolbox(input, budget, ai);
   const { emit, invokeTool } = ctx;

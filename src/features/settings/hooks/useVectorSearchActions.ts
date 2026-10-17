@@ -9,6 +9,7 @@ import {
   VectorSearchService,
 } from '../../../services/vectorSearchService';
 import { createGitHubApiService } from '../../../services/githubApiFactory';
+import { WorkerBackendService } from '../../../services/workerBackendService';
 import { LEGACY_EMBEDDING_FORMAT_VERSION, isKnownEmbeddingFormatVersion, useAppStore } from '../../../store/useAppStore';
 import { normalizeLicense } from '../../../utils/licenseFilter';
 
@@ -23,7 +24,12 @@ export interface EmbeddingDraft {
 export interface VectorWorkerDraft {
   workerUrl: string;
   authToken: string;
+  /** 'worker': the GitHub Stars Manager Worker (pgvector, embeds through core-guardian). Default: legacy Vectorize. */
+  backend?: 'vectorize' | 'worker';
 }
+
+/** Dimensions of the Worker's pgvector column (bge-small-en-v1.5). */
+const WORKER_EMBEDDING_DIMENSIONS = 384;
 
 export interface VectorIndexDraft extends EmbeddingDraft, VectorWorkerDraft {
   indexMode: 'description' | 'readme';
@@ -110,6 +116,13 @@ export const useVectorSearchActions = (): VectorSearchActions => {
     setTestingWorker(true);
     setWorkerTestResult(null);
     try {
+      if (draft.backend === 'worker') {
+        const probe = await new WorkerBackendService(draft).testConnection();
+        const result = { success: probe.success, vectorCount: 0, dimensions: WORKER_EMBEDDING_DIMENSIONS, error: probe.error };
+        setWorkerTestResult(result);
+        if (result.success) state.setVectorSearchStatus({ connected: true, vectorCount: 0, dimensions: WORKER_EMBEDDING_DIMENSIONS });
+        return;
+      }
       const result = await new VectorSearchService(draft).testConnection();
       setWorkerTestResult(result);
       if (result.success) {
@@ -133,7 +146,35 @@ export const useVectorSearchActions = (): VectorSearchActions => {
     return { embeddingClient, vectorService, readmeFetcher };
   }, [activeConfig, state.githubToken]);
 
+  /** Worker backend: it syncs stars and embeds them itself; the app only drives and reports progress. */
+  const runWorkerIndex = useCallback(async (draft: VectorIndexDraft) => {
+    const controller = new AbortController();
+    setAbortController(controller);
+    state.setVectorIndexingState({ isIndexing: true, phase: 'embedding', phaseDone: 0, phaseTotal: 0, result: null });
+    try {
+      const result = await new WorkerBackendService(draft).syncAndEmbed((embedded, remaining) => {
+        state.setVectorIndexingState({ phase: 'embedding', phaseDone: embedded, phaseTotal: embedded + remaining });
+      }, controller.signal);
+      state.setVectorIndexingState({
+        isIndexing: false,
+        phase: null,
+        result: { indexed: result.embedded, skipped: 0, errors: result.remaining, ...(result.remaining > 0 ? { error: `${result.remaining} repositories still have no vector; run indexing again` } : {}) },
+      });
+      state.setVectorSearchStatus({ connected: true, vectorCount: result.starred, dimensions: WORKER_EMBEDDING_DIMENSIONS, lastSyncAt: new Date().toISOString() });
+    } catch (reason) {
+      const isCancelled = controller.signal.aborted || (reason instanceof Error && reason.name === 'AbortError');
+      state.setVectorIndexingState({
+        isIndexing: false,
+        phase: null,
+        result: isCancelled ? null : { indexed: 0, skipped: 0, errors: 1, error: reason instanceof Error ? reason.message : String(reason) },
+      });
+    } finally {
+      setAbortController(null);
+    }
+  }, [state]);
+
   const runIndex = useCallback(async (draft: VectorIndexDraft, incremental: boolean) => {
+    if (draft.backend === 'worker') return runWorkerIndex(draft);
     const clients = createClients(draft);
     if (!clients) return;
     const controller = new AbortController();
@@ -214,7 +255,7 @@ export const useVectorSearchActions = (): VectorSearchActions => {
     } finally {
       setAbortController(null);
     }
-  }, [createClients, state]);
+  }, [createClients, runWorkerIndex, state]);
 
   const rebuildIndex = useCallback((draft: VectorIndexDraft) => runIndex(draft, false), [runIndex]);
   const incrementalIndex = useCallback((draft: VectorIndexDraft) => runIndex(draft, true), [runIndex]);

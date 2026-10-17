@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
   embed: vi.fn(),
   vectorQuery: vi.fn(),
+  workerSearch: vi.fn(),
   generateHyDEQuery: vi.fn(),
   searchRepositoriesWithSemanticReranking: vi.fn(),
   searchRepositoriesWithSelection: vi.fn(),
@@ -41,6 +42,16 @@ vi.mock('../../../services/vectorSearchService', async (importOriginal) => {
     },
     VectorSearchService: class {
       query = mocks.vectorQuery;
+    },
+  };
+});
+
+vi.mock('../../../services/workerBackendService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/workerBackendService')>();
+  return {
+    ...actual,
+    WorkerBackendService: class {
+      search = mocks.workerSearch;
     },
   };
 });
@@ -194,6 +205,39 @@ describe('useSearchActions.aiSearch (vector hit)', () => {
     expect(storeState.setSearchFilters).toHaveBeenCalledWith({ query: 'foo' });
     expect(mocks.toast).not.toHaveBeenCalled();
     expect(result.current.isSearching).toBe(false);
+  });
+
+  it('searches through the Worker backend with the text query, needing no embedding config', async () => {
+    storeState.vectorSearchConfig = {
+      enabled: true,
+      workerUrl: 'https://gsm.example.dev',
+      authToken: 'passcode',
+      embeddingConfigId: '',
+      indexMode: 'description',
+      readmeMaxChars: 6000,
+      enableHyDE: false,
+      enableReranking: false,
+      backend: 'worker',
+    };
+    storeState.embeddingConfigs = [];
+    storeState.repositories = [
+      baseRepo({ id: 1, full_name: 'owner/first' }),
+      baseRepo({ id: 2, full_name: 'owner/second' }),
+      baseRepo({ id: 3, full_name: 'owner/not-a-hit' }),
+    ];
+    mocks.workerSearch.mockResolvedValue([
+      { id: '2', score: 0.9, metadata: { full_name: 'owner/second', description: '', language: '', stars: 0, tags: [] } },
+      { id: '1', score: 0.6, metadata: { full_name: 'owner/first', description: '', language: '', stars: 0, tags: [] } },
+    ]);
+
+    const { result } = renderHook(() => useSearchActions());
+    await act(async () => { await result.current.aiSearch('vector database', identity); });
+
+    expect(mocks.workerSearch).toHaveBeenCalledWith('vector database', expect.objectContaining({ limit: 30 }));
+    expect(mocks.embed).not.toHaveBeenCalled();
+    expect(mocks.vectorQuery).not.toHaveBeenCalled();
+    expect(storeState.setSearchResults).toHaveBeenCalledWith([storeState.repositories[1], storeState.repositories[0]]);
+    expect(result.current.skipNextTextSearchRef.current).toBe(true);
   });
 
   it('falls back to vector order without a toast when AI reranking fails', async () => {

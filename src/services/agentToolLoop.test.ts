@@ -3,6 +3,7 @@ import type { AIConfig, Repository } from '../types';
 import type { RepositoryChatSession } from '../types/repositoryChat';
 
 const mocks = vi.hoisted(() => ({
+  useCases: [] as string[],
   generateChatText: vi.fn(),
   generateChatTextStream: vi.fn(),
   generateWithTools: vi.fn(),
@@ -16,6 +17,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./aiService', () => ({
   AIService: class {
+    withUseCase(useCase: string) {
+      mocks.useCases.push(useCase);
+      return this;
+    }
     generateChatText = mocks.generateChatText;
     generateChatTextStream = mocks.generateChatTextStream;
     generateWithTools = mocks.generateWithTools;
@@ -158,6 +163,8 @@ describe('runToolLoopRepositoryChatTurn (native function-calling loop)', () => {
     expect(result.content).toContain('/README.md - 1-4');
     expect(result.content).toContain('/release-v1.0.0.md - 1-3');
     expect(result.evidences.length).toBeGreaterThanOrEqual(2);
+    // core-guardian routes this feature by its use case.
+    expect(mocks.useCases.at(-1)).toBe('agentic');
   });
 
   it('rejects non-documentation reads before documentation evidence exists (README-first, enforced in code)', async () => {

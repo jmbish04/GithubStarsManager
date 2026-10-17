@@ -613,7 +613,11 @@
     "auto-translate-repo-descriptions": "Traducir automáticamente las descripciones de repositorios",
     "when-enabled-card-repository-description": "Si se activa, las descripciones originales de los repositorios en las tarjetas de las páginas de repositorios y descubrimiento se traducen automáticamente al idioma de la interfaz. Las descripciones que ya están en ese idioma se muestran sin cambios, y se muestra el texto original si la traducción falla.",
     "free-google-endpoint-no-configuration-needed-may": "La interfaz gratuita de Google no requiere configuración; Es posible que algunas áreas no estén conectadas directamente.",
-    "free-microsoft-edge-endpoint-no-configuration-ne": "Interfaz gratuita de Microsoft Edge, no requiere configuración, la velocidad de conexión directa es rápida."
+    "free-microsoft-edge-endpoint-no-configuration-ne": "Interfaz gratuita de Microsoft Edge, no requiere configuración, la velocidad de conexión directa es rápida.",
+    "worker-preset-name": "Backend de GitHub Stars (core-guardian)",
+    "add-worker-preset": "Añadir backend de GitHub Stars",
+    "route-by-feature-through-core-guardian": "Enrutar por función mediante core-guardian",
+    "route-by-feature-hint": "Envía el caso de uso de cada solicitud (chat, búsqueda, análisis) para que core-guardian elija un modelo gratuito adecuado. Úsalo con el backend de GitHub Stars; la clave de API es su código de acceso."
   },
   "backendPanel": {
     "auto": "inteligente",
@@ -1302,7 +1306,9 @@
     "for-detailed-instructions-see": "Consulte la guía de implementación detallada.",
     "connection-successful-dimensions": "Conexión exitosa - Dimensión: {{dimensions}}",
     "connection-failed-detail": "Error de conexión: {{error}}",
-    "connection-successful-vectors": "Conexión exitosa: vector: {{vectorCount}}, dimensiones: {{dimensions}}"
+    "connection-successful-vectors": "Conexión exitosa: vector: {{vectorCount}}, dimensiones: {{dimensions}}",
+    "use-worker-backend": "Usar el backend de GitHub Stars (Postgres pgvector)",
+    "use-worker-backend-hint": "El backend genera los embeddings y busca en tus estrellas por sí mismo, a través de core-guardian. La configuración de embeddings de arriba no se usa. Introduce abajo la URL del backend y su código de acceso."
   },
   "webDAVPanel": {
     "webdav-configuration": "Configuración WebDAV",

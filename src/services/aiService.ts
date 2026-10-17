@@ -330,8 +330,12 @@ function getErrorTypeFromStatus(statusCode: number): ConnectionTestResult['error
   return 'unknown';
 }
 
+/** core-guardian use cases this app routes by (sent only to configs with guardianRouting). */
+export type AIUseCase = 'general' | 'chat' | 'rag' | 'agentic';
+
 export class AIService {
   private config: AIConfig;
+  private useCase: AIUseCase = 'general';
   private language: string;
   private static readonly ANALYSIS_MAX_ATTEMPTS = 3;
   private static readonly ANALYSIS_MAX_TOKENS = 4096;
@@ -349,6 +353,17 @@ export class AIService {
   constructor(config: AIConfig, language: string = 'zh', private readonly redactDebugPayload = false) {
     this.config = config;
     this.language = language;
+  }
+
+  /** Label this service's requests with a use case, so core-guardian can route them. Returns this. */
+  withUseCase(useCase: AIUseCase): this {
+    this.useCase = useCase;
+    return this;
+  }
+
+  /** Routing headers for the Worker's OpenAI door. Empty for every other endpoint, so no CORS preflight changes. */
+  routingHeaders(): Record<string, string> {
+    return this.config.guardianRouting ? { 'x-guardian-use-case': this.useCase } : {};
   }
 
   /**
@@ -530,6 +545,7 @@ export class AIService {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'Authorization': `Bearer ${this.config.apiKey}`,
+            ...this.routingHeaders(),
           },
           body: JSON.stringify(requestBody),
           signal: options.signal,
@@ -900,6 +916,7 @@ ${options.user}` : options.user;
           };
       requestUrl = buildFinalApiUrl(this.config.baseUrl, apiType);
       headers['Authorization'] = `Bearer ${this.config.apiKey}`;
+      Object.assign(headers, this.routingHeaders());
       extractDelta = apiType === 'openai-responses' ? extractOpenAiResponsesDelta : extractOpenAiChatDelta;
     } else {
       throw new AIStreamUnsupportedError();
@@ -1160,6 +1177,7 @@ ${options.user}` : options.user;
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Authorization': `Bearer ${this.config.apiKey}`,
+          ...this.routingHeaders(),
         },
         body: JSON.stringify(requestBody),
         signal: options.signal,

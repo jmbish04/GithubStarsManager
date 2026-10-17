@@ -3,6 +3,7 @@ import type { AIConfig, Repository } from '../types';
 import type { RepositoryChatSession, RepositoryChatToolEvent } from '../types/repositoryChat';
 
 const mocks = vi.hoisted(() => ({
+  useCases: [] as string[],
   generateChatText: vi.fn(),
   generateChatTextStream: vi.fn(),
   generateWithTools: vi.fn(),
@@ -22,6 +23,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./aiService', () => ({
   AIService: class {
+    withUseCase(useCase: string) {
+      mocks.useCases.push(useCase);
+      return this;
+    }
     generateChatText = mocks.generateChatText;
     generateChatTextStream = mocks.generateChatTextStream;
     generateWithTools = mocks.generateWithTools;
@@ -207,6 +212,8 @@ describe('runRepositoryChatTurn progressive evidence loop', () => {
     expect(mocks.generateChatText).toHaveBeenCalledTimes(4);
     expect(result.content).toContain(overviewRef);
     expect(events.some((event) => event.paramSummary.includes('README.md · Overview'))).toBe(true);
+    // core-guardian routes this feature by its use case.
+    expect(mocks.useCases.at(-1)).toBe('rag');
   });
 
   it('uses LLM semantic concepts to make differently named retrieval documentation a viable target', async () => {

@@ -613,7 +613,11 @@
     "auto-translate-repo-descriptions": "저장소 설명 자동 번역",
     "when-enabled-card-repository-description": "사용하면 저장소 페이지와 발견 페이지 카드의 저장소 원본 설명이 인터페이스 언어로 자동 번역되어 표시됩니다. 이미 해당 언어인 설명은 원본 그대로 표시되며, 번역에 실패하면 원본 텍스트가 표시됩니다.",
     "free-google-endpoint-no-configuration-needed-may": "Google의 무료 인터페이스에는 구성이 필요하지 않습니다. 일부 지역은 직접 연결되지 않을 수 있습니다.",
-    "free-microsoft-edge-endpoint-no-configuration-ne": "Microsoft Edge 무료 인터페이스, 구성이 필요하지 않으며 직접 연결 속도가 빠릅니다."
+    "free-microsoft-edge-endpoint-no-configuration-ne": "Microsoft Edge 무료 인터페이스, 구성이 필요하지 않으며 직접 연결 속도가 빠릅니다.",
+    "worker-preset-name": "GitHub Stars 백엔드 (core-guardian)",
+    "add-worker-preset": "GitHub Stars 백엔드 추가",
+    "route-by-feature-through-core-guardian": "core-guardian으로 기능별 라우팅",
+    "route-by-feature-hint": "각 요청의 용도(채팅, 검색, 분석)를 보내 core-guardian이 알맞은 무료 모델을 고르게 합니다. GitHub Stars 백엔드와 함께 사용하세요. API 키는 백엔드의 암호입니다."
   },
   "backendPanel": {
     "auto": "지능적인",
@@ -1302,7 +1306,9 @@
     "for-detailed-instructions-see": "자세한 배포 가이드를 참조하세요.",
     "connection-successful-dimensions": "연결 성공 - 측정기준: {{dimensions}}",
     "connection-failed-detail": "연결 실패: {{error}}",
-    "connection-successful-vectors": "연결 성공 — 벡터: {{vectorCount}}, 크기: {{dimensions}}"
+    "connection-successful-vectors": "연결 성공 — 벡터: {{vectorCount}}, 크기: {{dimensions}}",
+    "use-worker-backend": "GitHub Stars 백엔드 사용 (Postgres pgvector)",
+    "use-worker-backend-hint": "백엔드가 core-guardian을 통해 스타의 임베딩과 검색을 직접 수행합니다. 위의 임베딩 설정은 사용되지 않습니다. 아래에 백엔드 URL과 암호를 입력하세요."
   },
   "webDAVPanel": {
     "webdav-configuration": "WebDAV 구성",
