@@ -548,7 +548,7 @@ function sanitizeFragment(raw, canvas) {
         // so `java&#x0A;script:` could bypass a direct startsWith('javascript:') check.
         // Copied single-file HTML is not protected by the preview iframe CSP and must be intercepted here.
         const normalizedUrl = attr.value.replace(/[\t\n\r]/g, '').trim().toLowerCase();
-        if (normalizedUrl.startsWith('javascript:')) el.removeAttribute(attr.name);
+        if (/^(?:javascript|data|vbscript):/i.test(normalizedUrl)) el.removeAttribute(attr.name);
       }
     }
   });

@@ -14,6 +14,7 @@ import { AIService, isAIStreamUnsupportedError } from './aiService';
 import { makeT } from '../i18n/useT';
 import { getOutputLanguageDirective } from '../i18n/aiLanguage';
 import { createGitHubApiService } from './githubApiFactory';
+import { createSecureId } from '../utils/cryptoRandom';
 import {
   buildIssuesEvidence,
   buildNoIssuesEvidence,
@@ -46,10 +47,13 @@ const LOW_SIGNAL_TEST_PATH = /(^|\/)(?:__tests__|__snapshots__|test|tests|fixtur
 const COMMON_QUERY_TERMS = new Set(['this', 'that', 'with', 'from', 'what', 'how', 'the', 'and', 'for', 'are', 'is', 'repo', 'repository', 'project', 'readme', '\u5b9e\u73b0', '\u9879\u76ee', '\u4ed3\u5e93', '\u5982\u4f55', '\u600e\u4e48', '\u8fd9\u4e2a', '\u90a3\u4e2a', '\u4e00\u4e0b', '\u8be6\u7ec6']);
 // Creative request regex matching English and Chinese keywords (articles, blog posts, copywriting, etc.)
 const isCreativeRequest = (question: string): boolean => /(?:\u516c\u4f17\u53f7|\u63a8\u6587|\u6587\u7ae0|\u6587\u6848|\u5ba3\u4f20\u7a3f|\u65b0\u95fb\u7a3f|\u535a\u5ba2|\u5199(?:\u4e00\u7bc7|\u4e2a)?(?:\u6587\u7ae0|\u63a8\u6587|\u6587\u6848|\u5ba3\u4f20\u7a3f|\u65b0\u95fb\u7a3f|\u535a\u5ba2)|write\s+(?:an?\s+)?(?:article|post|blog)|draft\s+(?:an?\s+)?(?:article|post))/i.test(question);
-const createId = (prefix: string): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return `${prefix}-${crypto.randomUUID()}`;
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-};
+/**
+ * Generates a unique identifier for repository chat turn events and messages.
+ *
+ * @param prefix - The prefix string for the generated ID.
+ * @returns A cryptographically secure unique identifier string.
+ */
+const createId = (prefix: string): string => createSecureId(prefix);
 
 type ChatToolName =
   | 'read_repo_tree'

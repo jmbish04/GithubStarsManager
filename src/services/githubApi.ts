@@ -23,6 +23,7 @@ import {
 } from '../types';
 import { logger } from './logger';
 import { isReadmeCandidateItem, type GitHubReadmeCandidateItem } from '../utils/readmeVariants';
+import { secureRandomString } from '../utils/cryptoRandom';
 
 interface GitHubContentResponse {
   content?: string;
@@ -2284,6 +2285,13 @@ export class GitHubApiService {
   }
 }
 
+/**
+ * Constructs the GitHub OAuth authorization URL with required scopes and CSRF state parameter.
+ *
+ * @param clientId - The GitHub OAuth application client ID.
+ * @param redirectUri - The callback redirect URI registered with the application.
+ * @returns The fully formatted authorization URL.
+ */
 export const createGitHubOAuthUrl = (clientId: string, redirectUri: string): string => {
   const params = new URLSearchParams({
     client_id: clientId,
@@ -2291,7 +2299,7 @@ export const createGitHubOAuthUrl = (clientId: string, redirectUri: string): str
     // The `gist` scope is required to read and write user gists (including secret/private gists);
     // otherwise only public gists can be listed, and creating/editing/deleting gists is not permitted.
     scope: 'read:user user:email repo gist',
-    state: Math.random().toString(36).substring(7),
+    state: secureRandomString(12),
   });
 
   return `https://github.com/login/oauth/authorize?${params.toString()}`;

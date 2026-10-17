@@ -1308,7 +1308,16 @@
     "connection-failed-detail": "Connection failed: {{error}}",
     "connection-successful-vectors": "Connection successful — vectors: {{vectorCount}}, dimensions: {{dimensions}}",
     "use-worker-backend": "Use the GitHub Stars backend (Postgres pgvector)",
-    "use-worker-backend-hint": "The backend embeds and searches your stars itself, through core-guardian. The embedding settings above are not used. Enter the backend URL and its passcode below."
+    "use-worker-backend-hint": "The backend embeds and searches your stars itself, through core-guardian. The embedding settings above are not used. Enter the backend URL and its passcode below.",
+    "one-click-deployment-recommended": "🌟 One-Click Interactive Deployment Wizard (Recommended)",
+    "one-click-deploy-desc": "Supports all platforms (Windows / macOS / Linux). No need to open Cloudflare dashboard; interactive TUI guides you through all inputs, saves settings locally, and preserves existing vector indexes.",
+    "copy-one-click-deploy-cmd": "Copy One-Click Deploy Command",
+    "copied": "Copied",
+    "deploy-tab-one-click": "One-Click Deploy (Recommended)",
+    "deploy-tab-manual": "Manual Steps (Advanced)",
+    "one-click-platforms-tip": "Platform-specific quick launchers:",
+    "platform-mac-linux": "macOS / Linux: In cloudflare-worker, run ./deploy.sh",
+    "platform-windows": "Windows: In cloudflare-worker, double-click deploy.bat or run .\\deploy.ps1"
   },
   "webDAVPanel": {
     "webdav-configuration": "WebDAV Configuration",

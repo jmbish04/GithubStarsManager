@@ -2,7 +2,28 @@
 
 Minimal Cloudflare Worker acting as a proxy for Cloudflare Vectorize. The frontend generates embeddings, while the Worker handles vector storage, querying, and deletion.
 
-## Prerequisites
+## Option 1: one-click interactive deploy wizard (recommended)
+
+No long list of commands, and no need to open the Cloudflare dashboard. An interactive terminal wizard asks for every setting and explains each one:
+
+- **From the repo root:** run `npm run deploy:vector`
+- **From the `cloudflare-worker` folder:**
+  - **macOS / Linux:** run `./deploy.sh` or `node deploy.mjs`
+  - **Windows:** double-click `deploy.bat`, or run `.\deploy.ps1` in PowerShell
+  - **npm script:** run `npm run deploy:interactive` or `npm run deploy:vector`
+
+### What the wizard does
+1. **Guides each step:** it explains what every setting is for (model dimensions, `AUTH_TOKEN`, index settings) and where to get it.
+2. **Needs no dashboard:** it uses the Wrangler CLI to detect the index, store the secret and deploy the Worker.
+3. **Keeps your data:** it keeps the existing vector index and its data. It never upgrades or resets the index version, so you do not need to re-index.
+4. **Remembers settings:** it saves them locally in `.deploy-config.json`. After a code update, choose "Quick redeploy" and nothing needs to be entered again.
+5. **Tests the deploy:** when it finishes, it runs a connection test and prints the URL and token to copy into the app.
+
+---
+
+## Option 2: manual steps (advanced)
+
+### 1. Prerequisites
 
 - [Cloudflare Account](https://dash.cloudflare.com/)
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) (`npm install -g wrangler`)
