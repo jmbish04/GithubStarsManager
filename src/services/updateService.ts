@@ -5,11 +5,11 @@ export interface VersionInfo {
   downloadUrl: string;
 }
 
-import { PROJECT_REPO_URL } from '../constants/project';
+import { UPDATE_SOURCE_REPO_URL } from '../constants/project';
 import { version } from '../../package.json';
 import { logger } from './logger';
 
-const REPO_OWNER = PROJECT_REPO_URL.split('/').slice(-2).join('/');
+const REPO_OWNER = UPDATE_SOURCE_REPO_URL.split('/').slice(-2).join('/');
 const VERSION_INFO_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/main/versions/version-info.xml`;
 
 export interface UpdateCheckResult {

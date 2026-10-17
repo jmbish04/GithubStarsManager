@@ -1308,7 +1308,16 @@
     "dimensions": "Dimensions",
     "text": ")",
     "use-worker-backend": "Utiliser le backend GitHub Stars (Postgres pgvector)",
-    "use-worker-backend-hint": "Le backend calcule les embeddings et recherche dans vos étoiles lui-même, via core-guardian. Les réglages d'embedding ci-dessus ne sont pas utilisés. Saisissez ci-dessous l'URL du backend et son code d'accès."
+    "use-worker-backend-hint": "Le backend calcule les embeddings et recherche dans vos étoiles lui-même, via core-guardian. Les réglages d'embedding ci-dessus ne sont pas utilisés. Saisissez ci-dessous l'URL du backend et son code d'accès.",
+    "one-click-deployment-recommended": "🌟 Assistant de déploiement interactif en un clic (Recommandé)",
+    "one-click-deploy-desc": "Compatible avec toutes les plateformes (Windows / macOS / Linux). Pas besoin d'ouvrir le tableau de bord Cloudflare ; la TUI interactive guide toute la configuration, sauvegarde les paramètres localement et préserve les index vectoriels existants.",
+    "copy-one-click-deploy-cmd": "Copier la commande de déploiement en un clic",
+    "copied": "Copié",
+    "deploy-tab-one-click": "Déploiement en un clic (Recommandé)",
+    "deploy-tab-manual": "Étapes manuelles (Avancé)",
+    "one-click-platforms-tip": "Lanceurs rapides spécifiques à la plateforme :",
+    "platform-mac-linux": "macOS / Linux : Dans cloudflare-worker, exécutez ./deploy.sh",
+    "platform-windows": "Windows : Dans cloudflare-worker, double-cliquez sur deploy.bat ou exécutez .\\deploy.ps1"
   },
   "webDAVPanel": {
     "webdav-configuration": "Configuration WebDAV",

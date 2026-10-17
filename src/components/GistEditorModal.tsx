@@ -12,6 +12,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from './Modal';
 import type { Gist } from '../types';
 import type { GistCreateInput, GistUpdateInput } from '../features/gists/hooks/useGistActions';
+import { createSecureId } from '../utils/cryptoRandom';
 
 interface EditableFile {
   id: string;
@@ -28,13 +29,12 @@ interface GistEditorModalProps {
   onSubmit: (input: GistCreateInput | GistUpdateInput) => Promise<void>;
 }
 
-const generateFileId = (): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  // Fallback for non-secure contexts or legacy browsers
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-};
+/**
+ * Generates a unique client-side identifier for an editable Gist file.
+ *
+ * @returns A cryptographically secure unique identifier string.
+ */
+const generateFileId = (): string => createSecureId();
 
 const createEmptyFile = (): EditableFile => ({
   id: generateFileId(),

@@ -1,7 +1,7 @@
 {
   "name": "github-stars-manager",
   "private": true,
-  "version": "0.8.6",
+  "version": "0.8.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,11 +17,12 @@
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview",
     "test": "vitest",
-    "test:run": "vitest run && npm run test:electron:mcp && npm run test:electron:diagnostics && npm run test:electron:plugins && npm run test:update-version && npm run test:ci-gates",
+    "test:run": "vitest run && npm run test:electron:mcp && npm run test:electron:diagnostics && npm run test:electron:plugins && npm run test:update-version && npm run test:ci-gates && npm run test:deploy-vector",
     "test:electron:mcp": "node --test electron/mcpLocalServer.test.js electron/repoHealth.test.js electron/desktopPrefs.test.js electron/xAuthStorage.test.js electron/mainFetch.test.js electron/outboundFetchGate.test.js",
     "test:electron:diagnostics": "node --test electron/diagLogger.test.js electron/redact.test.js electron/netTap.test.js electron/systemInfo.test.js",
     "test:electron:plugins": "node --test electron/plugins/*.test.js",
     "test:update-version": "node --test scripts/update-version.test.cjs",
+    "test:deploy-vector": "node --test scripts/deploy-vector.test.mjs",
     "test:ci-gates": "node --test scripts/check-pr-release-files.test.cjs scripts/check-i18n.test.cjs scripts/check-plugin-registry.test.cjs",
     "test:coverage": "vitest run --coverage",
     "build:desktop": "node scripts/build-desktop.js",
@@ -35,7 +36,8 @@
     "dev:server": "cd server && npm run dev",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
     "build:server": "cd server && npm run build",
-    "build:all": "npm run build && npm run build:server"
+    "build:all": "npm run build && npm run build:server",
+    "deploy:vector": "node cloudflare-worker/deploy.mjs"
   },
   "dependencies": {
     "undici": "^8.11.2"
@@ -86,10 +88,11 @@
     "@types/node": "^26.3.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-legacy": "^7.2.1",
+    "@vitejs/plugin-legacy": "^8.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "ai": "^7.0.79",
-    "ajv": "^6.14.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "autoprefixer": "^10.4.18",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -107,7 +110,7 @@
     "i18next": "^26.4.2",
     "jsdom": "^24.0.0",
     "katex": "^0.19.0",
-    "lucide-react": "^1.54.0",
+    "lucide-react": "^1.55.0",
     "mermaid": "^11.17.0",
     "postcss": "^8.4.35",
     "query-string": "^9.3.1",
@@ -128,7 +131,7 @@
     "ts-morph": "^28.0.0",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
-    "vite": "^7.3.6",
+    "vite": "^8.3.4",
     "vitest": "^5.0.3",
     "xml2js": "^0.6.2",
     "zod": "^4.1.8",
@@ -140,4 +143,3 @@
     "postcss-selector-parser": "^7.1.6"
   }
 }
-
