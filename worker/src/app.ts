@@ -15,7 +15,8 @@ import { createSessionToken, isAuthenticated, safeEqual, sessionCookieHeader } f
 import { octokit } from "./lib/github";
 import { GuardianError, type GuardianRpcSurface } from "./lib/guardian";
 import * as maestro from "./lib/maestro";
-import { getSecret } from "./lib/secrets";
+import { corsHeaders, forwardToGuardian, mutable, withEmbeddingModel } from "./lib/openaiDoor";
+import { getSecret, requireSecret } from "./lib/secrets";
 import { listInbox, markRead, runDiscovery, starInboxItem } from "./services/discovery";
 import { embedPending, listStarredRepos, searchRepositories } from "./services/repos";
 import { createRun, criterionHash, exportToMaestro, findingsForReport, pickMaestroProjects, type ResearchRequest } from "./services/research";
@@ -112,6 +113,15 @@ app.get("/health", async (c) => {
         const useCases = (await (c.env.GUARDIAN as unknown as GuardianRpcSurface & { useCases(): Promise<{ useCases?: unknown[] }> }).useCases()) ?? {};
         return `${useCases.useCases?.length ?? 0} use cases routable`;
       }),
+      probe("core-guardian-openai", "critical", async () => {
+        // The OpenAI-compatible door's link (GUARDIAN_HTTP). Lists models: no inference, no cost.
+        const token = await requireSecret(c.env, "CLOUDFLARE_AI_GATEWAY_TOKEN");
+        const response = await c.env.GUARDIAN_HTTP.fetch(new Request("https://core-guardian/v1/models", { headers: { authorization: `Bearer ${token}` } }));
+        if (!response.ok) throw new Error(`/v1/models answered ${response.status}`);
+        const body = (await response.json()) as { data?: unknown[] };
+        if (!body.data?.length) throw new Error("/v1/models returned no models");
+        return `${body.data.length} models servable`;
+      }),
       probe("colby-maestro", "degraded", async () => {
         const status = await maestro.ping(c.env);
         if (status !== 200) throw new Error(`/api/ping answered ${status}`);
@@ -123,6 +133,39 @@ app.get("/health", async (c) => {
   }
   const status = healthVerdict(Object.values(checks));
   return c.json({ status, checks }, status === "unhealthy" ? 503 : 200);
+});
+
+// ── CORS for the desktop app (file:// origin) on /api and /v1. Runs before the auth gate ──
+for (const pattern of ["/api/*", "/v1/*"]) {
+  app.use(pattern, async (c, next) => {
+    if (c.req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
+    await next();
+    for (const [name, value] of Object.entries(corsHeaders())) c.res.headers.set(name, value);
+  });
+}
+
+// ── OpenAI-compatible door to core-guardian (free models first) ───────────────
+const guardianFetch = (env: Env) => (path: string, init: RequestInit) => env.GUARDIAN_HTTP.fetch(new Request(`https://core-guardian${path}`, init));
+
+for (const path of ["/v1/chat/completions", "/v1/embeddings"] as const) {
+  app.post(path, async (c) => {
+    if (!(await isAuthenticated(c.env, c.req.raw))) return c.json({ error: { message: "Unauthorized", type: "authentication_error", code: 401 } }, 401);
+    return forwardToGuardian({
+      fetch: guardianFetch(c.env),
+      path,
+      body: path === "/v1/embeddings" ? withEmbeddingModel(await c.req.text()) : await c.req.text(),
+      token: await requireSecret(c.env, "CLOUDFLARE_AI_GATEWAY_TOKEN"),
+      project: c.env.GUARDIAN_PROJECT,
+      useCase: c.req.header("x-guardian-use-case"),
+      accept: c.req.header("accept"),
+    });
+  });
+}
+
+app.get("/v1/models", async (c) => {
+  if (!(await isAuthenticated(c.env, c.req.raw))) return c.json({ error: { message: "Unauthorized", type: "authentication_error", code: 401 } }, 401);
+  const token = await requireSecret(c.env, "CLOUDFLARE_AI_GATEWAY_TOKEN");
+  return mutable(await guardianFetch(c.env)("/v1/models", { method: "GET", headers: { authorization: `Bearer ${token}` } }));
 });
 
 // ── Auth gate and per-request database for /api ──────────────────────────────
