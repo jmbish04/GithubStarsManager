@@ -172,10 +172,9 @@ hardcode it, never read it from a `.env`.
   returned 112. Slice client-side, and never assume a list you asked to cap is capped.
 - **`POST /api/tasks` requires `task_type` *and* `priority` explicitly.** Omitting
   them is a 400 (`priority: Invalid input: expected string, received undefined;
-  task_type: …`), while `task_upsert_tool` over MCP defaults both. The same
-  logical write has two different required-field sets, so a body that works over
-  MCP 400s over REST. Send `"task_type": "task"` and a `priority` unless you mean
-  something else.
+  task_type: …`). The legacy local `task_upsert_tool` used to default both, but
+  the Worker connector REST API does not. Send `"task_type": "task"` and a
+  `priority` unless you mean something else.
 - *(Fixed 2026-09-13: the unscoped `GET /api/tasks` used to 500 and now returns
   200. Scoping with `project_key` is still cheaper, and `GET /api/briefing` is
   still the better call for "what am I supposed to be doing".)*
