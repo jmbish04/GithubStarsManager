@@ -27,7 +27,7 @@ jobs:
     name: Verify release tag matches client version
     # Pinned instead of `ubuntu-latest`: that label migrates to Ubuntu 26.04
     # between 2026-10-19 and 2026-11-19 (actions/runner-images#14748).
-    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
+    runs-on: ${{ vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-24.04' }}
     # A checkout plus a single node script; generous headroom over any
     # realistic slowdown, and the job fails long before GitHub's 6-hour
     # default if the runner hangs.
@@ -44,7 +44,7 @@ jobs:
 
   build:
     needs: verify-release-version
-    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
+    runs-on: ${{ vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-24.04' }}
     continue-on-error: false
     # Desktop packaging legs have historically landed well under 30 minutes,
     # but macOS/Windows packaging plus the 3-attempt electron-builder retry
@@ -315,7 +315,7 @@ jobs:
     needs: [verify-release-version, build]
     # Pinned: `ubuntu-latest` migrates to Ubuntu 26.04 between 2026-10-19 and
     # 2026-11-19 (actions/runner-images#14748).
-    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
+    runs-on: ${{ vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-24.04' }}
     # Artifact download plus one release publish; several multiples of
     # headroom over the couple of minutes this job needs in practice.
     timeout-minutes: 20
