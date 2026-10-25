@@ -19,7 +19,7 @@ jobs:
     # Pinned instead of `ubuntu-latest`: that label migrates to Ubuntu 26.04
     # between 2026-10-19 and 2026-11-19 (actions/runner-images#14748), which
     # would swap the toolchain (glibc, prebuilt deps) under every gate.
-    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
+    runs-on: ${{ vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-24.04' }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -102,7 +102,7 @@ jobs:
     name: Server quality gates
     # Pinned instead of `ubuntu-latest`: that label migrates to Ubuntu 26.04
     # between 2026-10-19 and 2026-11-19 (actions/runner-images#14748).
-    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
+    runs-on: ${{ vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-24.04' }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -140,7 +140,7 @@ jobs:
     name: Worker typecheck
     # Pinned instead of `ubuntu-latest`: that label migrates to Ubuntu 26.04
     # between 2026-10-19 and 2026-11-19 (actions/runner-images#14748).
-    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
+    runs-on: ${{ vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-24.04' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -170,7 +170,7 @@ jobs:
 
   stars-worker:
     name: github-stars-manager Worker (typecheck + tests)
-    runs-on: ${{ github.event.pull_request.head.repo.full_name && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","proxmox-actions"]') }}
+    runs-on: ${{ vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-24.04' }}
     timeout-minutes: 10
     permissions:
       contents: read
